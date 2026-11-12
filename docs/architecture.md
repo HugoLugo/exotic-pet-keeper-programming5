@@ -271,3 +271,107 @@ temperature and humidity measurements.
 
 These operations use REST communication.
 They do not generate real-time notifications.
+
+### 8.3 Real-Time Environmental Monitoring
+
+This sequence diagram illustrates how simulated sensor
+readings are processed and how the system responds to
+normal and abnormal environmental conditions.
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant Sensor as Sensor Service
+    participant Enclosure as Enclosure Service
+    participant Notification as Notification Service
+    participant App as Mobile-Friendly Client
+    actor User
+
+    Sensor->>Enclosure: POST /readings (temperature, humidity)
+    activate Enclosure
+
+    Enclosure->>Enclosure: Save reading and check thresholds
+
+    alt Normal environmental conditions
+        Note over Enclosure: Values within configured ranges
+        Enclosure-->>Sensor: 200 OK
+        Note over Notification,App: No notification generated
+
+    else Abnormal environmental conditions
+        Note over Enclosure: Values outside configured ranges
+        Enclosure->>Notification: POST /alerts (abnormal values)
+        activate Notification
+
+        Notification-->>Enclosure: 202 Accepted
+        Notification-)App: WebSocket alert
+        deactivate Notification
+
+        Enclosure-->>Sensor: 200 OK
+        App->>App: Display notification
+        App-->>User: Show environmental warning
+    end
+
+    deactivate Enclosure
+```
+
+### 8.4 Explanation of Environmental Monitoring
+
+**Step 1 — Generate Sensor Readings**
+
+The Sensor Service generates simulated temperature
+and humidity measurements periodically.
+
+For example, every five seconds it sends an HTTP POST
+request to the Enclosure Service.
+
+The readings include an enclosure identifier so the
+Enclosure Service knows which enclosure they belong to.
+
+**Step 2 — Store and Validate Measurements**
+
+The Enclosure Service receives the measurements,
+stores the latest values, and compares them against
+the configured acceptable ranges for that enclosure.
+
+**Step 3A — Normal Environmental Conditions**
+
+If both temperature and humidity are within their
+acceptable ranges, the Enclosure Service returns
+a successful response to the Sensor Service.
+
+The Notification Service is not contacted.
+
+**Step 3B — Abnormal Environmental Conditions**
+
+If either temperature or humidity is outside its
+configured range, the Enclosure Service creates
+an alert event containing information about the
+abnormal condition.
+
+The alert is sent to the Notification Service
+using an HTTP POST request.
+
+**Step 4 — Real-Time Notification**
+
+The Notification Service accepts the alert event
+and sends a WebSocket message to connected clients.
+
+The mobile-friendly client displays the warning
+to the user without requiring a page refresh.
+
+## 9. Future Implementation Considerations
+
+The initial implementation will focus on the
+successful communication flows described above.
+
+Additional details to address during implementation:
+
+- Avoid sending duplicate alerts continuously.
+- Handle unavailable services and failed HTTP requests.
+- Validate incoming sensor measurements.
+- Associate readings with the correct enclosure.
+- Handle disconnected WebSocket clients.
+
+These mechanisms will be implemented without adding
+extra microservices or expanding the project scope.
