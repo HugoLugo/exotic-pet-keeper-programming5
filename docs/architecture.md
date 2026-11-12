@@ -185,3 +185,89 @@ workflow.
 
 Authentication, advanced statistics, and physical
 sensor integrations are outside the project's scope.
+
+## 8. Sequence Diagrams
+
+Sequence diagrams illustrate how the components of the
+system communicate during specific operations.
+
+### 8.1 Normal Application Interactions
+
+This scenario demonstrates how the user interacts
+with the application to retrieve pet information,
+view feeding history, record feeding events, and
+check enclosure conditions.
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant App as Mobile-Friendly Client
+    participant Data as Data Management Service
+    participant Enclosure as Enclosure Service
+
+    Note over User,Data: A. View Pet Details
+
+    User->>App: Open pet details
+    App->>Data: GET /pets/15
+    Data-->>App: Pet information
+    App-->>User: Display pet details
+
+    Note over User,Data: B. View Feeding History
+
+    User->>App: Open feeding history
+    App->>Data: GET /pets/15/feeding
+    Data-->>App: Feeding records
+    App-->>User: Display feeding history
+
+    Note over User,Data: C. Record Feeding
+
+    User->>App: Enter feeding information
+    App->>Data: POST /pets/15/feeding
+    Data-->>App: Feeding saved successfully
+    App-->>User: Display confirmation
+
+    Note over User,Enclosure: D. View Enclosure Conditions
+
+    User->>App: Open enclosure information
+    App->>Enclosure: GET /enclosures/3
+    Enclosure-->>App: Temperature and humidity
+    App-->>User: Display enclosure conditions
+```
+
+### 8.2 Explanation
+
+**A. View Pet Details**
+
+The user opens the details of a selected pet.
+The client sends a REST GET request to the Data
+Management Service, which retrieves the pet
+information and returns it to the client.
+
+**B. View Feeding History**
+
+The user requests the feeding history of a pet.
+The Data Management Service retrieves the
+corresponding feeding records and returns them.
+
+**C. Record Feeding**
+
+The user enters feeding information, such as
+food type, quantity, and date.
+
+The client sends a REST POST request to the
+Data Management Service, which saves the record
+and confirms the operation.
+
+**D. View Enclosure Conditions**
+
+The user opens the enclosure information.
+The client requests the latest environmental
+readings from the Enclosure Service.
+
+The Enclosure Service returns the stored
+temperature and humidity measurements.
+
+These operations use REST communication.
+They do not generate real-time notifications.
