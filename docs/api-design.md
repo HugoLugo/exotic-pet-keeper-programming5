@@ -1,4 +1,3 @@
-
 # Exotic Pet Keeper — API Design
 
 ## 1. Overview
@@ -42,48 +41,102 @@ Base URL: `http://localhost:3001`
 
 This service manages pet information and feeding records.
 
-### 3.1 REST Endpoints
+### 3.1 REST Endpoints (Implemented)
 
 | Method | Endpoint | Description |
 |---|---|---|
+| GET | `/health` | Check whether the service is running |
 | GET | `/pets` | Retrieve all pets |
-| GET | `/pets/:id` | Retrieve a specific pet |
 | POST | `/pets` | Create a new pet |
-| PUT | `/pets/:id` | Update pet information |
-| DELETE | `/pets/:id` | Delete a pet |
-| GET | `/pets/:id/feeding` | Retrieve feeding history |
-| POST | `/pets/:id/feeding` | Record a feeding event |
+| GET | `/pets/:id` | Retrieve a specific pet |
+| PUT | `/pets/:id` | Update an existing pet (name and species required) |
+| DELETE | `/pets/:id` | Delete a pet if it has no feeding records |
+| GET | `/pets/:id/feedings` | Retrieve a pet's feeding history (newest first) |
+| POST | `/pets/:id/feedings` | Record a feeding event for a pet |
+| GET | `/pets/:id/feedings/:feedingId` | Retrieve a specific feeding record belonging to the pet |
+| PUT | `/pets/:id/feedings/:feedingId` | Update a feeding record |
+| DELETE | `/pets/:id/feedings/:feedingId` | Delete a feeding record |
 
 ### 3.2 Example Pet Data
+
+A request to `POST /pets` supplies `name` and `species`:
+
+```json
+{
+  "name": "Silvie",
+  "species": "Davus pentaloris"
+}
+```
+
+An example response is:
 
 ```json
 {
   "id": 1,
   "name": "Silvie",
   "species": "Davus pentaloris",
-  "enclosureId": 1
+  "created_at": "2026-11-12 19:30:00"
 }
 ```
 
-The `enclosureId` field references an enclosure
-managed by the Enclosure Service.
-
-It can be null if the pet has no assigned enclosure.
+The Data Management pet schema currently does **not** include
+an enclosure reference. Enclosures are maintained separately
+by the Enclosure Service; any future pet-to-enclosure association
+would need to be designed and implemented explicitly.
 
 ### 3.3 Example Feeding Record
+
+Request: `POST /pets/1/feedings`
+
+```json
+{
+  "food": "Crickets",
+  "feeding_date": "12/11/2026",
+  "notes": "Ate without problems"
+}
+```
+
+Example response:
 
 ```json
 {
   "id": 1,
-  "petId": 1,
+  "pet_id": 1,
   "food": "Crickets",
-  "quantity": 2,
-  "date": "2026-11-12"
+  "feeding_date": "12/11/2026",
+  "notes": "Ate without problems"
 }
 ```
 
-Feeding records belong to a specific pet and
-are managed within the Data Management Service.
+The pet ID is supplied in the URL; `food` and `feeding_date`
+are required, and `notes` is optional (string or null).
+The current schema does not have a separate `quantity` field;
+quantities can be included in `food` or `notes` if needed.
+
+### 3.4 Feeding Dates and Validation
+
+- **API requests and responses:** `DD/MM/YYYY` (for example, `12/11/2026`).
+- **SQLite storage:** `YYYY-MM-DD` (for example, `2026-11-12`).
+- The service converts between these formats automatically.
+- The API checks that dates actually exist, including leap-year rules;
+  `31/02/2026` is rejected.
+- Existing SQLite records stored as `YYYY-MM-DD` remain readable
+  and are returned in `DD/MM/YYYY` format.
+- Keeping dates in `YYYY-MM-DD` internally supports correct sorting
+  in the feeding-history endpoint.
+
+For pet creation and updates, both `name` and `species` must be
+non-empty strings. Feeding creation and updates require non-empty
+`food`, a valid `feeding_date`, and optional string/null `notes`.
+Both `PUT` endpoints expect all required editable fields, not
+partial updates. IDs must be positive safe integers.
+
+A feeding record can only be read, updated, or deleted through
+the correct pet ID. Deleting a pet with feeding records returns
+`409 Conflict` to protect feeding history. A successful deletion
+returns `204 No Content`.
+
+Malformed JSON and invalid required input return `400 Bad Request`.
 
 ## 4. Enclosure Service
 
@@ -245,29 +298,34 @@ SQLite is used to store application data.
 Each service owns its own data and does not
 directly access another service's database.
 
-### 7.1 Data Management Database
+### 7.1 Data Management Database (Implemented)
 
 **pets**
 
 | Field | Type | Description |
 |---|---|---|
-| id | INTEGER | Primary key |
-| name | TEXT | Pet name |
-| species | TEXT | Animal species |
-| enclosure_id | INTEGER | Optional enclosure reference |
+| id | INTEGER | Autoincrement primary key |
+| name | TEXT | Required pet name |
+| species | TEXT | Required animal species |
+| created_at | TEXT | Required creation timestamp, default `CURRENT_TIMESTAMP` |
 
-**feedings**
+**feeding_records**
 
 | Field | Type | Description |
 |---|---|---|
-| id | INTEGER | Primary key |
-| pet_id | INTEGER | Reference to pet |
-| food | TEXT | Food type |
-| quantity | INTEGER | Food quantity |
-| date | TEXT | Feeding date |
+| id | INTEGER | Autoincrement primary key |
+| pet_id | INTEGER | Required foreign key referencing `pets.id` |
+| food | TEXT | Required food description |
+| feeding_date | TEXT | Required feeding date stored as `YYYY-MM-DD` |
+| notes | TEXT | Optional notes |
 
-The `pet_id` field references a pet within the
-same database.
+SQLite foreign-key enforcement is enabled. A feeding record
+cannot reference a pet that does not exist. The database does
+not automatically cascade-delete feeding records when a pet is
+deleted; the REST API rejects such pet deletions with HTTP `409`.
+
+The local database file is stored at
+`services/data-management/data/pets.db` and is excluded from Git.
 
 ### 7.2 Enclosure Database
 
@@ -318,12 +376,14 @@ The REST APIs will use standard HTTP status codes.
 | 204 No Content | Successful request without response body |
 | 400 Bad Request | Invalid request data |
 | 404 Not Found | Requested resource does not exist |
+| 409 Conflict | Pet deletion blocked by existing feeding records |
 | 500 Internal Server Error | Unexpected server error |
 | 503 Service Unavailable | Required service is unavailable |
 
-Input validation will be implemented for
-pet information, feeding records, enclosure
-configurations, and sensor measurements.
+Input validation is implemented for pet information and feeding
+records in the Data Management Service. Validation for enclosure
+configurations and sensor measurements is planned as those services
+are developed.
 
 Service-to-service HTTP requests will use
 timeouts to avoid waiting indefinitely.

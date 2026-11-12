@@ -1,3 +1,4 @@
+
 const express = require('express');
 const db = require('./database');
 
@@ -6,6 +7,90 @@ const PORT = 3001;
 
 app.use(express.json());
 
+// Validate positive integer IDs
+function isValidId(id) {
+    return Number.isSafeInteger(id) && id > 0;
+}
+
+// Validate dates using DD/MM/YYYY
+function isValidDate(date) {
+    if (typeof date !== 'string') {
+        return false;
+    }
+
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date)) {
+        return false;
+    }
+
+    const [day, month, year] = date.split('/').map(Number);
+
+    if (year < 1 || month < 1 || month > 12 || day < 1) {
+        return false;
+    }
+
+    // Account for leap years
+    const isLeapYear =
+        year % 4 === 0 &&
+        (year % 100 !== 0 || year % 400 === 0);
+
+    const daysInMonth = [
+        31,
+        isLeapYear ? 29 : 28,
+        31, 30, 31, 30,
+        31, 31, 30, 31, 30, 31
+    ];
+
+    return day <= daysInMonth[month - 1];
+}
+
+// Convert DD/MM/YYYY to YYYY-MM-DD for SQLite
+function toDatabaseDate(date) {
+    const [day, month, year] = date.split('/');
+
+    return `${year}-${month}-${day}`;
+}
+
+// Convert YYYY-MM-DD to DD/MM/YYYY for the API
+function toDisplayDate(date) {
+    if (typeof date !== 'string') {
+        return date;
+    }
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+
+    if (!match) {
+        return date;
+    }
+
+    return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+// Format a feeding record before sending it to the client
+function formatFeeding(feeding) {
+    return {
+        ...feeding,
+        feeding_date: toDisplayDate(feeding.feeding_date)
+    };
+}
+
+// Validate feeding information
+function isValidFeeding(food, feeding_date, notes) {
+    return (
+        typeof food === 'string' &&
+        food.trim().length > 0 &&
+        isValidDate(feeding_date) &&
+        (
+            notes === undefined ||
+            notes === null ||
+            typeof notes === 'string'
+        )
+    );
+}
+
+// --------------------------------------------------
+// HEALTH CHECK
+// --------------------------------------------------
+
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'ok',
@@ -13,18 +98,23 @@ app.get('/health', (req, res) => {
     });
 });
 
+// --------------------------------------------------
+// PET MANAGEMENT
+// --------------------------------------------------
+
 // Retrieve all registered pets
 app.get('/pets', (req, res) => {
-    const pets = db.prepare('SELECT * FROM pets').all();
+    const pets = db.prepare(
+        'SELECT * FROM pets'
+    ).all();
 
     res.status(200).json(pets);
 });
 
 // Register a new pet
 app.post('/pets', (req, res) => {
-    const { name, species } = req.body;
+    const { name, species } = req.body || {};
 
-    // Validate required information
     if (
         typeof name !== 'string' ||
         typeof species !== 'string' ||
@@ -36,12 +126,10 @@ app.post('/pets', (req, res) => {
         });
     }
 
-    // Insert the pet into SQLite
     const result = db.prepare(
         'INSERT INTO pets (name, species) VALUES (?, ?)'
     ).run(name.trim(), species.trim());
 
-    // Retrieve the newly created pet
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
     ).get(result.lastInsertRowid);
@@ -49,23 +137,20 @@ app.post('/pets', (req, res) => {
     res.status(201).json(pet);
 });
 
-// Retrieve a specific pet by ID
+// Retrieve a specific pet
 app.get('/pets/:id', (req, res) => {
     const id = Number(req.params.id);
 
-    // Validate the ID
-    if (!Number.isSafeInteger(id) || id <= 0) {
+    if (!isValidId(id)) {
         return res.status(400).json({
             error: 'Invalid pet ID'
         });
     }
 
-    // Search for the pet in SQLite
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
     ).get(id);
 
-    // Check if the pet exists
     if (!pet) {
         return res.status(404).json({
             error: 'Pet not found'
@@ -79,16 +164,14 @@ app.get('/pets/:id', (req, res) => {
 app.put('/pets/:id', (req, res) => {
     const id = Number(req.params.id);
 
-    // Validate the pet ID
-    if (!Number.isSafeInteger(id) || id <= 0) {
+    if (!isValidId(id)) {
         return res.status(400).json({
             error: 'Invalid pet ID'
         });
     }
 
-    const { name, species } = req.body;
+    const { name, species } = req.body || {};
 
-    // Validate the new information
     if (
         typeof name !== 'string' ||
         typeof species !== 'string' ||
@@ -100,19 +183,16 @@ app.put('/pets/:id', (req, res) => {
         });
     }
 
-    // Update the pet in SQLite
     const result = db.prepare(
         'UPDATE pets SET name = ?, species = ? WHERE id = ?'
     ).run(name.trim(), species.trim(), id);
 
-    // Check whether the pet exists
     if (result.changes === 0) {
         return res.status(404).json({
             error: 'Pet not found'
         });
     }
 
-    // Retrieve the updated pet
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
     ).get(id);
@@ -124,16 +204,14 @@ app.put('/pets/:id', (req, res) => {
 app.delete('/pets/:id', (req, res) => {
     const id = Number(req.params.id);
 
-    // Validate the pet ID
-    if (!Number.isSafeInteger(id) || id <= 0) {
+    if (!isValidId(id)) {
         return res.status(400).json({
             error: 'Invalid pet ID'
         });
     }
 
-    // Check if the pet exists
     const pet = db.prepare(
-        'SELECT * FROM pets WHERE id = ?'
+        'SELECT id FROM pets WHERE id = ?'
     ).get(id);
 
     if (!pet) {
@@ -142,7 +220,6 @@ app.delete('/pets/:id', (req, res) => {
         });
     }
 
-    // Check whether the pet has feeding records
     const feedingRecord = db.prepare(
         'SELECT id FROM feeding_records WHERE pet_id = ? LIMIT 1'
     ).get(id);
@@ -153,11 +230,239 @@ app.delete('/pets/:id', (req, res) => {
         });
     }
 
-    // Delete the pet
-    db.prepare('DELETE FROM pets WHERE id = ?').run(id);
+    db.prepare(
+        'DELETE FROM pets WHERE id = ?'
+    ).run(id);
 
     res.status(204).send();
 });
+
+// --------------------------------------------------
+// FEEDING RECORD MANAGEMENT
+// --------------------------------------------------
+
+// Retrieve feeding history for a pet
+app.get('/pets/:id/feedings', (req, res) => {
+    const petId = Number(req.params.id);
+
+    if (!isValidId(petId)) {
+        return res.status(400).json({
+            error: 'Invalid pet ID'
+        });
+    }
+
+    const pet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(petId);
+
+    if (!pet) {
+        return res.status(404).json({
+            error: 'Pet not found'
+        });
+    }
+
+    const feedings = db.prepare(`
+        SELECT * FROM feeding_records
+        WHERE pet_id = ?
+        ORDER BY feeding_date DESC, id DESC
+    `).all(petId);
+
+    res.status(200).json(feedings.map(formatFeeding));
+});
+
+// Register a new feeding event
+app.post('/pets/:id/feedings', (req, res) => {
+    const petId = Number(req.params.id);
+
+    if (!isValidId(petId)) {
+        return res.status(400).json({
+            error: 'Invalid pet ID'
+        });
+    }
+
+    const pet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(petId);
+
+    if (!pet) {
+        return res.status(404).json({
+            error: 'Pet not found'
+        });
+    }
+
+    const { food, feeding_date, notes } = req.body || {};
+
+    if (!isValidFeeding(food, feeding_date, notes)) {
+        return res.status(400).json({
+            error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required'
+        });
+    }
+
+    const result = db.prepare(`
+        INSERT INTO feeding_records (pet_id, food, feeding_date, notes)
+        VALUES (?, ?, ?, ?)
+    `).run(
+        petId,
+        food.trim(),
+        toDatabaseDate(feeding_date),
+        typeof notes === 'string' ? notes.trim() : null
+    );
+
+    const feeding = db.prepare(
+        'SELECT * FROM feeding_records WHERE id = ?'
+    ).get(result.lastInsertRowid);
+
+    res.status(201).json(formatFeeding(feeding));
+});
+
+// Retrieve a specific feeding record
+app.get('/pets/:id/feedings/:feedingId', (req, res) => {
+    const petId = Number(req.params.id);
+    const feedingId = Number(req.params.feedingId);
+
+    if (!isValidId(petId) || !isValidId(feedingId)) {
+        return res.status(400).json({
+            error: 'Invalid pet or feeding ID'
+        });
+    }
+
+    const pet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(petId);
+
+    if (!pet) {
+        return res.status(404).json({
+            error: 'Pet not found'
+        });
+    }
+
+    const feeding = db.prepare(
+        'SELECT * FROM feeding_records WHERE id = ? AND pet_id = ?'
+    ).get(feedingId, petId);
+
+    if (!feeding) {
+        return res.status(404).json({
+            error: 'Feeding record not found'
+        });
+    }
+
+    res.status(200).json(formatFeeding(feeding));
+});
+
+// Update an existing feeding record
+app.put('/pets/:id/feedings/:feedingId', (req, res) => {
+    const petId = Number(req.params.id);
+    const feedingId = Number(req.params.feedingId);
+
+    if (!isValidId(petId) || !isValidId(feedingId)) {
+        return res.status(400).json({
+            error: 'Invalid pet or feeding ID'
+        });
+    }
+
+    const pet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(petId);
+
+    if (!pet) {
+        return res.status(404).json({
+            error: 'Pet not found'
+        });
+    }
+
+    const feeding = db.prepare(
+        'SELECT id FROM feeding_records WHERE id = ? AND pet_id = ?'
+    ).get(feedingId, petId);
+
+    if (!feeding) {
+        return res.status(404).json({
+            error: 'Feeding record not found'
+        });
+    }
+
+    const { food, feeding_date, notes } = req.body || {};
+
+    if (!isValidFeeding(food, feeding_date, notes)) {
+        return res.status(400).json({
+            error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required'
+        });
+    }
+
+    db.prepare(`
+        UPDATE feeding_records
+        SET food = ?, feeding_date = ?, notes = ?
+        WHERE id = ? AND pet_id = ?
+    `).run(
+        food.trim(),
+        toDatabaseDate(feeding_date),
+        typeof notes === 'string' ? notes.trim() : null,
+        feedingId,
+        petId
+    );
+
+    const updatedFeeding = db.prepare(
+        'SELECT * FROM feeding_records WHERE id = ? AND pet_id = ?'
+    ).get(feedingId, petId);
+
+    res.status(200).json(formatFeeding(updatedFeeding));
+});
+
+// Delete an existing feeding record
+app.delete('/pets/:id/feedings/:feedingId', (req, res) => {
+    const petId = Number(req.params.id);
+    const feedingId = Number(req.params.feedingId);
+
+    if (!isValidId(petId) || !isValidId(feedingId)) {
+        return res.status(400).json({
+            error: 'Invalid pet or feeding ID'
+        });
+    }
+
+    const pet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(petId);
+
+    if (!pet) {
+        return res.status(404).json({
+            error: 'Pet not found'
+        });
+    }
+
+    const result = db.prepare(
+        'DELETE FROM feeding_records WHERE id = ? AND pet_id = ?'
+    ).run(feedingId, petId);
+
+    if (result.changes === 0) {
+        return res.status(404).json({
+            error: 'Feeding record not found'
+        });
+    }
+
+    res.status(204).send();
+});
+
+// --------------------------------------------------
+// ERROR HANDLING
+// --------------------------------------------------
+
+// Handle malformed JSON and unexpected errors
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({
+            error: 'Invalid JSON'
+        });
+    }
+
+    console.error(err);
+
+    res.status(500).json({
+        error: 'Internal server error'
+    });
+});
+
+// --------------------------------------------------
+// START SERVER
+// --------------------------------------------------
 
 app.listen(PORT, () => {
     console.log(`Data Management Service running on port ${PORT}`);
