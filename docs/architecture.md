@@ -3,8 +3,9 @@
 ## 1. Architecture Overview
 
 Exotic Pet Keeper follows a microservice architecture
-consisting of four independently running backend services
-and one mobile-friendly web client.
+consisting of four independently running backend services.
+A mobile-friendly web client is part of the planned architecture,
+but is not implemented.
 
 Each microservice has a specific responsibility and
 communicates with other components through defined APIs.
@@ -251,12 +252,12 @@ sequenceDiagram
     Data-->>App: Feeding saved successfully
     App-->>User: Display confirmation
 
-    Note over User,Enclosure: D. View Enclosure Conditions
+    Note over User,Enclosure: D. View Enclosure Configuration
 
     User->>App: Open enclosure information
     App->>Enclosure: GET /enclosures/3
-    Enclosure-->>App: Temperature and humidity
-    App-->>User: Display enclosure conditions
+    Enclosure-->>App: Configuration and isAbnormal state
+    App-->>User: Display enclosure settings and state
 ```
 
 ### 8.2 Explanation
@@ -283,16 +284,18 @@ The client sends a REST POST request to the
 Data Management Service, which saves the record
 and confirms the operation.
 
-**D. View Enclosure Conditions**
+**D. View Enclosure Configuration**
 
-The user opens the enclosure information.
-The client requests the latest environmental
-readings from the Enclosure Service.
+The user opens the enclosure information. A future client requests
+`GET /enclosures/:id` from the Enclosure Service and receives its
+configuration, environmental thresholds, and `isAbnormal` state.
+This endpoint does **not** return the latest temperature and humidity.
+Recorded measurements can be queried through
+`GET /enclosures/:id/readings/history`, but there is no dedicated
+GET endpoint for the exact latest reading stored in `readings`.
 
-The Enclosure Service returns the stored
-temperature and humidity measurements.
-
-These operations use REST communication.
+These operations use REST communication and do not generate alerts.
+The client shown in this scenario is planned, not implemented.
 They do not generate real-time notifications.
 
 ### 8.3 Real-Time Environmental Monitoring
@@ -409,9 +412,11 @@ charts, and analytics are not yet implemented.
 
 ### 9.2 Mobile-Friendly Web Client (Planned)
 
-The web client will allow users to manage pets, feeding records, and
-enclosures, enter manual environmental observations, view current and
-historical conditions, and receive real-time alerts.
+The planned web client would allow users to manage pets, feeding records,
+and enclosures, enter manual environmental observations, view historical
+conditions, and receive real-time alerts. Displaying the exact latest
+temperature/humidity would require a dedicated read endpoint or a clearly
+defined alternative based on the available history API.
 
 ### 9.3 Pet-to-Enclosure Association (Implemented — Milestone 10)
 

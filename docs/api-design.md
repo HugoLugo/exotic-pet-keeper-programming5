@@ -231,6 +231,12 @@ reading using SQLite UPSERT.
 
 The `readings` table retains one latest reading per enclosure. Each successful
 sensor reading is also inserted into `reading_history` with source `sensor`.
+There is currently **no dedicated GET endpoint** for retrieving the latest
+temperature and humidity from `readings`. `GET /enclosures/:id` returns
+enclosure configuration and `isAbnormal`, not measurement values.
+`GET /enclosures/:id/readings/history` exposes recorded observations,
+including sensor readings and manually entered historical observations;
+it should not be described as an exact latest-reading API.
 
 The service compares each measurement against the enclosure's
 configured environmental thresholds and updates `is_abnormal`.
