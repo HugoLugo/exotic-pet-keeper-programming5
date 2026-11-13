@@ -146,15 +146,17 @@ This service stores enclosure configurations,
 receives sensor measurements, and detects
 abnormal environmental conditions.
 
-### 4.1 REST Endpoints
+### 4.1 REST Endpoints (Implemented)
 
 | Method | Endpoint | Description |
 |---|---|---|
+| GET | `/health` | Check whether the service is running |
 | GET | `/enclosures` | Retrieve all enclosures |
-| GET | `/enclosures/:id` | Retrieve enclosure information |
-| POST | `/enclosures` | Create a new enclosure |
-| PUT | `/enclosures/:id` | Update enclosure settings |
-| POST | `/readings` | Receive a sensor measurement |
+| GET | `/enclosures/:id` | Retrieve one enclosure |
+| POST | `/enclosures` | Create an enclosure |
+| PUT | `/enclosures/:id` | Update enclosure configuration |
+| DELETE | `/enclosures/:id` | Delete an enclosure and its latest reading |
+| POST | `/readings` | Store a sensor reading and evaluate environmental conditions |
 
 ### 4.2 Example Enclosure Data
 
@@ -197,6 +199,51 @@ If both values are within range, no alert is sent.
 
 If either value is outside its configured range,
 the service sends an alert to the Notification Service.
+
+### 4.4 Sensor Reading Responses and Validation
+
+The Enclosure Service validates incoming temperature and humidity
+values, verifies that the enclosure exists, and stores the latest
+reading using SQLite UPSERT.
+
+Only one reading per enclosure is retained.
+
+The service compares each measurement against the enclosure's
+configured environmental thresholds and updates `is_abnormal`.
+
+Example response:
+
+```json
+{
+  "enclosureId": 1,
+  "temperature": 31,
+  "humidity": 42,
+  "isAbnormal": true,
+  "newAlert": true,
+  "alertSent": true
+}
+```
+
+- `isAbnormal` indicates whether the current reading is outside
+  the configured thresholds.
+- `newAlert` is true only when the enclosure changes from
+  normal to abnormal.
+- `alertSent` is true when the Notification Service returns
+  a successful HTTP response. It does not guarantee client delivery.
+
+The reading and abnormal state are updated in one SQLite
+transaction.
+
+Invalid measurements return HTTP 400.
+Nonexistent enclosures return HTTP 404.
+
+Enclosure creation and updates require a nonempty name,
+finite numeric temperature and humidity thresholds,
+minimum values below maximum values, and humidity
+thresholds between 0 and 100.
+
+Deleting an enclosure also deletes its latest reading.
+Successful deletion returns HTTP 204.
 
 ## 5. Sensor Service
 
@@ -291,6 +338,21 @@ without requiring a page refresh.
 Normal sensor readings do not generate
 WebSocket notifications.
 
+### 6.4 Implementation Status
+
+The Notification Service is implemented using Express and
+the `ws` library.
+
+It accepts validated environmental alerts through
+`POST /alerts` and broadcasts them to connected WebSocket
+clients.
+
+Both HTTP and WebSocket communication use port 3004.
+
+The service also provides `GET /health`.
+
+Notifications are not stored permanently.
+
 ## 7. Data Persistence
 
 SQLite is used to store application data.
@@ -356,6 +418,16 @@ measurement for each enclosure.
 The `is_abnormal` field tracks whether an
 enclosure is currently outside its acceptable
 environmental ranges.
+
+The `readings.enclosure_id` field references `enclosures.id`
+with `ON DELETE CASCADE`.
+
+SQLite foreign-key enforcement is enabled.
+
+The `is_abnormal` field is restricted to 0 or 1.
+
+The database is stored at
+`services/enclosure/data/enclosures.db` and excluded from Git.
 
 ### 7.3 Services Without Databases
 
@@ -430,6 +502,29 @@ Handling delivery failures will be included in
 testing. The initial implementation will not
 guarantee delivery if the Notification Service
 is unavailable.
+
+### 9.1 Implemented Alert Delivery
+
+When an enclosure changes from normal to abnormal, the
+Enclosure Service sends an HTTP POST request to the
+Notification Service at `http://localhost:3004/alerts`.
+
+The request uses a three-second timeout.
+
+If the Notification Service is unavailable, the sensor
+reading is still saved successfully, and the failure is
+logged. No automatic retry is performed.
+
+Repeated abnormal readings do not generate duplicate alerts.
+When conditions return to normal, the abnormal state is
+cleared, allowing a future abnormal transition to generate
+another alert.
+
+Updating enclosure thresholds recalculates the abnormal
+state but does not independently send a notification.
+
+The Notification Service broadcasts alerts through WebSocket
+to currently connected clients.
 
 ## 10. Scope and Limitations
 

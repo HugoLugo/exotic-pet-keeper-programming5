@@ -1,0 +1,16 @@
+{
+  "name": "enclosure",
+  "version": "1.0.0",
+  "description": "Enclosure management microservice for Exotic Pet Keeper",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.3.0"
+  }
+}
