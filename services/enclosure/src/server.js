@@ -313,6 +313,17 @@ app.post('/readings', async (req, res) => {
                 recorded_at = CURRENT_TIMESTAMP
         `).run(enclosureId, temperature, humidity);
 
+        // Preserve this measurement in environmental history
+        db.prepare(`
+            INSERT INTO reading_history (
+                enclosure_id,
+                temperature,
+                humidity,
+                source
+            )
+            VALUES (?, ?, ?, 'sensor')
+        `).run(enclosureId, temperature, humidity);
+
         db.prepare(`
             UPDATE enclosures
             SET is_abnormal = ?
@@ -403,6 +414,214 @@ app.post('/readings', async (req, res) => {
 
 });
 
+ // POST manual historical reading
+app.post('/enclosures/:id/readings/manual', (req, res) => {
+    const { id } = req.params;
+
+    // Validate enclosure ID
+    if (!isValidId(id)) {
+        return res.status(400).json({
+            error: 'Invalid enclosure ID'
+        });
+    }
+
+    const { temperature, humidity, recordedAt } = req.body || {};
+
+    // Validate environmental measurements
+    if (typeof temperature !== 'number' ||
+        !Number.isFinite(temperature) ||
+        typeof humidity !== 'number' ||
+        !Number.isFinite(humidity) ||
+        humidity < 0 || humidity > 100) {
+
+        return res.status(400).json({
+            error: 'Invalid environmental measurements'
+        });
+    }
+
+    // Require a UTC timestamp with seconds
+    if (typeof recordedAt !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(recordedAt)) {
+
+        return res.status(400).json({
+            error: 'recordedAt must use YYYY-MM-DDTHH:mm:ssZ'
+        });
+    }
+
+    const date = new Date(recordedAt);
+
+    // Reject impossible dates and future observations
+    if (Number.isNaN(date.getTime()) ||
+        date.toISOString().replace('.000Z', 'Z') !== recordedAt ||
+        date.getTime() > Date.now()) {
+
+        return res.status(400).json({
+            error: 'Invalid or future measurement date'
+        });
+    }
+
+    // Check that the enclosure exists
+    const enclosure = db.prepare(`
+        SELECT id FROM enclosures WHERE id = ?
+    `).get(Number(id));
+
+    if (!enclosure) {
+        return res.status(404).json({
+            error: 'Enclosure not found'
+        });
+    }
+
+    // Store the observation time in SQLite UTC format
+    const databaseDate = recordedAt
+        .replace('T', ' ')
+        .replace('Z', '');
+
+    try {
+        const result = db.prepare(`
+            INSERT INTO reading_history (
+                enclosure_id,
+                temperature,
+                humidity,
+                recorded_at,
+                source
+            )
+            VALUES (?, ?, ?, ?, 'manual')
+        `).run(
+            Number(id),
+            temperature,
+            humidity,
+            databaseDate
+        );
+
+        res.status(201).json({
+            id: Number(result.lastInsertRowid),
+            enclosureId: Number(id),
+            temperature,
+            humidity,
+            recordedAt,
+            source: 'manual'
+        });
+
+    } catch (error) {
+        console.error('Failed to save manual reading:', error);
+
+        res.status(500).json({
+            error: 'Failed to save manual reading'
+        });
+    }
+});
+
+ // GET environmental reading history
+app.get('/enclosures/:id/readings/history', (req, res) => {
+    const { id } = req.params;
+
+    // Validate enclosure ID
+    if (!isValidId(id)) {
+        return res.status(400).json({
+            error: 'Invalid enclosure ID'
+        });
+    }
+
+    // Validate result limit
+    const limit = req.query.limit === undefined
+        ? 100
+        : Number(req.query.limit);
+
+    if (!Number.isSafeInteger(limit) ||
+        limit < 1 || limit > 1000) {
+
+        return res.status(400).json({
+            error: 'Limit must be an integer between 1 and 1000'
+        });
+    }
+
+    const { from, to } = req.query;
+
+    // Validate calendar dates in YYYY-MM-DD format
+    function isValidDate(value) {
+        if (typeof value !== 'string' ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return false;
+        }
+
+        const date = new Date(value + 'T00:00:00Z');
+
+        return !Number.isNaN(date.getTime()) &&
+            date.toISOString().slice(0, 10) === value;
+    }
+
+    if ((from !== undefined && !isValidDate(from)) ||
+        (to !== undefined && !isValidDate(to))) {
+
+        return res.status(400).json({
+            error: 'Dates must be valid and use YYYY-MM-DD'
+        });
+    }
+
+    // Ensure the starting date is not after the ending date
+    if (from && to && from > to) {
+        return res.status(400).json({
+            error: 'From date must not be after to date'
+        });
+    }
+
+    // Verify that the enclosure exists
+    const enclosure = db.prepare(`
+        SELECT id FROM enclosures WHERE id = ?
+    `).get(Number(id));
+
+    if (!enclosure) {
+        return res.status(404).json({
+            error: 'Enclosure not found'
+        });
+    }
+
+    // Build the query using optional date filters
+    let query = `
+        SELECT
+            id,
+            enclosure_id,
+            temperature,
+            humidity,
+            recorded_at,
+            source
+        FROM reading_history
+        WHERE enclosure_id = ?
+    `;
+
+    const parameters = [Number(id)];
+
+    if (from) {
+        query += ' AND recorded_at >= ?';
+        parameters.push(from + ' 00:00:00');
+    }
+
+    if (to) {
+        query += ' AND recorded_at <= ?';
+        parameters.push(to + ' 23:59:59');
+    }
+
+    query += `
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT ?
+    `;
+
+    parameters.push(limit);
+
+    const readings = db.prepare(query).all(...parameters);
+
+    // Convert database fields to API format
+    const history = readings.map(reading => ({
+        id: reading.id,
+        enclosureId: reading.enclosure_id,
+        temperature: reading.temperature,
+        humidity: reading.humidity,
+        recordedAt: reading.recorded_at.replace(' ', 'T') + 'Z',
+        source: reading.source
+    }));
+
+    res.status(200).json(history);
+});
 
 // Handle malformed JSON
 app.use((err, req, res, next) => {

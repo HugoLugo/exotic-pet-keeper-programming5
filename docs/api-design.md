@@ -155,8 +155,10 @@ abnormal environmental conditions.
 | GET | `/enclosures/:id` | Retrieve one enclosure |
 | POST | `/enclosures` | Create an enclosure |
 | PUT | `/enclosures/:id` | Update enclosure configuration |
-| DELETE | `/enclosures/:id` | Delete an enclosure and its latest reading |
-| POST | `/readings` | Store a sensor reading and evaluate environmental conditions |
+| DELETE | `/enclosures/:id` | Delete an enclosure, its latest reading, and its history |
+| POST | `/readings` | Store a sensor reading, preserve history, and evaluate environmental conditions |
+| POST | `/enclosures/:id/readings/manual` | Save a manual historical observation without changing the live state |
+| GET | `/enclosures/:id/readings/history` | Retrieve historical readings, optionally filtered by date and limited |
 
 ### 4.2 Example Enclosure Data
 
@@ -208,7 +210,8 @@ The Enclosure Service validates incoming temperature and humidity
 values, verifies that the enclosure exists, and stores the latest
 reading using SQLite UPSERT.
 
-Only one reading per enclosure is retained.
+The `readings` table retains one latest reading per enclosure. Each successful
+sensor reading is also inserted into `reading_history` with source `sensor`.
 
 The service compares each measurement against the enclosure's
 configured environmental thresholds and updates `is_abnormal`.
@@ -233,8 +236,9 @@ Example response:
 - `alertSent` is true when the Notification Service returns
   a successful HTTP response. It does not guarantee client delivery.
 
-The reading and abnormal state are updated in one SQLite
-transaction.
+The latest reading, historical insert, and abnormal state are updated in
+one SQLite transaction. The HTTP response to `POST /readings` uses
+`201 Created`.
 
 Invalid measurements return HTTP 400.
 Nonexistent enclosures return HTTP 404.
@@ -244,8 +248,84 @@ finite numeric temperature and humidity thresholds,
 minimum values below maximum values, and humidity
 thresholds between 0 and 100.
 
-Deleting an enclosure also deletes its latest reading.
-Successful deletion returns HTTP 204.
+Deleting an enclosure also deletes its latest reading and historical
+measurements through SQLite foreign-key cascading. Successful deletion
+returns HTTP 204.
+
+### 4.5 Manual Historical Observations (Implemented)
+
+`POST /enclosures/:id/readings/manual` records a manually measured temperature
+and humidity for an existing enclosure. It inserts a history row with
+`source: "manual"` and **does not** change the latest reading, the current
+`is_abnormal` state, or real-time notifications. Manual entries are historical
+observations, even when submitted immediately after measuring.
+
+Example request to `POST /enclosures/2/readings/manual`:
+
+```json
+{
+  "temperature": 27.5,
+  "humidity": 65,
+  "recordedAt": "2026-11-12T14:30:00Z"
+}
+```
+
+Example successful response (`201 Created`):
+
+```json
+{
+  "id": 16,
+  "enclosureId": 2,
+  "temperature": 27.5,
+  "humidity": 65,
+  "recordedAt": "2026-11-12T14:30:00Z",
+  "source": "manual"
+}
+```
+
+Temperature must be a finite number; humidity must be a finite number
+between 0 and 100. `recordedAt` must be a real, non-future UTC timestamp
+using exactly `YYYY-MM-DDTHH:mm:ssZ`. The service returns `400` for invalid
+input and `404` for a nonexistent enclosure.
+
+The observation time comes from the user, not the time the request arrives.
+The web client will need to convert local entry times to UTC.
+
+### 4.6 Environmental History Retrieval (Implemented)
+
+`GET /enclosures/:id/readings/history` returns observations from both sources,
+ordered by `recorded_at` descending and then ID descending. A manual
+observation entered later still appears according to when it was measured.
+
+Optional query parameters:
+
+| Parameter | Format | Description |
+|---|---|---|
+| `from` | `YYYY-MM-DD` | Earliest UTC calendar date to include (inclusive) |
+| `to` | `YYYY-MM-DD` | Latest UTC calendar date to include (inclusive) |
+| `limit` | Integer 1–1000 | Maximum records returned; default 100 |
+
+Example: `GET /enclosures/2/readings/history?from=2026-11-12&to=2026-11-13&limit=10`
+
+Example response (`200 OK`):
+
+```json
+[
+  {
+    "id": 16,
+    "enclosureId": 2,
+    "temperature": 27.5,
+    "humidity": 65,
+    "recordedAt": "2026-11-12T14:30:00Z",
+    "source": "manual"
+  }
+]
+```
+
+Invalid calendar dates, reversed date ranges, invalid limits, and invalid
+IDs return `400`; nonexistent enclosures return `404`. Both date filters are
+optional. Results are limited even when a date range is specified; pagination
+and time-based aggregation are not implemented.
 
 ## 5. Sensor Service
 
@@ -452,17 +532,31 @@ The local database file is stored at
 | enclosure_id | INTEGER | Primary key and enclosure reference |
 | temperature | REAL | Latest temperature |
 | humidity | REAL | Latest humidity |
-| recorded_at | TEXT | Measurement timestamp |
+| recorded_at | TEXT | Measurement timestamp (UTC) |
 
-The readings table stores only the latest
-measurement for each enclosure.
+The `readings` table stores only the latest measurement per enclosure.
+
+**reading_history**
+
+| Field | Type | Description |
+|---|---|---|
+| id | INTEGER | Autoincrement primary key |
+| enclosure_id | INTEGER | Foreign key referencing `enclosures.id` |
+| temperature | REAL | Measured temperature |
+| humidity | REAL | Measured humidity |
+| recorded_at | TEXT | Observation timestamp in UTC |
+| source | TEXT | `sensor` or `manual` (CHECK constraint) |
+
+Each automatic measurement adds a history row as part of the latest-reading
+transaction. Manual observations insert only into history. An index on
+`(enclosure_id, recorded_at)` supports retrieval by enclosure and date.
 
 The `is_abnormal` field tracks whether an
 enclosure is currently outside its acceptable
 environmental ranges.
 
-The `readings.enclosure_id` field references `enclosures.id`
-with `ON DELETE CASCADE`.
+Both `readings.enclosure_id` and `reading_history.enclosure_id` reference
+`enclosures.id` with `ON DELETE CASCADE`.
 
 SQLite foreign-key enforcement is enabled.
 
@@ -494,9 +588,9 @@ The REST APIs use standard HTTP status codes.
 | 500 Internal Server Error | Unexpected server error |
 | 503 Service Unavailable | Required service is unavailable |
 
-Input validation is implemented for pet information and feeding
-records in the Data Management Service, and for enclosure
-configurations and sensor measurements in the Enclosure Service.
+Input validation is implemented for pet and feeding records in Data
+Management, and for enclosure configuration, automatic readings, manual
+observations, history dates, and result limits in the Enclosure Service.
 
 The Enclosure Service uses a three-second timeout when posting alerts.
 The Sensor Service uses three-second timeouts for its requests to the
@@ -518,15 +612,17 @@ Example:
 - Temperature: 25°C
 - Humidity: 68%
 
-The reading is stored and no notification is sent.
+The reading is stored as the latest reading and added to history; no
+notification is sent.
 
 **Abnormal measurement:**
 
 - Temperature: 31°C
 - Humidity: 42%
 
-The reading is stored, and the Enclosure Service sends an alert event
-to the Notification Service **only if the previous state was normal**.
+The latest reading and its history record are stored. The Enclosure
+Service sends an alert event to Notification **only if the previous state
+was normal**. Manual historical observations never trigger alerts.
 
 To prevent duplicate notifications, the implementation generates
 an alert when an enclosure changes from normal to abnormal.
@@ -578,9 +674,10 @@ The project intentionally excludes:
 - Message brokers and distributed queues.
 - Cloud deployment.
 
-Environmental history and the mobile-friendly web client are planned
-for subsequent milestones. Environmental history will preserve timestamped
-readings while keeping the latest-reading and alert behavior intact.
+Environmental history and manual observations are implemented (Milestone 9).
+The mobile-friendly web client is planned. The history API supports UTC
+date filtering and up to 1,000 records per response, but does not implement
+pagination, graphing, or automatic correlations with feeding history.
 
 The current Data Management schema has no pet-to-enclosure association.
 Such an association would be needed to automatically match a pet’s feeding

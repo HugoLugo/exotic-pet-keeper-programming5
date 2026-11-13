@@ -1,3 +1,4 @@
+
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -35,7 +36,22 @@ db.exec(`
             REFERENCES enclosures(id)
             ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS reading_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        enclosure_id INTEGER NOT NULL,
+        temperature REAL NOT NULL,
+        humidity REAL NOT NULL,
+        recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        source TEXT NOT NULL
+            CHECK (source IN ('sensor', 'manual')),
+        FOREIGN KEY (enclosure_id)
+            REFERENCES enclosures(id)
+            ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_reading_history_enclosure_date
+    ON reading_history(enclosure_id, recorded_at);
 `);
 
 module.exports = db;
-db;

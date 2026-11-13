@@ -72,6 +72,8 @@ Processes and stores enclosure measurements.
 Responsibilities:
 - Receive temperature and humidity readings.
 - Store enclosure configurations and latest readings.
+- Preserve timestamped history of simulated and manually entered measurements.
+- Retrieve enclosure history by UTC date range with a configurable result limit.
 - Compare readings against configured acceptable ranges.
 - Detect abnormal environmental conditions.
 - Send abnormal-condition events to the Notification Service only on normal-to-abnormal transitions.
@@ -147,8 +149,8 @@ Example:
 - Temperature: 25 degrees Celsius.
 - Humidity: 68%.
 
-The Enclosure Service stores the reading.
-No notification is generated.
+The Enclosure Service updates the latest reading and saves a historical
+measurement. No notification is generated.
 
 ### Abnormal Reading
 
@@ -159,16 +161,18 @@ Example:
 The Enclosure Service detects values outside the
 configured acceptable ranges.
 
-If the enclosure was previously normal, it sends an alert event to the
-Notification Service, which broadcasts a WebSocket message to connected clients.
-Continued abnormal readings do not generate duplicate alerts.
+The reading is saved to both latest-reading storage and history. If the
+enclosure was previously normal, it sends an alert event to Notification,
+which broadcasts a WebSocket message to connected clients. Continued
+abnormal readings do not generate duplicate alerts. Manual historical
+observations never change the current state or generate alerts.
 
 ## 6. Data Ownership
 
 Each service is responsible for its own data.
 
 - Data Management owns pet and feeding records.
-- Enclosure owns enclosure configuration and readings.
+- Enclosure owns enclosure configuration, latest readings, and environmental history.
 - Sensor generates temporary simulated measurements.
 - Notification processes alert events.
 
@@ -298,19 +302,19 @@ sequenceDiagram
     Sensor->>Sensor: Generate simulated reading
     Sensor->>Enclosure: POST /readings
     activate Enclosure
-    Enclosure->>Enclosure: Save latest reading and update abnormal state
+    Enclosure->>Enclosure: Save latest and history, update abnormal state
 
     alt Normal conditions
-        Enclosure-->>Sensor: 200 OK (no new alert)
+        Enclosure-->>Sensor: 201 Created (no new alert)
     else Transition from normal to abnormal
         Enclosure->>Notification: POST /alerts
         activate Notification
         Notification-->>Enclosure: Successful HTTP response
         Notification-)App: WebSocket alert broadcast
         deactivate Notification
-        Enclosure-->>Sensor: 200 OK (new alert)
+        Enclosure-->>Sensor: 201 Created (new alert)
     else Still abnormal
-        Enclosure-->>Sensor: 200 OK (duplicate alert suppressed)
+        Enclosure-->>Sensor: 201 Created (duplicate suppressed)
     end
     deactivate Enclosure
 ```
@@ -331,7 +335,8 @@ The default delay between completed simulation cycles is five seconds;
 **Step 2 — Store and evaluate measurements**
 
 The Enclosure Service validates the enclosure and measurement, retains the
-latest values, and updates the current abnormal state in SQLite.
+latest values, appends a sensor-sourced history record, and updates the
+current abnormal state in the same SQLite transaction.
 
 **Step 3A — Normal conditions**
 
@@ -349,23 +354,51 @@ The Notification Service broadcasts the event to currently connected
 WebSocket clients. The future web client will display the warning without a
 page refresh. If the Notification Service is down, the reading remains stored.
 
+### 8.5 Manual Historical Observation
+
+A future web client will let a keeper enter an observation from a standalone
+thermometer or hygrometer. The client sends temperature, humidity, and the
+UTC observation time to `POST /enclosures/:id/readings/manual`. Enclosure
+validates and stores it in history. Unlike an automated sensor reading, this
+does not update the latest reading or current abnormal state and does not
+contact Notification. The history endpoint can later retrieve these records
+alongside automated measurements.
+
 ## 9. Implementation Status and Planned Improvements
 
 The four backend microservices are implemented and have passed functional
 integration tests, including simulated normal/abnormal readings, suppression
 of repeated alerts, WebSocket broadcasts, and recovery after service downtime.
 
-### 9.1 Environmental History (Planned — Milestone 9)
+### 9.1 Environmental History and Manual Observations (Implemented — Milestone 9)
 
-Currently, only the latest environmental reading is kept per enclosure.
-A later milestone will add timestamped reading history and a retrieval API.
-This will help keepers review conditions alongside existing feeding records.
-The current latest-reading and alert behavior will be preserved.
+The Enclosure Service retains the latest sensor reading in `readings` and
+preserves each successfully received sensor measurement in `reading_history`.
+The history table also accepts manual observations, with their observation
+time and a source of `manual` or `sensor`. Existing enclosure records are
+preserved when the history table is first created.
+
+- `POST /readings` updates the latest reading, appends a history row, and
+  updates the abnormal state in a single transaction.
+- `POST /enclosures/:id/readings/manual` adds a historical observation with
+  an explicit UTC timestamp, without changing current state or alerts.
+- `GET /enclosures/:id/readings/history` returns history ordered by
+  observation time, with optional inclusive UTC dates (`from`, `to`) and a
+  `limit` of 1–1000 (default 100).
+
+Both measurement sources use the Enclosure Service's SQLite database; no
+additional service or database is needed. Deleting an enclosure also deletes
+its history through foreign-key cascading.
+
+History is useful for comparing conditions with feeding dates, but automated
+pet-specific comparisons require the pet-to-enclosure association described
+below. Pagination, charts, and analytics are not yet implemented.
 
 ### 9.2 Mobile-Friendly Web Client (Planned)
 
 The web client will allow users to manage pets, feeding records, and
-enclosures, view current and historical conditions, and receive real-time alerts.
+enclosures, enter manual environmental observations, view current and
+historical conditions, and receive real-time alerts.
 
 ### 9.3 Future Data Association
 
