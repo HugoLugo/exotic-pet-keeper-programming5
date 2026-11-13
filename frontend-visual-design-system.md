@@ -1,9 +1,9 @@
 # Exotic Pet Keeper — Frontend Visual Design System
 
 **Project:** Exotic Pet Keeper — Programming 5  
-**Document version:** 1.2  
+**Document version:** 1.3  
 **Created:** 13 November 2026  
-**Status:** Visual direction and two standalone animal illustrations approved; exact UI implementation tokens and further screen designs pending
+**Status:** Visual direction and three standalone animal illustrations approved; exact UI implementation tokens and further screen designs pending
 
 > **Purpose:** This file is the single source of truth for frontend visual decisions. Attach it or paste its contents into a new ChatGPT conversation before continuing mockups, illustration generation, or frontend development. Update it whenever a visual decision changes.
 
@@ -77,7 +77,7 @@ The dashboard screenshot supplied in the design conversation is the **layout ref
 - A **ball python** should read as a robust snake with a broad back of the head, gently tapering snout, visible neck transition and continuous, anatomically plausible coils; never insert extra disconnected body sections for visual balance.
 - A **crested gecko** should retain its characteristic crest and arboreal posture.
 - A **tailless whip scorpion** is **not a true scorpion**: do not give it a scorpion tail or stinger; preserve its long whip-like sensory front legs and prominent pedipalps.
-- A **tarantula** should keep an eight-legged spider body plan, not an insect body plan.
+- A **tarantula** should have four walking legs on each side (eight total), plus a separate pair of shorter pedipalps at the front. These are not extra walking legs; avoid blending or hiding limbs in the fur.
 
 When generating a new species, describe its identifying physical traits explicitly and review the image before accepting it.
 
@@ -96,12 +96,23 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 
 **Scope of approval:** This approves the *animal illustration* and the idea of testing it at card sizes, **not** final card dimensions, UI colors/fonts, or a complete Pets page layout. The source is a PNG, not an editable SVG.
 
+### Approved illustration — Tarantula (13 November 2026)
+
+**Tarantula — Concept 02** was approved after several iterations focused on leg-count accuracy. A reference photograph provided by the user proved useful for resolving earlier anatomical errors. The approved illustration is a female-like, robust terrestrial tarantula with a rounded, furry abdomen and dark brown/rust-orange coloration; do **not** assert a species-level identification based only on those colors.
+
+- **Original (preserve unchanged):** `design/illustrations/originals/tarantula-approved.png` (transparent PNG, 1536 × 1024 px).
+- **Frontend export:** `frontend/public/assets/illustrations/animals/tarantula.webp` (transparent optimized WebP).
+- **Card-size test:** `design/previews/tarantula-card-test.html` and `design/previews/tarantula-card-test.png`.
+- **Anatomical target:** eight walking legs (four per side), two short front pedipalps, separate cephalothorax and abdomen, realistic joint connections. Pedipalps occur in both sexes; adult males of many tarantula species possess specialized palpal bulbs.
+- **Reference policy:** when generating complex animals such as spiders or snakes, use a trustworthy photograph to guide pose and anatomy if free generation repeatedly produces errors. Do not claim exact tracing, professional veterinary validation, or species identification unless independently established.
+- **Scope of approval:** standalone artwork only; the card test is a visual check, not finalized UI dimensions, fonts, or CSS tokens. Preserve the photo reference separately if rights permit, not as part of the distributable illustration asset.
+
 ### Recommended asset workflow (guidance, not a finalized technical decision)
 
 1. Define a reusable prompt with consistent style constraints.
 2. Generate each species as a **separate asset**, preferably on transparent background if supported.
-3. Inspect for anatomical errors, cropped legs/tails, artifacting, and off-style shading.
-4. Approve one illustration as the quality benchmark, then compare subsequent artwork against it. For snakes, verify that the entire body follows a logical continuous path into a tapering tail before approval.
+3. Inspect for anatomical errors, cropped legs/tails, artifacting, and off-style shading. For spiders and other arthropods, explicitly count walking legs and distinguish other appendages (such as pedipalps).
+4. Approve one illustration as the quality benchmark, then compare subsequent artwork against it. For snakes, verify that the entire body follows a logical continuous path into a tapering tail before approval. When repeated anatomical errors occur, switch to a real-photo pose reference instead of continuing unguided generations.
 5. Export optimized assets appropriate for web use; use genuine SVG only when there is a real editable/vector source, not simply because artwork *looks* vector-like.
 6. Keep original generations and production exports named predictably; use `leopard-gecko.webp` for the approved browser asset and preserve the original concept PNG separately.
 
@@ -177,16 +188,18 @@ For terraria, plants, feeder insects, or empty-state illustrations, replace the 
 | 2026-11-13 | Keep illustrations species-recognizable, welcoming, and not overly childish | Confirmed direction |
 | 2026-11-13 | Finalize exact hex colors, fonts, spacing, responsive rules, and component tokens | **Open** |
 | 2026-11-13 | Approve Leopard Gecko — Concept 01 as the first master illustration, after three card-size tests | **Confirmed** |
-| 2026-11-13 | Extend the approved animal illustration reference set (tarantula, tailless whip scorpion) | **Open** |
+| 2026-11-13 | Approve the tailless whip scorpion as the next core animal illustration | **Open** |
 | 2026-11-13 | Approve Ball Python illustration after revising the head anatomy and removing unnatural extra coils; preserve transparent PNG source and optimized WebP | **Confirmed** |
 | 2026-11-13 | Create a generic and common-species illustration roadmap across animal groups before expanding the asset library further | **Planned, not yet defined** |
+| 2026-11-13 | Approve tarantula reference illustration after reviewing leg count and pedipalps against a user-provided photo; add transparent PNG, WebP, and card test | **Confirmed** |
+| 2026-11-13 | If repeated illustrations invent anatomically impossible appendages, consult an animal photo reference before approving | **Confirmed** |
 
 ## 10. Handoff checklist for a new conversation
 
 Share these items when relevant:
 
 1. **This document** (latest version).
-2. **Approved dashboard reference image** (Soft Illustrative Cards version) and `design/illustrations/originals/leopard-gecko-concept-01.png` and `design/illustrations/originals/ball-python-approved.png` as the two approved animal references.
+2. **Approved dashboard reference image** (Soft Illustrative Cards version) and `design/illustrations/originals/leopard-gecko-concept-01.png`, `design/illustrations/originals/ball-python-approved.png`, and `design/illustrations/originals/tarantula-approved.png` as the three approved animal references.
 3. If doing frontend implementation: `README.md`, `docs/api-design.md`, `docs/architecture.md`, and relevant frontend/backend code or repository details.
 4. Briefly specify the immediate task and whether the work is **mockup**, **asset illustration**, or **functional frontend code**.
 

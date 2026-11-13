@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Exotic Pet Keeper — Tarantula Card Test</title>
+<style>
+:root{--forest:#25452D;--sage:#EAF0E0;--cream:#FAF8F3;--card:#FFFDF8;--dark:#203027;--slate:#59645B;--line:#e8e4d8}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--dark);font-family:Arial,Helvetica,sans-serif}
+.header{background:var(--forest);color:#fff;padding:23px 48px;display:flex;justify-content:space-between;align-items:center;gap:24px}
+.brand{font-weight:750;letter-spacing:-.7px;font-size:25px}.brand span{color:#dbeab9}.tag{background:#dceabf;color:#1e4826;border-radius:100px;padding:8px 13px;font-size:12px;font-weight:700}
+main{max-width:1240px;margin:auto;padding:35px 43px 45px}h1{font-size:29px;letter-spacing:-.9px;margin:0 0 8px}p.lead{font-size:15px;color:var(--slate);margin:0 0 27px;max-width:840px;line-height:1.55}
+.panels{display:flex;align-items:start;gap:37px;flex-wrap:wrap}.column{display:flex;flex-direction:column;gap:10px;align-items:start}
+.lbl{font-size:13px;color:var(--slate);font-weight:700;letter-spacing:.02em;margin-bottom:4px}.sub{font-size:12px;color:#617065;max-width:335px;line-height:1.45}
+.petcard{background:var(--card);border:1px solid #e4dece;border-radius:17px;box-shadow:0 7px 15px #223b2817;overflow:hidden;padding:10px 10px 13px;display:flex;flex-direction:column}
+.petcard.small{width:170px}.petcard.medium{width:245px}.petcard.large{width:335px}
+.illu{border-radius:12px;background:linear-gradient(160deg,#f4f2de,#e8eecf 75%,#f5efda);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.small .illu{height:116px}.medium .illu{height:160px}.large .illu{height:202px}
+.illu img{display:block;width:100%;height:100%;object-fit:contain;position:relative;z-index:1;padding:5px}
+.illu:before{content:'';width:64%;height:60%;border-radius:50%;background:#dae7b9b8;position:absolute;top:14%;right:-25%}
+.menu{align-self:flex-end;color:#29482f;font-weight:800;font-size:18px;line-height:19px;position:absolute;z-index:2;top:6px;right:8px;letter-spacing:2px}
+.name{font-weight:800;font-size:17px;margin-top:9px;letter-spacing:-.3px}.medium .name{font-size:19px}.large .name{font-size:21px}
+.species{font-size:13px;color:#333c34;margin-top:2px}.large .species{font-size:15px}
+.enclosure{display:inline-flex;align-items:center;align-self:flex-start;background:var(--sage);border-radius:8px;margin-top:9px;padding:6px 8px;color:#264e2d;font-size:12px;font-weight:650;gap:5px}
+.enclosure svg{width:14px;height:14px}
+.note{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:26px;padding:22px 25px;border-radius:16px;background:#fffdf7;border:1px solid #e9e6dc}
+.note strong{display:block;margin-bottom:6px;font-size:14px}.note p{font-size:13px;line-height:1.5;color:#57675b;margin:0}
+@media(max-width:760px){.header{padding:19px 18px}.tag{display:none}main{padding:25px 17px}.note{grid-template-columns:1fr}.panels{gap:22px}}
+</style>
+</head>
+<body>
+<header class="header"><div class="brand"><span>✦</span> Exotic Pet Keeper</div><div class="tag">ILLUSTRATION REFERENCE 03 • APPROVED</div></header>
+<main>
+<h1>Tarantula · card-size test</h1>
+<p class="lead">One approved tarantula illustration, displayed at three realistic frontend sizes. The animal is never cropped, including the leg tips. Backgrounds and card elements are CSS, so we can reuse the transparent animal asset across the app.</p>
+<div class="panels">
+  <section class="column"><div class="lbl">01 · DASHBOARD PET CARD</div>
+    <div class="petcard small"><div class="illu"><span class="menu">•••</span><img alt="Illustration of a tarantula" src="../../frontend/public/assets/illustrations/animals/tarantula.webp"/></div><div class="name">Vesper</div><div class="species">Tarantula</div><div class="enclosure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 11 12 4l9 7v10H3V11Z"/><path d="M9 21v-8h6v8"/></svg>Unassigned</div></div>
+    <div class="sub">170 px wide — matches the compact card proportions in the approved dashboard concept.</div>
+  </section>
+  <section class="column"><div class="lbl">02 · PETS GRID CARD</div>
+    <div class="petcard medium"><div class="illu"><span class="menu">•••</span><img alt="Illustration of a tarantula" src="../../frontend/public/assets/illustrations/animals/tarantula.webp"/></div><div class="name">Vesper</div><div class="species">Tarantula</div><div class="enclosure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 11 12 4l9 7v10H3V11Z"/><path d="M9 21v-8h6v8"/></svg>Unassigned</div></div>
+    <div class="sub">245 px wide — proposed size for a dedicated Pets page; not an approved screen layout.</div>
+  </section>
+  <section class="column"><div class="lbl">03 · LARGER FEATURE CARD</div>
+    <div class="petcard large"><div class="illu"><span class="menu">•••</span><img alt="Illustration of a tarantula" src="../../frontend/public/assets/illustrations/animals/tarantula.webp"/></div><div class="name">Vesper</div><div class="species">Tarantula</div><div class="enclosure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 11 12 4l9 7v10H3V11Z"/><path d="M9 21v-8h6v8"/></svg>Unassigned</div></div>
+    <div class="sub">335 px wide — demonstrates how much more detail remains visible at a larger scale.</div>
+  </section>
+</div>
+<div class="note"><div><strong>What this test evaluates</strong><p>Silhouette clarity, pattern visibility, background compatibility, and readability of the tarantula’s leg arrangement and card information at common sizes.</p></div><div><strong>What it does not approve</strong><p>The Pets page layout, exact color tokens, or typography. The tarantula illustration is approved as an art-style reference; this preview is not production UI.</p></div></div>
+</main>
+</body>
+</html>
