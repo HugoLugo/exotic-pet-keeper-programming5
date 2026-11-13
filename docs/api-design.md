@@ -197,8 +197,10 @@ acceptable ranges.
 
 If both values are within range, no alert is sent.
 
-If either value is outside its configured range,
-the service sends an alert to the Notification Service.
+If either value is outside its configured range, the service marks the
+enclosure as abnormal. An alert is sent only when the state changes
+from normal to abnormal; continuing abnormal values do not trigger
+duplicate notifications.
 
 ### 4.4 Sensor Reading Responses and Validation
 
@@ -247,37 +249,77 @@ Successful deletion returns HTTP 204.
 
 ## 5. Sensor Service
 
-The Sensor Service simulates environmental measurements.
+The Sensor Service is an independent Node.js process that simulates environmental measurements for an enclosure.
 
-It does not require a database or an HTTP server.
+It does not require a database, an HTTP server, or additional npm dependencies.
 
 ### 5.1 Responsibilities
 
-- Generate simulated temperature values.
-- Generate simulated humidity values.
-- Send measurements to the Enclosure Service.
-- Support normal and abnormal test scenarios.
+- Generate simulated temperature and humidity measurements.
+- Retrieve the enclosure's configured environmental thresholds.
+- Send measurements to the Enclosure Service using REST.
+- Simulate normal and abnormal environmental conditions.
+- Continue operating when the Enclosure Service is temporarily unavailable.
 
 ### 5.2 Communication
 
-The service periodically sends an HTTP POST request to:
+The Sensor Service communicates with the Enclosure Service through two HTTP endpoints:
 
-`http://localhost:3002/readings`
+**GET /enclosures/:id**
 
-Example measurement:
+Retrieves the enclosure's temperature and humidity thresholds to generate appropriate simulated readings.
+
+**POST /readings**
+
+Sends the generated measurements to the Enclosure Service.
+
+Example request:
 
 ```json
 {
-  "enclosureId": 1,
-  "temperature": 26,
-  "humidity": 65
+  "enclosureId": 2,
+  "temperature": 30,
+  "humidity": 67.5
 }
 ```
 
-Initially, measurements will be generated every
-five seconds.
+The Enclosure Service is responsible for storing the latest reading, detecting abnormal conditions, and triggering notifications when necessary.
 
-No physical sensors are required.
+### 5.3 Simulation
+
+The Sensor Service uses a repeatable sequence of environmental conditions:
+
+1. Normal temperature and humidity.
+2. Temperature above the configured maximum.
+3. Repeated high temperature.
+4. Return to normal conditions.
+5. Humidity below the configured minimum.
+6. Repeated low humidity.
+
+This sequence allows testing of abnormal-condition detection, recovery, and duplicate-alert prevention.
+
+The simulation repeats continuously.
+
+### 5.4 Configuration
+
+The Sensor Service uses two environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENCLOSURE_ID` | `1` | ID of the enclosure being monitored |
+| `SENSOR_INTERVAL_MS` | `5000` | Delay between simulation cycles in milliseconds |
+
+The default delay is five seconds to make testing and demonstrations faster. A longer delay, such as 60 seconds, can be configured for more realistic operation.
+
+### 5.5 Error Handling
+
+If the Enclosure Service is unavailable, the Sensor Service logs the connection failure and continues running.
+
+It automatically attempts communication again during the next cycle without requiring a restart.
+
+Failed measurements are not stored or queued for later delivery.
+
+The Sensor Service does not directly generate notifications or store environmental history. These responsibilities belong to the Enclosure Service.
 
 ## 6. Notification Service
 
@@ -288,7 +330,7 @@ WebSocket URL: `ws://localhost:3004`
 This service receives abnormal-condition events
 and delivers real-time alerts to connected clients.
 
-### 6.1 REST Endpoints
+### 6.1 REST Endpoints (Implemented)
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -309,8 +351,8 @@ Request:
 }
 ```
 
-The Enclosure Service sends this event when
-it detects abnormal environmental conditions.
+The Enclosure Service sends this event when an enclosure
+transitions from normal to abnormal conditions.
 
 ### 6.3 WebSocket Communication
 
@@ -355,7 +397,7 @@ Notifications are not stored permanently.
 
 ## 7. Data Persistence
 
-SQLite is used to store application data.
+SQLite is used to store application data in the two database-owning services.
 
 Each service owns its own data and does not
 directly access another service's database.
@@ -439,7 +481,7 @@ connected clients without storing notification history.
 
 ## 8. Error Handling
 
-The REST APIs will use standard HTTP status codes.
+The REST APIs use standard HTTP status codes.
 
 | Status | Meaning |
 |---|---|
@@ -453,12 +495,13 @@ The REST APIs will use standard HTTP status codes.
 | 503 Service Unavailable | Required service is unavailable |
 
 Input validation is implemented for pet information and feeding
-records in the Data Management Service. Validation for enclosure
-configurations and sensor measurements is planned as those services
-are developed.
+records in the Data Management Service, and for enclosure
+configurations and sensor measurements in the Enclosure Service.
 
-Service-to-service HTTP requests will use
-timeouts to avoid waiting indefinitely.
+The Enclosure Service uses a three-second timeout when posting alerts.
+The Sensor Service uses three-second timeouts for its requests to the
+Enclosure Service. Failed sensor requests are logged and retried on the
+next simulation cycle; failed measurements are not queued.
 
 ## 9. Alert Behavior
 
@@ -482,12 +525,11 @@ The reading is stored and no notification is sent.
 - Temperature: 31°C
 - Humidity: 42%
 
-The reading is stored, and the Enclosure Service
-sends an alert event to the Notification Service.
+The reading is stored, and the Enclosure Service sends an alert event
+to the Notification Service **only if the previous state was normal**.
 
-To prevent duplicate notifications, the initial
-implementation will generate an alert when an
-enclosure changes from normal to abnormal.
+To prevent duplicate notifications, the implementation generates
+an alert when an enclosure changes from normal to abnormal.
 
 If abnormal conditions continue, another identical
 alert is not generated.
@@ -498,10 +540,8 @@ is cleared.
 A new abnormal condition can then generate
 another alert.
 
-Handling delivery failures will be included in
-testing. The initial implementation will not
-guarantee delivery if the Notification Service
-is unavailable.
+Delivery failure handling has been tested. The implementation does not
+guarantee delivery if the Notification Service is unavailable.
 
 ### 9.1 Implemented Alert Delivery
 
@@ -537,6 +577,14 @@ The project intentionally excludes:
 - Notification history.
 - Message brokers and distributed queues.
 - Cloud deployment.
+
+Environmental history and the mobile-friendly web client are planned
+for subsequent milestones. Environmental history will preserve timestamped
+readings while keeping the latest-reading and alert behavior intact.
+
+The current Data Management schema has no pet-to-enclosure association.
+Such an association would be needed to automatically match a pet’s feeding
+records with its enclosure conditions; it is not implemented yet.
 
 The objective is to demonstrate a functional
 distributed application with four independently

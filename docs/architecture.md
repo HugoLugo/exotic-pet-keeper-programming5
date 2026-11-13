@@ -41,8 +41,8 @@ flowchart TB
 
 ### 3.1 Mobile-Friendly Web Client
 
-Provides the interface through which users interact
-with the application.
+Planned interface through which users will interact
+with the application. The web client is not implemented yet.
 
 Responsibilities:
 - Display pet information.
@@ -50,6 +50,7 @@ Responsibilities:
 - Record feeding events.
 - Display feeding history.
 - Display enclosure conditions.
+- Display environmental history (planned).
 - Receive real-time alerts.
 
 ### 3.2 Data Management Service
@@ -73,21 +74,25 @@ Responsibilities:
 - Store enclosure configurations and latest readings.
 - Compare readings against configured acceptable ranges.
 - Detect abnormal environmental conditions.
-- Send abnormal-condition events to the Notification Service.
+- Send abnormal-condition events to the Notification Service only on normal-to-abnormal transitions.
 
 This service uses a separate SQLite database.
 
 ### 3.4 Sensor Service
 
-Simulates environmental sensor devices.
+Runs as an independent Node.js process that simulates environmental
+measurements for one configured enclosure at a time.
 
 Responsibilities:
-- Generate temperature and humidity measurements.
-- Send measurements periodically to the Enclosure Service.
-- Generate normal and abnormal values for testing.
+- Retrieve the enclosure's current temperature and humidity thresholds via REST.
+- Generate repeatable normal, high-temperature, and low-humidity readings.
+- Send measurements to the Enclosure Service via REST.
+- Allow the enclosure ID and simulation delay to be configured through environment variables.
+- Log failed requests and automatically resume communication when the Enclosure Service becomes available.
 
-The Sensor Service does not require physical hardware
-or persistent storage for the initial implementation.
+The Sensor Service does not expose an HTTP server, maintain a database,
+or require physical sensors or additional npm packages.
+It uses a five-second delay between completed cycles by default.
 
 ### 3.5 Notification Service
 
@@ -119,8 +124,8 @@ Examples:
 WebSocket provides a persistent connection between
 the Notification Service and the client.
 
-When an abnormal environmental condition is detected,
-the Notification Service sends an alert to connected clients.
+When the Enclosure Service detects a transition from normal to abnormal,
+it sends an alert to the Notification Service, which broadcasts to connected clients.
 
 Normal environmental readings do not generate alerts.
 
@@ -154,8 +159,9 @@ Example:
 The Enclosure Service detects values outside the
 configured acceptable ranges.
 
-It then sends an alert event to the Notification Service,
-which delivers a WebSocket message to the client.
+If the enclosure was previously normal, it sends an alert event to the
+Notification Service, which broadcasts a WebSocket message to connected clients.
+Continued abnormal readings do not generate duplicate alerts.
 
 ## 6. Data Ownership
 
@@ -217,14 +223,14 @@ sequenceDiagram
     Note over User,Data: B. View Feeding History
 
     User->>App: Open feeding history
-    App->>Data: GET /pets/15/feeding
+    App->>Data: GET /pets/15/feedings
     Data-->>App: Feeding records
     App-->>User: Display feeding history
 
     Note over User,Data: C. Record Feeding
 
     User->>App: Enter feeding information
-    App->>Data: POST /pets/15/feeding
+    App->>Data: POST /pets/15/feedings
     Data-->>App: Feeding saved successfully
     App-->>User: Display confirmation
 
@@ -254,7 +260,7 @@ corresponding feeding records and returns them.
 **C. Record Feeding**
 
 The user enters feeding information, such as
-food type, quantity, and date.
+food description, date, and optional notes.
 
 The client sends a REST POST request to the
 Data Management Service, which saves the record
@@ -274,9 +280,9 @@ They do not generate real-time notifications.
 
 ### 8.3 Real-Time Environmental Monitoring
 
-This sequence diagram illustrates how simulated sensor
-readings are processed and how the system responds to
-normal and abnormal environmental conditions.
+This sequence diagram describes the implemented Sensor → Enclosure →
+Notification flow. A WebSocket client can receive broadcasts today; the
+mobile-friendly application interface is planned.
 
 ```mermaid
 sequenceDiagram
@@ -285,93 +291,85 @@ sequenceDiagram
     participant Sensor as Sensor Service
     participant Enclosure as Enclosure Service
     participant Notification as Notification Service
-    participant App as Mobile-Friendly Client
-    actor User
+    participant App as WebSocket Client
 
-    Sensor->>Enclosure: POST /readings (temperature, humidity)
+    Sensor->>Enclosure: GET /enclosures/:id
+    Enclosure-->>Sensor: Current environmental thresholds
+    Sensor->>Sensor: Generate simulated reading
+    Sensor->>Enclosure: POST /readings
     activate Enclosure
+    Enclosure->>Enclosure: Save latest reading and update abnormal state
 
-    Enclosure->>Enclosure: Save reading and check thresholds
-
-    alt Normal environmental conditions
-        Note over Enclosure: Values within configured ranges
-        Enclosure-->>Sensor: 200 OK
-        Note over Notification,App: No notification generated
-
-    else Abnormal environmental conditions
-        Note over Enclosure: Values outside configured ranges
-        Enclosure->>Notification: POST /alerts (abnormal values)
+    alt Normal conditions
+        Enclosure-->>Sensor: 200 OK (no new alert)
+    else Transition from normal to abnormal
+        Enclosure->>Notification: POST /alerts
         activate Notification
-
-        Notification-->>Enclosure: 202 Accepted
-        Notification-)App: WebSocket alert
+        Notification-->>Enclosure: Successful HTTP response
+        Notification-)App: WebSocket alert broadcast
         deactivate Notification
-
-        Enclosure-->>Sensor: 200 OK
-        App->>App: Display notification
-        App-->>User: Show environmental warning
+        Enclosure-->>Sensor: 200 OK (new alert)
+    else Still abnormal
+        Enclosure-->>Sensor: 200 OK (duplicate alert suppressed)
     end
-
     deactivate Enclosure
 ```
 
+If the Notification Service is unavailable, the Enclosure Service logs the
+failure and preserves the reading. Alert delivery is not guaranteed.
+
 ### 8.4 Explanation of Environmental Monitoring
 
-**Step 1 — Generate Sensor Readings**
+**Step 1 — Retrieve thresholds and generate a reading**
 
-The Sensor Service generates simulated temperature
-and humidity measurements periodically.
+The Sensor Service requests the enclosure's configured ranges using
+`GET /enclosures/:id`. It generates a normal or abnormal reading based on
+those thresholds, then sends it to `POST /readings`.
+The default delay between completed simulation cycles is five seconds;
+`SENSOR_INTERVAL_MS` can configure another delay.
 
-For example, every five seconds it sends an HTTP POST
-request to the Enclosure Service.
+**Step 2 — Store and evaluate measurements**
 
-The readings include an enclosure identifier so the
-Enclosure Service knows which enclosure they belong to.
+The Enclosure Service validates the enclosure and measurement, retains the
+latest values, and updates the current abnormal state in SQLite.
 
-**Step 2 — Store and Validate Measurements**
+**Step 3A — Normal conditions**
 
-The Enclosure Service receives the measurements,
-stores the latest values, and compares them against
-the configured acceptable ranges for that enclosure.
+The reading is stored and no alert is generated. Returning to normal clears
+the abnormal state so a subsequent abnormal reading can trigger a new alert.
 
-**Step 3A — Normal Environmental Conditions**
+**Step 3B — Newly abnormal conditions**
 
-If both temperature and humidity are within their
-acceptable ranges, the Enclosure Service returns
-a successful response to the Sensor Service.
+A transition from normal to abnormal triggers `POST /alerts` to the
+Notification Service. If conditions remain abnormal, no duplicate alert is sent.
 
-The Notification Service is not contacted.
+**Step 4 — WebSocket notification**
 
-**Step 3B — Abnormal Environmental Conditions**
+The Notification Service broadcasts the event to currently connected
+WebSocket clients. The future web client will display the warning without a
+page refresh. If the Notification Service is down, the reading remains stored.
 
-If either temperature or humidity is outside its
-configured range, the Enclosure Service creates
-an alert event containing information about the
-abnormal condition.
+## 9. Implementation Status and Planned Improvements
 
-The alert is sent to the Notification Service
-using an HTTP POST request.
+The four backend microservices are implemented and have passed functional
+integration tests, including simulated normal/abnormal readings, suppression
+of repeated alerts, WebSocket broadcasts, and recovery after service downtime.
 
-**Step 4 — Real-Time Notification**
+### 9.1 Environmental History (Planned — Milestone 9)
 
-The Notification Service accepts the alert event
-and sends a WebSocket message to connected clients.
+Currently, only the latest environmental reading is kept per enclosure.
+A later milestone will add timestamped reading history and a retrieval API.
+This will help keepers review conditions alongside existing feeding records.
+The current latest-reading and alert behavior will be preserved.
 
-The mobile-friendly client displays the warning
-to the user without requiring a page refresh.
+### 9.2 Mobile-Friendly Web Client (Planned)
 
-## 9. Future Implementation Considerations
+The web client will allow users to manage pets, feeding records, and
+enclosures, view current and historical conditions, and receive real-time alerts.
 
-The initial implementation will focus on the
-successful communication flows described above.
+### 9.3 Future Data Association
 
-Additional details to address during implementation:
-
-- Avoid sending duplicate alerts continuously.
-- Handle unavailable services and failed HTTP requests.
-- Validate incoming sensor measurements.
-- Associate readings with the correct enclosure.
-- Handle disconnected WebSocket clients.
-
-These mechanisms will be implemented without adding
-extra microservices or expanding the project scope.
+Pet records currently do not contain an enclosure reference. Associating a
+pet with an enclosure will require an explicit design change before the
+application can automatically compare an individual pet's feeding history
+with that enclosure's environmental history.
