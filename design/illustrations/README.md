@@ -28,10 +28,18 @@ The browser WebP is a raster image even if the illustration has a vector-inspire
 - **Reference workflow:** user supplied a real tarantula photograph to help resolve repeated incorrect leg counts. Use reference photographs when complex animal anatomy is hard to generate, then independently inspect the illustrated limb count and connections. The photograph is **not** part of the distributed asset package.
 - **Asset separation:** keep the transparent animal cutout isolated; overlays and backdrops are rendered in UI, not embedded in the asset.
 
-## Next planned reference (not yet approved)
+## Scorpion — APPROVED (13 November 2026)
 
-1. Tailless whip scorpion
+- **Master original:** `originals/scorpion-approved.png` (1254 × 1254, true transparent PNG).
+- **Browser-ready asset:** `frontend/public/assets/illustrations/animals/scorpion.webp` (root-relative path, transparent WebP).
+- **Card-size test:** `design/previews/scorpion-card-test.html` and `.png`.
+- **Art direction:** emperor-scorpion-inspired appearance with dark brown / bronze armored shell, large pedipalp pincers, high curved five-segment tail and a clear terminal stinger.
+- **Accuracy note:** four pairs of walking legs (some may overlap behind pincers in a three-quarter pose), with median eyes small and central on top of the carapace. Do not place large eyes on the side like a cartoon.
+- **Naming:** use `scorpion` rather than a definitive species name until the product needs species-specific artwork.
 
-A broader generic/category/common-species illustration roadmap has been discussed but is **not yet specified**; do not treat any species list as final.
+## Next phase — Illustration roadmap (not yet defined)
+
+Define a manageable list of generic category illustrations and representative common species for snakes, frogs, lizards, tarantulas and other exotic animals. Do not silently treat suggestions from prior chats as final commitments. The tailless whip scorpion illustration has been deferred rather than approved.
+
 
 Generate and approve **one animal at a time**. Preserve originals in this directory and use descriptive, stable filenames for optimized WebP files. Add a new line to `frontend-visual-design-system.md`'s decision log after each approval.
