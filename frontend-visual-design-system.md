@@ -1,9 +1,9 @@
 # Exotic Pet Keeper — Frontend Visual Design System
 
 **Project:** Exotic Pet Keeper — Programming 5  
-**Document version:** 1.1  
+**Document version:** 1.2  
 **Created:** 13 November 2026  
-**Status:** Visual direction and first standalone animal illustration approved; precise implementation tokens and further screen designs pending
+**Status:** Visual direction and two standalone animal illustrations approved; exact UI implementation tokens and further screen designs pending
 
 > **Purpose:** This file is the single source of truth for frontend visual decisions. Attach it or paste its contents into a new ChatGPT conversation before continuing mockups, illustration generation, or frontend development. Update it whenever a visual decision changes.
 
@@ -74,7 +74,7 @@ The dashboard screenshot supplied in the design conversation is the **layout ref
 ### Species accuracy examples
 
 - A **leopard gecko** should have the appropriate body and tail form and distinctive spotting.
-- A **ball python** should read as a robust, coiled snake with an appropriate head/body silhouette.
+- A **ball python** should read as a robust snake with a broad back of the head, gently tapering snout, visible neck transition and continuous, anatomically plausible coils; never insert extra disconnected body sections for visual balance.
 - A **crested gecko** should retain its characteristic crest and arboreal posture.
 - A **tailless whip scorpion** is **not a true scorpion**: do not give it a scorpion tail or stinger; preserve its long whip-like sensory front legs and prominent pedipalps.
 - A **tarantula** should keep an eight-legged spider body plan, not an insect body plan.
@@ -101,7 +101,7 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 1. Define a reusable prompt with consistent style constraints.
 2. Generate each species as a **separate asset**, preferably on transparent background if supported.
 3. Inspect for anatomical errors, cropped legs/tails, artifacting, and off-style shading.
-4. Approve one illustration as the quality benchmark, then compare subsequent artwork against it.
+4. Approve one illustration as the quality benchmark, then compare subsequent artwork against it. For snakes, verify that the entire body follows a logical continuous path into a tapering tail before approval.
 5. Export optimized assets appropriate for web use; use genuine SVG only when there is a real editable/vector source, not simply because artwork *looks* vector-like.
 6. Keep original generations and production exports named predictably; use `leopard-gecko.webp` for the approved browser asset and preserve the original concept PNG separately.
 
@@ -177,14 +177,16 @@ For terraria, plants, feeder insects, or empty-state illustrations, replace the 
 | 2026-11-13 | Keep illustrations species-recognizable, welcoming, and not overly childish | Confirmed direction |
 | 2026-11-13 | Finalize exact hex colors, fonts, spacing, responsive rules, and component tokens | **Open** |
 | 2026-11-13 | Approve Leopard Gecko — Concept 01 as the first master illustration, after three card-size tests | **Confirmed** |
-| 2026-11-13 | Extend the approved animal illustration reference set (ball python, tarantula, tailless whip scorpion) | **Open** |
+| 2026-11-13 | Extend the approved animal illustration reference set (tarantula, tailless whip scorpion) | **Open** |
+| 2026-11-13 | Approve Ball Python illustration after revising the head anatomy and removing unnatural extra coils; preserve transparent PNG source and optimized WebP | **Confirmed** |
+| 2026-11-13 | Create a generic and common-species illustration roadmap across animal groups before expanding the asset library further | **Planned, not yet defined** |
 
 ## 10. Handoff checklist for a new conversation
 
 Share these items when relevant:
 
 1. **This document** (latest version).
-2. **Approved dashboard reference image** (Soft Illustrative Cards version) and `design/illustrations/originals/leopard-gecko-concept-01.png` as the master animal illustration benchmark.
+2. **Approved dashboard reference image** (Soft Illustrative Cards version) and `design/illustrations/originals/leopard-gecko-concept-01.png` and `design/illustrations/originals/ball-python-approved.png` as the two approved animal references.
 3. If doing frontend implementation: `README.md`, `docs/api-design.md`, `docs/architecture.md`, and relevant frontend/backend code or repository details.
 4. Briefly specify the immediate task and whether the work is **mockup**, **asset illustration**, or **functional frontend code**.
 
