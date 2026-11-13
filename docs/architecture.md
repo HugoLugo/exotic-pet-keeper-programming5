@@ -27,6 +27,8 @@ flowchart TB
 
     Client <-->|REST API| Data
     Client <-->|REST API| Enclosure
+    Data -->|REST: Validate enclosure assignment| Enclosure
+    Enclosure -->|REST: Check assigned pets before deletion| Data
 
     Sensor -->|HTTP REST: Sensor readings| Enclosure
     Enclosure -->|HTTP REST: Abnormal condition events| Notification
@@ -51,6 +53,8 @@ Responsibilities:
 - Display feeding history.
 - Display enclosure conditions.
 - Display environmental history (planned).
+- Assign or unassign a pet to an enclosure.
+- Show the pets assigned to an enclosure.
 - Receive real-time alerts.
 
 ### 3.2 Data Management Service
@@ -62,6 +66,9 @@ Responsibilities:
 - Manage pet records.
 - Record feeding events.
 - Retrieve feeding history.
+- Store optional pet-to-enclosure assignments.
+- Validate assigned enclosure IDs through the Enclosure Service.
+- List pets assigned to a particular enclosure for occupancy checks.
 
 This service uses its own SQLite database.
 
@@ -77,6 +84,7 @@ Responsibilities:
 - Compare readings against configured acceptable ranges.
 - Detect abnormal environmental conditions.
 - Send abnormal-condition events to the Notification Service only on normal-to-abnormal transitions.
+- Check Data Management before deleting an enclosure and reject deletion while pets are assigned.
 
 This service uses a separate SQLite database.
 
@@ -120,6 +128,8 @@ Examples:
 - Client requests environmental data from Enclosure.
 - Sensor sends simulated measurements to Enclosure.
 - Enclosure sends abnormal-condition events to Notification.
+- Data Management validates an assigned enclosure with Enclosure before saving a pet.
+- Enclosure queries Data Management for assigned pets before deleting an enclosure.
 
 ### 4.2 WebSocket
 
@@ -176,7 +186,10 @@ Each service is responsible for its own data.
 - Sensor generates temporary simulated measurements.
 - Notification processes alert events.
 
-Services do not directly access each other's databases.
+Services do not directly access each other's databases. Pet records have an
+optional `enclosure_id` in Data Management, but no cross-database foreign
+key. REST requests validate new assignments and check occupancy before
+an enclosure is deleted.
 
 ## 7. Design Decisions
 
@@ -390,9 +403,9 @@ Both measurement sources use the Enclosure Service's SQLite database; no
 additional service or database is needed. Deleting an enclosure also deletes
 its history through foreign-key cascading.
 
-History is useful for comparing conditions with feeding dates, but automated
-pet-specific comparisons require the pet-to-enclosure association described
-below. Pagination, charts, and analytics are not yet implemented.
+History can be associated with a pet through its enclosure assignment
+(Milestone 10), but automated pet-specific comparisons, pagination,
+charts, and analytics are not yet implemented.
 
 ### 9.2 Mobile-Friendly Web Client (Planned)
 
@@ -400,9 +413,29 @@ The web client will allow users to manage pets, feeding records, and
 enclosures, enter manual environmental observations, view current and
 historical conditions, and receive real-time alerts.
 
-### 9.3 Future Data Association
+### 9.3 Pet-to-Enclosure Association (Implemented — Milestone 10)
 
-Pet records currently do not contain an enclosure reference. Associating a
-pet with an enclosure will require an explicit design change before the
-application can automatically compare an individual pet's feeding history
-with that enclosure's environmental history.
+Data Management stores an optional `enclosure_id` in each pet record. A
+nullable-column migration preserves existing pets. Each pet has at most
+one enclosure assignment; multiple pets may share an enclosure.
+
+- On pet creation or replacement, Data Management validates non-null
+  enclosure IDs by calling `GET /enclosures/:id` on Enclosure. A missing
+  enclosure is rejected with HTTP 400; an unavailable validation service
+  produces HTTP 503.
+- `GET /enclosures/:id/pets` on Data Management lists assigned pets; it
+  does not independently check whether the enclosure exists.
+- Before `DELETE /enclosures/:id`, Enclosure asks Data Management for the
+  assigned-pets list. An occupied enclosure returns HTTP 409, while a
+  failed or unavailable occupancy check returns HTTP 503. Successful
+  deletion of an empty enclosure returns HTTP 204, with local cascading
+  deletion of its readings and history.
+
+The services continue to own separate SQLite databases. REST checks
+protect normal application operations but do not provide a distributed
+transaction; concurrent assignment and deletion could theoretically
+race. Fully atomic cross-service referential integrity is outside the
+scope of this university project.
+
+The mobile-friendly web client remains planned. Automated comparison of
+feeding records with environmental measurements is not yet implemented.

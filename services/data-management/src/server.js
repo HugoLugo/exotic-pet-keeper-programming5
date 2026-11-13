@@ -12,6 +12,52 @@ function isValidId(id) {
     return Number.isSafeInteger(id) && id > 0;
 }
 
+ // Validate an optional enclosure assignment
+async function validateEnclosureAssignment(enclosureId) {
+    // A pet can exist without an assigned enclosure
+    if (enclosureId === null || enclosureId === undefined) {
+        return null;
+    }
+
+    if (!isValidId(enclosureId)) {
+        return {
+            status: 400,
+            error: 'enclosure_id must be a positive integer or null'
+        };
+    }
+
+    try {
+        const response = await fetch(
+            `http://localhost:3002/enclosures/${enclosureId}`,
+            { signal: AbortSignal.timeout(3000) }
+        );
+
+        if (response.status === 404) {
+            return {
+                status: 400,
+                error: 'Assigned enclosure does not exist'
+            };
+        }
+
+        if (!response.ok) {
+            return {
+                status: 503,
+                error: 'Could not validate enclosure'
+            };
+        }
+
+        return null;
+
+    } catch (error) {
+        console.error('Enclosure validation failed:', error.message);
+
+        return {
+            status: 503,
+            error: 'Enclosure Service unavailable'
+        };
+    }
+}
+
 // Validate dates using DD/MM/YYYY
 function isValidDate(date) {
     if (typeof date !== 'string') {
@@ -111,9 +157,9 @@ app.get('/pets', (req, res) => {
     res.status(200).json(pets);
 });
 
-// Register a new pet
-app.post('/pets', (req, res) => {
-    const { name, species } = req.body || {};
+ // Register a new pet
+app.post('/pets', async (req, res) => {
+    const { name, species, enclosure_id = null } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -126,9 +172,19 @@ app.post('/pets', (req, res) => {
         });
     }
 
-    const result = db.prepare(
-        'INSERT INTO pets (name, species) VALUES (?, ?)'
-    ).run(name.trim(), species.trim());
+    // Validate the enclosure before creating the pet
+    const enclosureError = await validateEnclosureAssignment(enclosure_id);
+
+    if (enclosureError) {
+        return res.status(enclosureError.status).json({
+            error: enclosureError.error
+        });
+    }
+
+    const result = db.prepare(`
+        INSERT INTO pets (name, species, enclosure_id)
+        VALUES (?, ?, ?)
+    `).run(name.trim(), species.trim(), enclosure_id);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -160,8 +216,9 @@ app.get('/pets/:id', (req, res) => {
     res.status(200).json(pet);
 });
 
-// Update an existing pet
-app.put('/pets/:id', (req, res) => {
+
+ // Update an existing pet
+app.put('/pets/:id', async (req, res) => {
     const id = Number(req.params.id);
 
     if (!isValidId(id)) {
@@ -170,7 +227,7 @@ app.put('/pets/:id', (req, res) => {
         });
     }
 
-    const { name, species } = req.body || {};
+    const { name, species, enclosure_id = null } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -183,15 +240,31 @@ app.put('/pets/:id', (req, res) => {
         });
     }
 
-    const result = db.prepare(
-        'UPDATE pets SET name = ?, species = ? WHERE id = ?'
-    ).run(name.trim(), species.trim(), id);
+    // Check that the pet exists before validating the enclosure
+    const existingPet = db.prepare(
+        'SELECT id FROM pets WHERE id = ?'
+    ).get(id);
 
-    if (result.changes === 0) {
+    if (!existingPet) {
         return res.status(404).json({
             error: 'Pet not found'
         });
     }
+
+    // Validate the new enclosure assignment
+    const enclosureError = await validateEnclosureAssignment(enclosure_id);
+
+    if (enclosureError) {
+        return res.status(enclosureError.status).json({
+            error: enclosureError.error
+        });
+    }
+
+    db.prepare(`
+        UPDATE pets
+        SET name = ?, species = ?, enclosure_id = ?
+        WHERE id = ?
+    `).run(name.trim(), species.trim(), enclosure_id, id);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -235,6 +308,26 @@ app.delete('/pets/:id', (req, res) => {
     ).run(id);
 
     res.status(204).send();
+});
+
+ // Retrieve pets assigned to an enclosure
+app.get('/enclosures/:id/pets', (req, res) => {
+    const id = Number(req.params.id);
+
+    if (!isValidId(id)) {
+        return res.status(400).json({
+            error: 'Invalid enclosure ID'
+        });
+    }
+
+    const pets = db.prepare(`
+        SELECT *
+        FROM pets
+        WHERE enclosure_id = ?
+        ORDER BY id
+    `).all(id);
+
+    res.status(200).json(pets);
 });
 
 // --------------------------------------------------

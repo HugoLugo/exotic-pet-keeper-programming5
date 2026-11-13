@@ -49,8 +49,9 @@ This service manages pet information and feeding records.
 | GET | `/pets` | Retrieve all pets |
 | POST | `/pets` | Create a new pet |
 | GET | `/pets/:id` | Retrieve a specific pet |
-| PUT | `/pets/:id` | Update an existing pet (name and species required) |
+| PUT | `/pets/:id` | Replace editable pet fields (name and species required; optional enclosure assignment) |
 | DELETE | `/pets/:id` | Delete a pet if it has no feeding records |
+| GET | `/enclosures/:id/pets` | List pets assigned to an enclosure ID |
 | GET | `/pets/:id/feedings` | Retrieve a pet's feeding history (newest first) |
 | POST | `/pets/:id/feedings` | Record a feeding event for a pet |
 | GET | `/pets/:id/feedings/:feedingId` | Retrieve a specific feeding record belonging to the pet |
@@ -59,12 +60,14 @@ This service manages pet information and feeding records.
 
 ### 3.2 Example Pet Data
 
-A request to `POST /pets` supplies `name` and `species`:
+A request to `POST /pets` supplies `name`, `species`, and optionally
+`enclosure_id` (a positive integer referencing an existing enclosure or `null`):
 
 ```json
 {
   "name": "Silvie",
-  "species": "Davus pentaloris"
+  "species": "Davus pentaloris",
+  "enclosure_id": 4
 }
 ```
 
@@ -75,14 +78,30 @@ An example response is:
   "id": 1,
   "name": "Silvie",
   "species": "Davus pentaloris",
-  "created_at": "2026-11-12 19:30:00"
+  "created_at": "2026-11-12 19:30:00",
+  "enclosure_id": 4
 }
 ```
 
-The Data Management pet schema currently does **not** include
-an enclosure reference. Enclosures are maintained separately
-by the Enclosure Service; any future pet-to-enclosure association
-would need to be designed and implemented explicitly.
+`enclosure_id` is optional and defaults to `null` for new pets. One pet
+may be assigned to at most one enclosure, while an enclosure may contain
+multiple pets. On `PUT /pets/:id`, supply the current `enclosure_id` to
+keep an existing assignment: omitting it clears the assignment (the PUT
+request replaces editable fields, rather than partially updating them).
+
+When a non-null `enclosure_id` is supplied on create or update, Data
+Management calls `GET http://localhost:3002/enclosures/:id` with a
+three-second timeout. A nonexistent enclosure or an invalid ID is rejected
+with `400 Bad Request`. If Enclosure cannot be contacted or cannot
+validate the ID, the request returns `503 Service Unavailable` and the
+pet is not updated. An unassigned pet can be created without contacting
+Enclosure.
+
+`GET /enclosures/:id/pets` returns a JSON array of pets assigned to the
+specified ID, or `[]` if there are none. It reads only the Data Management
+database; it does not confirm that the enclosure itself exists. An invalid
+ID returns HTTP 400. This endpoint also allows the Enclosure Service to
+check occupancy before deletion.
 
 ### 3.3 Example Feeding Record
 
@@ -155,7 +174,7 @@ abnormal environmental conditions.
 | GET | `/enclosures/:id` | Retrieve one enclosure |
 | POST | `/enclosures` | Create an enclosure |
 | PUT | `/enclosures/:id` | Update enclosure configuration |
-| DELETE | `/enclosures/:id` | Delete an enclosure, its latest reading, and its history |
+| DELETE | `/enclosures/:id` | Delete an empty enclosure, its latest reading, and its history; reject deletion if pets are assigned |
 | POST | `/readings` | Store a sensor reading, preserve history, and evaluate environmental conditions |
 | POST | `/enclosures/:id/readings/manual` | Save a manual historical observation without changing the live state |
 | GET | `/enclosures/:id/readings/history` | Retrieve historical readings, optionally filtered by date and limited |
@@ -248,9 +267,14 @@ finite numeric temperature and humidity thresholds,
 minimum values below maximum values, and humidity
 thresholds between 0 and 100.
 
-Deleting an enclosure also deletes its latest reading and historical
-measurements through SQLite foreign-key cascading. Successful deletion
-returns HTTP 204.
+Before deleting an enclosure, the service calls Data Management at
+`GET http://localhost:3001/enclosures/:id/pets` with a three-second
+timeout. If pets are assigned, deletion returns `409 Conflict`. If Data
+Management is unavailable or the occupancy check fails, deletion is
+blocked with `503 Service Unavailable`. A nonexistent enclosure returns
+`404 Not Found`. Only an empty enclosure can be deleted; successful
+deletion returns HTTP 204 and also deletes its latest reading and history
+through SQLite foreign-key cascading.
 
 ### 4.5 Manual Historical Observations (Implemented)
 
@@ -492,6 +516,7 @@ directly access another service's database.
 | name | TEXT | Required pet name |
 | species | TEXT | Required animal species |
 | created_at | TEXT | Required creation timestamp, default `CURRENT_TIMESTAMP` |
+| enclosure_id | INTEGER | Optional enclosure identifier, `NULL` when unassigned |
 
 **feeding_records**
 
@@ -507,6 +532,11 @@ SQLite foreign-key enforcement is enabled. A feeding record
 cannot reference a pet that does not exist. The database does
 not automatically cascade-delete feeding records when a pet is
 deleted; the REST API rejects such pet deletions with HTTP `409`.
+
+Because the Enclosure Service owns a separate database, `pets.enclosure_id`
+is not a SQLite foreign key to an enclosure. New assignments are checked
+through REST. The schema adds the nullable column to existing databases
+using a conditional migration, preserving existing pet records.
 
 The local database file is stored at
 `services/data-management/data/pets.db` and is excluded from Git.
@@ -584,13 +614,16 @@ The REST APIs use standard HTTP status codes.
 | 204 No Content | Successful request without response body |
 | 400 Bad Request | Invalid request data |
 | 404 Not Found | Requested resource does not exist |
-| 409 Conflict | Pet deletion blocked by existing feeding records |
+| 409 Conflict | Pet deletion blocked by feeding records, or enclosure deletion blocked by assigned pets |
 | 500 Internal Server Error | Unexpected server error |
 | 503 Service Unavailable | Required service is unavailable |
 
-Input validation is implemented for pet and feeding records in Data
-Management, and for enclosure configuration, automatic readings, manual
-observations, history dates, and result limits in the Enclosure Service.
+Input validation is implemented for pet and feeding records and enclosure
+assignment IDs in Data Management, and for enclosure configuration,
+automatic readings, manual observations, history dates, and result limits
+in the Enclosure Service. Cross-service assignment validation and
+occupancy checks use three-second HTTP timeouts; a required check that
+cannot be completed returns HTTP 503.
 
 The Enclosure Service uses a three-second timeout when posting alerts.
 The Sensor Service uses three-second timeouts for its requests to the
@@ -679,9 +712,13 @@ The mobile-friendly web client is planned. The history API supports UTC
 date filtering and up to 1,000 records per response, but does not implement
 pagination, graphing, or automatic correlations with feeding history.
 
-The current Data Management schema has no pet-to-enclosure association.
-Such an association would be needed to automatically match a pet’s feeding
-records with its enclosure conditions; it is not implemented yet.
+Pet-to-enclosure association is implemented (Milestone 10), but automated
+correlations between feeding history and environmental history are not yet
+implemented. Each service owns its database, so the cross-service link
+cannot be enforced by a SQLite foreign key. REST validation and the
+occupancy check protect ordinary operations, but concurrent requests
+could theoretically assign a pet between an occupancy check and deletion;
+there is no distributed transaction or locking protocol across services.
 
 The objective is to demonstrate a functional
 distributed application with four independently

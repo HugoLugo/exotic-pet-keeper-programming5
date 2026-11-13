@@ -231,8 +231,8 @@ app.put('/enclosures/:id', (req, res) => {
     res.status(200).json(formatEnclosure(updated));
 });
 
-// DELETE enclosure
-app.delete('/enclosures/:id', (req, res) => {
+ // DELETE enclosure
+app.delete('/enclosures/:id', async (req, res) => {
     const { id } = req.params;
 
     if (!isValidId(id)) {
@@ -241,19 +241,59 @@ app.delete('/enclosures/:id', (req, res) => {
         });
     }
 
-    const result = db.prepare(`
-        DELETE FROM enclosures WHERE id = ?
-    `).run(Number(id));
+    // Check whether the enclosure exists
+    const enclosure = db.prepare(`
+        SELECT id FROM enclosures WHERE id = ?
+    `).get(Number(id));
 
-    if (result.changes === 0) {
+    if (!enclosure) {
         return res.status(404).json({
             error: 'Enclosure not found'
         });
     }
 
+    // Ask Data Management whether pets are assigned
+    try {
+        const response = await fetch(
+            `http://localhost:3001/enclosures/${id}/pets`,
+            { signal: AbortSignal.timeout(3000) }
+        );
+
+        if (!response.ok) {
+            return res.status(503).json({
+                error: 'Could not verify enclosure assignments'
+            });
+        }
+
+        const pets = await response.json();
+
+        if (!Array.isArray(pets)) {
+            return res.status(503).json({
+                error: 'Invalid response from Data Management Service'
+            });
+        }
+
+        if (pets.length > 0) {
+            return res.status(409).json({
+                error: 'Cannot delete an enclosure with assigned pets'
+            });
+        }
+
+    } catch (error) {
+        console.error('Failed to check enclosure assignments:', error.message);
+
+        return res.status(503).json({
+            error: 'Data Management Service unavailable'
+        });
+    }
+
+    // Delete the enclosure only if it has no assigned pets
+    db.prepare(`
+        DELETE FROM enclosures WHERE id = ?
+    `).run(Number(id));
+
     res.status(204).send();
 });
-
 
 // POST new sensor reading
 app.post('/readings', async (req, res) => {

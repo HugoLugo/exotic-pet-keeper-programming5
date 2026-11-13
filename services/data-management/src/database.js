@@ -17,7 +17,8 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         species TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        enclosure_id INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS feeding_records (
@@ -29,5 +30,17 @@ db.exec(`
         FOREIGN KEY (pet_id) REFERENCES pets(id)
     );
 `);
+
+// Add enclosure_id to databases created before Milestone 10
+const columns = db.prepare('PRAGMA table_info(pets)').all();
+
+const hasEnclosureId = columns.some(
+    column => column.name === 'enclosure_id'
+);
+
+if (!hasEnclosureId) {
+    db.exec('ALTER TABLE pets ADD COLUMN enclosure_id INTEGER');
+    console.log('Added enclosure_id column to pets table');
+}
 
 module.exports = db;
