@@ -52,6 +52,45 @@
         <div class="pets-collection-message" id="petsCollectionMessage" role="status" aria-live="polite" hidden></div>
         <div class="pets-collection-grid" id="petsCollectionGrid" aria-live="polite"></div>
       </section>
+      <section class="pet-details-page" id="petDetailsPage" aria-label="Individual pet details" hidden>
+        <div class="pet-details-toolbar">
+          <div class="pet-details-actions" aria-label="Pet profile actions">
+            <button type="button" class="pet-details-icon-button" id="petDetailsEdit" aria-label="Edit pet (available in Stage 3B)" title="Edit pet — coming in Stage 3B" disabled>
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4 10.5-10.5Z"/></svg>
+            </button>
+            <button type="button" class="pet-details-close" id="petDetailsClose" aria-label="Close pet profile and return to Pets" title="Close profile">× <span>Close</span></button>
+          </div>
+        </div>
+        <div class="pets-collection-message" id="petDetailsStatus" role="status" aria-live="polite" hidden></div>
+        <div id="petDetailsContent" hidden>
+          <div class="pet-details-hero">
+            <div class="pet-details-art" id="petDetailsArtwork"></div>
+            <div class="pet-details-intro">
+              <span class="section-kicker">YOUR COMPANION</span>
+              <h2 id="petDetailsName"></h2>
+              <div class="pet-details-meta">
+                <div class="pet-details-meta-item"><span class="pet-details-meta-label">Species</span><p id="petDetailsSpecies"></p></div>
+                <div class="pet-details-meta-item"><span class="pet-details-meta-label">Enclosure</span><span class="pet-details-enclosure" id="petDetailsEnclosure"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="pet-details-panels">
+            <section class="pet-details-panel" aria-labelledby="petDetailsInfoHeading">
+              <span class="section-kicker">PROFILE</span>
+              <h3 id="petDetailsInfoHeading">Pet Information</h3>
+              <dl class="pet-details-facts" id="petDetailsFacts"></dl>
+              <h4>Notes</h4>
+              <p class="pet-details-notes" id="petDetailsNotes"></p>
+            </section>
+            <section class="pet-details-panel" aria-labelledby="petDetailsFeedingHeading">
+              <span class="section-kicker">CARE LOG</span>
+              <div class="pet-details-section-head"><h3 id="petDetailsFeedingHeading">Feeding History</h3><span id="petDetailsFeedingCount"></span></div>
+              <div id="petDetailsFeedings"></div>
+              <div id="petDetailsFeedingError" hidden><p class="pet-details-empty">Unable to load feeding history. Other profile information is still available.</p><button type="button" class="text-button" id="petDetailsRetryFeedings">Try again</button></div>
+            </section>
+          </div>
+        </div>
+      </section>
       <section class="add-pet-page" id="addPetPage" aria-label="Add New Pet form" hidden>
         <div class="add-pet-intro">
           <button id="backToPets" class="add-pet-back" type="button">← Back to Pets</button>

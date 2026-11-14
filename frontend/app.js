@@ -58,6 +58,8 @@ function navigate(page) {
   $('#dashboardContent').hidden = page !== 'dashboard';
   $('#petsPage').hidden = page !== 'pets';
   $('#addPetPage').hidden = true;
+  $('#petDetailsPage').hidden = true;
+  ++petDetailsRequest;
   $('#otherPage').hidden = page === 'dashboard' || page === 'pets';
   $('#dashboardDemoBanner').hidden = page !== 'dashboard';
   $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
@@ -189,6 +191,7 @@ function renderPetsCollection() {
         imageBox.replaceChildren(elem('span', 'collection-pet-fallback', '◇'));
       }, { once: true });
       if (pet.illustration_key === 'tarantula') image.classList.add('collection-art-tarantula');
+      if (pet.illustration_key === 'scorpion') image.classList.add('collection-art-scorpion');
       imageBox.append(image);
     } else {
       imageBox.append(elem('span', 'collection-pet-fallback', '◇'));
@@ -201,13 +204,15 @@ function renderPetsCollection() {
       : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
     content.append(elem('p', 'collection-pet-enclosure', `⌂  ${enclosure}`));
     const footer = elem('div', 'collection-pet-footer');
-    const details = elem('button', 'collection-details-button', 'View Details · Stage 3');
-    details.type = 'button';
-    details.disabled = true;
-    details.title = 'Pet details will be available in Stage 3';
-    footer.append(details);
+    footer.append(elem('span', 'collection-details-button', 'View profile →'));
     content.append(footer);
     card.append(imageBox, content);
+    // One full-card button is easier to discover and keyboard-accessible.
+    const openCard = elem('button', 'collection-card-action');
+    openCard.type = 'button';
+    openCard.setAttribute('aria-label', `View profile for ${pet.name || 'unnamed pet'}`);
+    openCard.addEventListener('click', () => openPetDetails(pet.id));
+    card.append(openCard);
     fragment.append(card);
   });
   host.append(fragment);
@@ -218,6 +223,145 @@ $('#petsPageSearch').addEventListener('input', () => {
   renderPetsCollection();
 });
 $('#petsPageAddPet').addEventListener('click', openAddPetForm);
+
+// Stage 3A — read-only pet details. Each profile is loaded by pet ID,
+// rather than relying on potentially stale collection data.
+let petDetailsRequest = 0;
+
+function detailText(value, fallback = 'Not provided') {
+  return value === null || value === undefined || String(value).trim() === ''
+    ? fallback : String(value);
+}
+function detailBirthDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return 'Not provided';
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+function detailStatus(text, retryId = null) {
+  const target = $('#petDetailsStatus');
+  target.replaceChildren(elem('p', null, text));
+  if (retryId !== null) {
+    const retry = elem('button', 'primary-button', 'Try again');
+    retry.type = 'button';
+    retry.addEventListener('click', () => openPetDetails(retryId));
+    target.append(retry);
+  }
+  target.hidden = false;
+}
+function showDetailField(label, value) {
+  const field = elem('div', 'pet-details-field');
+  field.append(elem('dt', null, label), elem('dd', null, value));
+  return field;
+}
+function renderDetailsProfile(pet) {
+  $('#petDetailsStatus').hidden = true;
+  $('#petDetailsContent').hidden = false;
+  $('#petDetailsName').textContent = pet.name;
+  $('#petDetailsSpecies').textContent = detailText(pet.species, 'Unknown');
+  const enclosure = pet.enclosure_id == null ? 'Unassigned'
+    : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
+  $('#petDetailsEnclosure').textContent = enclosure;
+  const art = $('#petDetailsArtwork');
+  art.replaceChildren();
+  const filename = Object.hasOwn(approvedIllustrations, pet.illustration_key)
+    ? approvedIllustrations[pet.illustration_key] : null;
+  if (filename) {
+    const img = elem('img');
+    img.src = `${assets}${filename}`;
+    img.alt = `Selected illustration for ${pet.name}`;
+    if (pet.illustration_key === 'tarantula') img.classList.add('collection-art-tarantula');
+    img.addEventListener('error', () => art.replaceChildren(elem('span', 'collection-pet-fallback', '◇')), {once:true});
+    art.append(img);
+  } else {
+    art.append(elem('span', 'collection-pet-fallback', '◇'));
+  }
+  const info = $('#petDetailsFacts');
+  info.replaceChildren(
+    showDetailField('Gender', detailText(pet.gender, 'Unknown').replace(/^./, c => c.toUpperCase())),
+    showDetailField('Date of birth', detailBirthDate(pet.date_of_birth)),
+    showDetailField('Enclosure', enclosure)
+  );
+  $('#petDetailsNotes').textContent = detailText(pet.notes, 'No notes added yet.');
+}
+function renderDetailsFeedings(rows) {
+  const host = $('#petDetailsFeedings');
+  host.replaceChildren();
+  $('#petDetailsFeedingCount').textContent = `${rows.length} record${rows.length === 1 ? '' : 's'}`;
+  if (!rows.length) {
+    host.append(elem('p', 'pet-details-empty', 'No feeding records yet. Feeding management will be added in a later stage.'));
+    return;
+  }
+  for (const feeding of rows) {
+    const item = elem('article', 'pet-details-feeding');
+    const left = elem('div');
+    left.append(elem('strong', null, detailText(feeding.food, 'Feeding')),
+      elem('small', null, detailText(feeding.feeding_date, 'Date not provided')));
+    item.append(left);
+    if (feeding.notes) item.append(elem('p', null, feeding.notes));
+    host.append(item);
+  }
+}
+async function openPetDetails(id) {
+  if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) return;
+  const request = ++petDetailsRequest;
+  $('#petDetailsPage').dataset.petId = String(id);
+  currentPage = 'pets';
+  $('#main').classList.add('pets-active');
+  $('#dashboardContent').hidden = true;
+  $('#dashboardDemoBanner').hidden = true;
+  $('#petsPage').hidden = true;
+  $('#addPetPage').hidden = true;
+  $('#otherPage').hidden = true;
+  $('#petDetailsPage').hidden = false;
+  $('#pageEyebrow').textContent = 'PET MANAGEMENT';
+  $('#pageTitle').textContent = 'Pet Details';
+  $('#pageDescription').textContent = 'Your companion’s profile and feeding history.';
+  $('#petDetailsContent').hidden = true;
+  detailStatus('Loading pet profile…');
+  document.querySelectorAll('.nav-link').forEach(link => {
+    const active = link.dataset.page === 'pets';
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current','page');
+    else link.removeAttribute('aria-current');
+  });
+  $('#sidebar').classList.remove('open');
+  $('#menuButton').setAttribute('aria-expanded', 'false');
+  window.scrollTo(0,0);
+  try {
+    const [petResult, feedingResult, enclosureResult] = await Promise.allSettled([
+      getCollectionJson(`/api/pets/${id}`),
+      getCollectionJson(`/api/pets/${id}/feedings`),
+      getCollectionJson('/api/enclosures')
+    ]);
+    if (request !== petDetailsRequest) return;
+    if (petResult.status !== 'fulfilled' || !petResult.value || !petResult.value.id) {
+      throw new Error('Pet profile could not be loaded. The pet may have been deleted or the service is unavailable.');
+    }
+    if (enclosureResult.status === 'fulfilled' && Array.isArray(enclosureResult.value)) {
+      collectionEnclosures = new Map(enclosureResult.value.map(e => [Number(e.id), e.name]));
+    }
+    renderDetailsProfile(petResult.value);
+    if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
+      renderDetailsFeedings(feedingResult.value);
+      $('#petDetailsFeedingError').hidden = true;
+    } else {
+      $('#petDetailsFeedings').replaceChildren();
+      $('#petDetailsFeedingCount').textContent = '';
+      $('#petDetailsFeedingError').hidden = false;
+    }
+  } catch (error) {
+    if (request !== petDetailsRequest) return;
+    console.error('Pet details could not be loaded:', error);
+    $('#petDetailsContent').hidden = true;
+    detailStatus(error.message || 'Unable to load the pet profile.', Number(id));
+  }
+}
+$('#petDetailsClose').addEventListener('click', () => navigate('pets'));
+$('#petDetailsRetryFeedings').addEventListener('click', () => {
+  const id = Number($('#petDetailsPage').dataset.petId);
+  if (id > 0) openPetDetails(id);
+});
+
 
 
 // Stage 2B — Add Pet form connected to the existing Data Management API.

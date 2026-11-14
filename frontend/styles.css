@@ -325,3 +325,91 @@
 .add-pet-save-info.is-error { color:#a44f3c; }
 .add-pet-field input[aria-invalid="true"] { border-color:#b75e49; box-shadow:0 0 0 2px rgba(183,94,73,.12); }
 .add-pet-actions button:disabled { opacity:.6; cursor:wait; }
+
+
+/* Stage 3A — read-only individual pet profile. Existing dashboard and cards unchanged. */
+.main-area.pets-active > .pet-details-page { position:relative; z-index:1; }
+.pet-details-page { max-width:1100px; margin-inline:auto; padding-bottom:55px; }
+.pet-details-page > .add-pet-back { margin-bottom:21px; }
+.pet-details-hero { display:grid; grid-template-columns:minmax(220px,330px) minmax(0,1fr); align-items:center; gap:30px; background:#fffdf9; border:1px solid #e5e7da; border-radius:20px; padding:24px; box-shadow:var(--shadow); }
+.pet-details-art { display:grid; place-items:center; min-height:245px; background:linear-gradient(135deg,#edf2e2,#f7f1e1); border-radius:15px; overflow:hidden; }
+.pet-details-art img { display:block; width:100%; max-height:280px; object-fit:contain; padding:10px; filter:drop-shadow(0 7px 6px #2d3e2520); }
+.pet-details-art .collection-art-tarantula { padding:2px; }
+.pet-details-intro h2 { font:700 clamp(30px,3vw,43px)/1.15 Georgia,serif; margin:12px 0 8px; color:#203d29; overflow-wrap:anywhere; }
+.pet-details-intro > p { color:#69756a; font-size:16px; margin:0 0 23px; overflow-wrap:anywhere; }
+.pet-details-enclosure { display:inline-block; padding:11px 14px; background:#eaf1e1; border-radius:10px; color:#41623e; font-size:13px; }
+.pet-details-panels { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px; }
+.pet-details-panel { background:#fffdf9; border:1px solid #e5e7da; border-radius:19px; padding:25px; box-shadow:var(--shadow); min-width:0; }
+.pet-details-panel h3 { font:700 25px Georgia,serif; margin:7px 0 22px; color:#203d29; }
+.pet-details-panel h4 { font-size:14px; margin:22px 0 9px; color:#304833; }
+.pet-details-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; margin:0; }
+.pet-details-field { background:#f3f6ee; border-radius:11px; padding:13px; min-width:0; }
+.pet-details-field dt { font-size:11px; color:#75816f; margin-bottom:7px; }
+.pet-details-field dd { font-size:13px; color:#304833; font-weight:650; margin:0; overflow-wrap:anywhere; }
+.pet-details-notes { background:#f8f8f2; padding:15px; border-radius:11px; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; color:#566558; font-size:13px; }
+.pet-details-section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.pet-details-section-head h3 { margin-bottom:15px; }
+.pet-details-section-head span { font-size:12px; color:#75816f; }
+.pet-details-feeding { padding:15px 0; border-bottom:1px solid #eceee5; }
+.pet-details-feeding:last-child { border:0; }
+.pet-details-feeding strong { display:block; color:#304833; font-size:14px; }
+.pet-details-feeding small { display:block; color:#788675; margin-top:6px; font-size:12px; }
+.pet-details-feeding p { margin:9px 0 0; font-size:12px; color:#687569; white-space:pre-wrap; overflow-wrap:anywhere; }
+.pet-details-empty { padding:16px; background:#f3f6ee; border-radius:11px; font-size:13px; line-height:1.6; color:#69756a; }
+.collection-details-button { color:#386d38; cursor:pointer; }
+.collection-details-button:hover { color:#244c32; text-decoration:underline; }
+@media(max-width:850px) { .pet-details-panels { grid-template-columns:1fr; } }
+@media(max-width:600px) { .pet-details-hero { grid-template-columns:1fr; padding:16px; gap:18px; } .pet-details-art { min-height:200px; } .pet-details-panel { padding:18px; } .pet-details-facts { grid-template-columns:1fr; } }
+
+
+/* Stage 3A Rev 1 — card navigation and clearer profile controls. */
+.collection-pet-card { position:relative; }
+.collection-card-action { position:absolute; inset:0; z-index:2; display:block; width:100%; height:100%; border:0; border-radius:inherit; padding:0; background:transparent; cursor:pointer; }
+.collection-card-action:focus-visible { outline:3px solid #719d60; outline-offset:3px; }
+.collection-pet-card:focus-within { border-color:#719d60; box-shadow:0 13px 28px rgba(38,53,32,.12); }
+.collection-details-button { pointer-events:none; }
+.pet-details-toolbar { max-width:1100px; margin:0 auto 21px; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.pet-details-page > .pet-details-toolbar .add-pet-back { margin:0; }
+.pet-details-actions { display:flex; align-items:center; gap:9px; }
+.pet-details-icon-button, .pet-details-close { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; border-radius:11px; border:1px solid #dfe6d8; background:#fffdf9; color:#305536; padding:9px 12px; font-size:14px; font-weight:700; box-shadow:var(--shadow); }
+.pet-details-icon-button:disabled { opacity:.56; cursor:not-allowed; }
+.pet-details-close { cursor:pointer; }
+.pet-details-close:hover { background:#edf3e5; border-color:#b9cda9; }
+.pet-details-close:focus-visible { outline:3px solid #719d60; outline-offset:2px; }
+.pet-details-close > span { font-size:12px; }
+.pet-details-meta { display:flex; gap:20px; flex-wrap:wrap; margin-top:18px; }
+.pet-details-meta-item { display:grid; align-content:start; gap:7px; min-width:135px; }
+.pet-details-meta-label { font-size:11px; font-weight:750; letter-spacing:.06em; text-transform:uppercase; color:#75836e; }
+.pet-details-intro .pet-details-meta-item p { font-size:15px; margin:0; color:#495c4d; overflow-wrap:anywhere; }
+.pet-details-enclosure { display:inline-block; width:fit-content; max-width:100%; padding:8px 11px; overflow-wrap:anywhere; }
+@media(max-width:600px) { .pet-details-toolbar { align-items:center; } .pet-details-close > span { display:none; } .pet-details-meta { gap:15px; } }
+
+/* Stage 3A Revision 2 — profile clarity and collection thumbnail scale. */
+/* The profile has a dedicated Close action; no redundant Back link. */
+.pet-details-toolbar { justify-content:flex-end; }
+/* Species and enclosure values receive the same visual treatment. */
+.pet-details-meta-item { min-width:0; max-width:100%; }
+.pet-details-intro .pet-details-meta-item p,
+.pet-details-meta-item .pet-details-enclosure {
+  display:flex;
+  align-items:center;
+  box-sizing:border-box;
+  width:fit-content;
+  max-width:100%;
+  min-height:37px;
+  margin:0;
+  padding:8px 11px;
+  border-radius:10px;
+  background:#eaf1e1;
+  color:#41623e;
+  font-size:13px;
+  line-height:1.5;
+  font-weight:500;
+  overflow-wrap:anywhere;
+}
+/* Only the scorpion collection image is scaled down; profile art is unchanged. */
+.collection-pet-art img.collection-art-scorpion {
+  width:78%;
+  height:78%;
+  padding:5px;
+}
