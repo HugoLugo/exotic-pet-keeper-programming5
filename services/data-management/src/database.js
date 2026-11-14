@@ -21,7 +21,8 @@ db.exec(`
         enclosure_id INTEGER,
         gender TEXT NOT NULL DEFAULT 'unknown',
         date_of_birth TEXT,
-        notes TEXT
+        notes TEXT,
+        illustration_key TEXT
     );
 
     CREATE TABLE IF NOT EXISTS feeding_records (
@@ -50,7 +51,8 @@ if (!hasEnclosureId) {
 for (const [name, definition] of [
     ['gender', "TEXT NOT NULL DEFAULT 'unknown'"],
     ['date_of_birth', 'TEXT'],
-    ['notes', 'TEXT']
+    ['notes', 'TEXT'],
+    ['illustration_key', 'TEXT']
 ]) {
     if (!columns.some(column => column.name === name)) {
         db.exec(`ALTER TABLE pets ADD COLUMN ${name} ${definition}`);

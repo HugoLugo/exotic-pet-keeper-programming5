@@ -152,6 +152,17 @@ function isValidPetExtras(gender, dateOfBirth, notes) {
         (notes === null || (typeof notes === 'string' && notes.length <= 2000));
 }
 
+// Stable identifiers for approved frontend illustration assets. Store keys, never paths.
+const APPROVED_ILLUSTRATIONS = new Set([
+    'gecko', 'python', 'tarantula', 'scorpion'
+]);
+
+function isValidIllustrationKey(value) {
+    return value === null || (
+        typeof value === 'string' && APPROVED_ILLUSTRATIONS.has(value)
+    );
+}
+
 // --------------------------------------------------
 // HEALTH CHECK
 // --------------------------------------------------
@@ -179,7 +190,7 @@ app.get('/pets', (req, res) => {
  // Register a new pet
 app.post('/pets', async (req, res) => {
     const { name, species, enclosure_id = null, gender = 'unknown',
-        date_of_birth = null, notes = null } = req.body || {};
+        date_of_birth = null, notes = null, illustration_key = null } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -198,6 +209,12 @@ app.post('/pets', async (req, res) => {
         });
     }
 
+    if (!isValidIllustrationKey(illustration_key)) {
+        return res.status(400).json({
+            error: 'illustration_key must be gecko, python, tarantula, scorpion, or null'
+        });
+    }
+
     // Validate the enclosure before creating the pet
     const enclosureError = await validateEnclosureAssignment(enclosure_id);
 
@@ -208,10 +225,10 @@ app.post('/pets', async (req, res) => {
     }
 
     const result = db.prepare(`
-        INSERT INTO pets (name, species, enclosure_id, gender, date_of_birth, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO pets (name, species, enclosure_id, gender, date_of_birth, notes, illustration_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(name.trim(), species.trim(), enclosure_id, gender, date_of_birth,
-        typeof notes === 'string' ? notes.trim() : null);
+        typeof notes === 'string' ? notes.trim() : null, illustration_key);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -255,7 +272,7 @@ app.put('/pets/:id', async (req, res) => {
     }
 
     const { name, species, enclosure_id = null, gender = 'unknown',
-        date_of_birth = null, notes = null } = req.body || {};
+        date_of_birth = null, notes = null, illustration_key } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -270,7 +287,7 @@ app.put('/pets/:id', async (req, res) => {
 
     // Check that the pet exists before validating the enclosure
     const existingPet = db.prepare(
-        'SELECT id FROM pets WHERE id = ?'
+        'SELECT * FROM pets WHERE id = ?'
     ).get(id);
 
     if (!existingPet) {
@@ -282,6 +299,17 @@ app.put('/pets/:id', async (req, res) => {
     if (!isValidPetExtras(gender, date_of_birth, notes)) {
         return res.status(400).json({
             error: 'gender must be male/female/unknown; date_of_birth must be a valid YYYY-MM-DD date not in the future or null; notes must be text up to 2000 characters or null'
+        });
+    }
+
+    // Omitted key keeps the existing choice for older clients; null clears it.
+    const selectedIllustration = illustration_key === undefined
+        ? existingPet.illustration_key
+        : illustration_key;
+
+    if (!isValidIllustrationKey(selectedIllustration)) {
+        return res.status(400).json({
+            error: 'illustration_key must be gecko, python, tarantula, scorpion, or null'
         });
     }
 
@@ -297,10 +325,10 @@ app.put('/pets/:id', async (req, res) => {
     db.prepare(`
         UPDATE pets
         SET name = ?, species = ?, enclosure_id = ?, gender = ?,
-            date_of_birth = ?, notes = ?
+            date_of_birth = ?, notes = ?, illustration_key = ?
         WHERE id = ?
     `).run(name.trim(), species.trim(), enclosure_id, gender, date_of_birth,
-        typeof notes === 'string' ? notes.trim() : null, id);
+        typeof notes === 'string' ? notes.trim() : null, selectedIllustration, id);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
