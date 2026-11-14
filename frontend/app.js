@@ -220,8 +220,10 @@ $('#petsPageSearch').addEventListener('input', () => {
 $('#petsPageAddPet').addEventListener('click', openAddPetForm);
 
 
-// Stage 2A — Add Pet design preview. No POST requests are made here.
+// Stage 2B — Add Pet form connected to the existing Data Management API.
 let selectedNewPetIllustration = null;
+let addPetSaving = false;
+let addPetEnclosureRequest = 0;
 const illustrationChoices = [
   {key:null, label:'No Illustration', filename:null},
   {key:'gecko', label:'Gecko', filename:approvedIllustrations.gecko},
@@ -361,27 +363,31 @@ const genderDropdown = createAddPetDropdown('newPetGender', 'newPetGenderTrigger
 const enclosureDropdown = createAddPetDropdown('newPetEnclosure', 'newPetEnclosureTrigger', 'newPetEnclosureOptions');
 
 async function populateAddPetEnclosures() {
+  const request = ++addPetEnclosureRequest;
   const selector = $('#newPetEnclosure');
   selector.replaceChildren();
   selector.append(new Option('Unassigned — you can add an enclosure later', ''));
   try {
     const enclosures = await getCollectionJson('/api/enclosures');
     if (!Array.isArray(enclosures)) throw new Error('Invalid enclosure response');
+    if (request !== addPetEnclosureRequest) return;
     enclosures.forEach(enclosure => {
       if (enclosure.id != null && typeof enclosure.name === 'string') {
         selector.append(new Option(enclosure.name, String(enclosure.id)));
       }
     });
   } catch (error) {
-    console.warn('Could not load enclosure options in form preview:', error);
+    if (request !== addPetEnclosureRequest) return;
+    console.warn('Could not load enclosure options in Add Pet:', error);
     selector.append(new Option('Enclosure list temporarily unavailable', 'unavailable'));
     selector.options[selector.options.length - 1].disabled = true;
   } finally {
-    enclosureDropdown.render();
+    if (request === addPetEnclosureRequest) enclosureDropdown.render();
   }
 }
 
 function openAddPetForm() {
+  if (addPetSaving) return;
   // Keep the Pets sidebar active while presenting an internal subview.
   navigate('pets');
   $('#petsPage').hidden = true;
@@ -390,6 +396,9 @@ function openAddPetForm() {
   $('#pageTitle').textContent = 'Add New Pet';
   $('#pageDescription').textContent = 'Create a profile for your new companion.';
   $('#addPetForm').reset();
+  setAddPetMessage('Name and species are required. All other fields are optional.');
+  $('#newPetName').removeAttribute('aria-invalid');
+  $('#newPetSpecies').removeAttribute('aria-invalid');
   birthCalendar.reset();
   genderDropdown.close();
   enclosureDropdown.close();
@@ -400,7 +409,11 @@ function openAddPetForm() {
   populateAddPetEnclosures();
   window.scrollTo(0,0);
 }
-function closeAddPetForm() { navigate('pets'); window.scrollTo(0,0); }
+function closeAddPetForm() {
+  if (addPetSaving) return;
+  ++addPetEnclosureRequest;
+  navigate('pets'); window.scrollTo(0,0);
+}
 
 populateAddPetIllustrations();
 $('#illustrationPickerOpen').addEventListener('click', () => $('#illustrationDialog').showModal());
@@ -410,7 +423,106 @@ $('#illustrationDialog').addEventListener('click', (event) => {
 });
 $('#backToPets').addEventListener('click', closeAddPetForm);
 $('#cancelAddPet').addEventListener('click', closeAddPetForm);
-$('#addPetForm').addEventListener('submit', event => { event.preventDefault(); });
+function setAddPetMessage(message, isError = false) {
+  const messageEl = $('#addPetSaveMessage');
+  messageEl.textContent = message;
+  messageEl.classList.toggle('is-error', isError);
+}
+
+function validateAddPetForm() {
+  const nameEl = $('#newPetName');
+  const speciesEl = $('#newPetSpecies');
+  const name = nameEl.value.trim();
+  const species = speciesEl.value.trim();
+  nameEl.removeAttribute('aria-invalid');
+  speciesEl.removeAttribute('aria-invalid');
+  if (!name || !species) {
+    const invalid = !name ? nameEl : speciesEl;
+    invalid.setAttribute('aria-invalid', 'true');
+    invalid.focus();
+    throw new Error('Please enter both a pet name and species. You can enter "Unknown" for species.');
+  }
+  if (name.length > 120 || species.length > 160) {
+    throw new Error('Pet name or species is too long.');
+  }
+  const enclosureValue = $('#newPetEnclosure').value;
+  const enclosureId = enclosureValue === '' ? null : Number(enclosureValue);
+  if (enclosureId !== null && (!Number.isSafeInteger(enclosureId) || enclosureId <= 0)) {
+    throw new Error('Please choose a valid enclosure or leave it unassigned.');
+  }
+  const birth = $('#newPetBirth').value;
+  if (birth) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birth);
+    if (!match) throw new Error('Please choose a valid date of birth.');
+    const y = Number(match[1]); const m = Number(match[2]); const d = Number(match[3]);
+    const parsed = new Date(Date.UTC(y, m - 1, d));
+    const today = new Date();
+    const localToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    if (parsed.getUTCFullYear() !== y || parsed.getUTCMonth() !== m - 1 || parsed.getUTCDate() !== d || birth > localToday) {
+      throw new Error('Date of birth must be a real date and cannot be in the future.');
+    }
+  }
+  const notes = $('#newPetNotes').value.trim();
+  if (notes.length > 2000) throw new Error('Notes cannot exceed 2,000 characters.');
+  const gender = $('#newPetGender').value;
+  if (!['male', 'female', 'unknown'].includes(gender)) throw new Error('Please select a valid gender.');
+  return {
+    name, species, gender,
+    date_of_birth: birth || null,
+    notes: notes || null,
+    enclosure_id: enclosureId,
+    illustration_key: selectedNewPetIllustration
+  };
+}
+
+$('#addPetForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (addPetSaving) return;
+  let payload;
+  try {
+    payload = validateAddPetForm();
+  } catch (error) {
+    setAddPetMessage(error.message, true);
+    return;
+  }
+  addPetSaving = true;
+  const submitButton = $('#createPetButton');
+  submitButton.disabled = true;
+  submitButton.textContent = 'Creating Pet…';
+  $('#cancelAddPet').disabled = true;
+  $('#backToPets').disabled = true;
+  setAddPetMessage('Saving your pet…');
+  try {
+    const response = await fetch('/api/pets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(result && typeof result.error === 'string'
+        ? result.error
+        : `Could not create pet (HTTP ${response.status}).`);
+    }
+    if (!result || !Number.isSafeInteger(result.id) || result.id <= 0) {
+      // The backend may have committed the record; do not encourage a second submission.
+      setAddPetMessage('The server returned an unexpected response. Check the Pets collection before trying again.', true);
+      return;
+    }
+    ++addPetEnclosureRequest;
+    navigate('pets');
+    toast(`${result.name} was added to your collection.`);
+  } catch (error) {
+    console.error('Creating pet failed:', error);
+    setAddPetMessage(`Could not save pet: ${error.message}. Your form entries are still here. If the connection dropped, check the Pets collection before retrying.`, true);
+  } finally {
+    addPetSaving = false;
+    submitButton.disabled = false;
+    submitButton.textContent = 'Create Pet';
+    $('#cancelAddPet').disabled = false;
+    $('#backToPets').disabled = false;
+  }
+});
 // Stage 2A Rev 2 — accessible, dependency-free birth-date calendar.
 // The hidden field retains the backend's YYYY-MM-DD date format for Stage 2B.
 function createBirthCalendar() {

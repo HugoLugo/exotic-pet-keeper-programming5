@@ -320,3 +320,8 @@
 .add-pet-calendar-footer button{border:0;border-radius:8px;padding:8px 10px;background:#e8f0df;color:#355c3c;font-size:12px;font-weight:700}
 .add-pet-calendar-footer button:hover{background:#dce9d2}
 @media(max-width:480px){.add-pet-calendar{right:auto;left:0;width:min(340px,calc(100vw - 55px))}}
+
+/* Stage 2B — saving state and inline validation (no layout changes). */
+.add-pet-save-info.is-error { color:#a44f3c; }
+.add-pet-field input[aria-invalid="true"] { border-color:#b75e49; box-shadow:0 0 0 2px rgba(183,94,73,.12); }
+.add-pet-actions button:disabled { opacity:.6; cursor:wait; }

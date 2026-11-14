@@ -52,10 +52,10 @@
         <div class="pets-collection-message" id="petsCollectionMessage" role="status" aria-live="polite" hidden></div>
         <div class="pets-collection-grid" id="petsCollectionGrid" aria-live="polite"></div>
       </section>
-      <section class="add-pet-page" id="addPetPage" aria-label="Add New Pet form preview" hidden>
+      <section class="add-pet-page" id="addPetPage" aria-label="Add New Pet form" hidden>
         <div class="add-pet-intro">
           <button id="backToPets" class="add-pet-back" type="button">← Back to Pets</button>
-          <span class="add-pet-preview-tag">STAGE 2A · DESIGN PREVIEW</span>
+          
         </div>
         <p class="add-pet-lead">Complete your companion’s profile. Only the name and species are required.</p>
         <form id="addPetForm" novalidate>
@@ -103,7 +103,7 @@
               <div class="add-pet-field add-pet-field-wide"><label for="newPetEnclosureTrigger">Enclosure <span class="add-pet-optional">(optional)</span></label><select id="newPetEnclosure" name="enclosure_id" class="add-pet-native-select" tabindex="-1" aria-hidden="true"><option value="">Unassigned — you can add an enclosure later</option></select><div class="add-pet-select-wrap"><button type="button" class="add-pet-select-trigger" id="newPetEnclosureTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="newPetEnclosureOptions"><span class="add-pet-select-value">Unassigned — you can add an enclosure later</span><span class="add-pet-chevron" aria-hidden="true"></span></button><div class="add-pet-select-options" id="newPetEnclosureOptions" role="listbox" aria-label="Enclosure" hidden></div></div><small>It’s fine to register your pet first. You can assign or change its enclosure later.</small></div>
             </div>
           </div>
-          <div class="add-pet-actions"><p class="add-pet-save-info" role="status">Preview only: no information will be saved in Stage 2A.</p><button type="button" class="add-pet-cancel" id="cancelAddPet">Cancel</button><button type="submit" class="primary-button" disabled title="Saving will be enabled in Stage 2B">Create Pet · Stage 2B</button></div>
+          <div class="add-pet-actions"><p class="add-pet-save-info" id="addPetSaveMessage" role="status" aria-live="polite">Name and species are required. All other fields are optional.</p><button type="button" class="add-pet-cancel" id="cancelAddPet">Cancel</button><button type="submit" class="primary-button" id="createPetButton">Create Pet</button></div>
         </form>
       </section>
       <dialog id="illustrationDialog" class="illustration-dialog" aria-labelledby="illustrationDialogTitle">
