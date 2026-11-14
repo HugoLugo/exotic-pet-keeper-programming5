@@ -135,6 +135,7 @@ function navigate(page) {
   if (!pages[page]) return;
   ++editStartRequest;
   currentPage = page;
+  petReturnEnclosureId = null;
   $('#main').classList.toggle('pets-active', page === 'pets');
   $('#main').classList.toggle('feeding-active', page === 'feeding');
   $('#main').classList.toggle('enclosures-active', page === 'enclosures');
@@ -142,6 +143,8 @@ function navigate(page) {
   $('#petsPage').hidden = page !== 'pets';
   $('#enclosuresPage').hidden = page !== 'enclosures';
   $('#enclosureCreatePage').hidden = true;
+  $('#enclosureDetailsPage').hidden = true;
+  ++enclosureDetailsRequest;
   $('#feedingPage').hidden = page !== 'feeding';
   $('#addPetPage').hidden = true;
   $('#petDetailsPage').hidden = true;
@@ -384,6 +387,7 @@ function renderDetailsFeedings(rows) {
     host.append(item);
   }
 }
+let petReturnEnclosureId = null;
 async function openPetDetails(id) {
   if (petSaving || petEditing) return;
   if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) return;
@@ -399,6 +403,10 @@ async function openPetDetails(id) {
   $('#addPetPage').hidden = true;
   $('#otherPage').hidden = true;
   $('#petDetailsPage').hidden = false;
+  $('#enclosureDetailsPage').hidden = true;
+  ++enclosureDetailsRequest;
+  $('#enclosuresPage').hidden = true;
+  $('#enclosureCreatePage').hidden = true;
   $('#feedingPage').hidden = true;
   $('#pageEyebrow').textContent = 'PET MANAGEMENT';
   $('#pageTitle').textContent = 'Pet Details';
@@ -446,7 +454,7 @@ async function openPetDetails(id) {
     detailStatus(error.message || 'Unable to load the pet profile.', Number(id));
   }
 }
-$('#petDetailsClose').addEventListener('click', () => { if (petEditing) requestCancelPetEdit(); else navigate('pets'); });
+$('#petDetailsClose').addEventListener('click', () => { if (petEditing) requestCancelPetEdit(); else if (petReturnEnclosureId) { const id = petReturnEnclosureId; petReturnEnclosureId = null; openEnclosureDetails(id); } else navigate('pets'); });
 $('#petDetailsRetryFeedings').addEventListener('click', () => {
   const id = Number($('#petDetailsPage').dataset.petId);
   if (id > 0) openPetDetails(id);
@@ -1277,6 +1285,245 @@ async function loadRecentFeedings(){
 loadRecentFeedings();
 
 
+// Stage 3D.2.1 — Read-only enclosure details. Artwork stays separate from functionality.
+let enclosureDetailsRequest = 0;
+function enclosureArtworkFor(pet) {
+  return Object.hasOwn(approvedIllustrations, pet.illustration_key)
+    ? `${assets}${approvedIllustrations[pet.illustration_key]}` : null;
+}
+function enclosurePetPicture(pet, className) {
+  const wrapper = elem('span', className);
+  const url = enclosureArtworkFor(pet);
+  if (!url) { wrapper.append(elem('span', 'enclosure-art-fallback', '◇')); return wrapper; }
+  const img = elem('img'); img.src = url; img.alt = ''; img.loading = 'lazy';
+  img.addEventListener('error', () => wrapper.replaceChildren(elem('span','enclosure-art-fallback','◇')), {once:true});
+  wrapper.append(img); return wrapper;
+}
+function enclosureDetailStatus(message, retryId = null) {
+  const host = $('#enclosureDetailsStatus'); host.replaceChildren(elem('p',null,message));
+  if (retryId != null) {
+    const retry = elem('button','primary-button','Try again'); retry.type = 'button';
+    retry.addEventListener('click',()=>openEnclosureDetails(retryId)); host.append(retry);
+  }
+  host.hidden = false;
+}
+function renderEnclosureDetails(enclosure, pets, petsError) {
+  currentEnclosureDetail = enclosure;
+  $('#enclosureDetailsName').textContent = enclosure.name || `Enclosure #${enclosure.id}`;
+  $('#enclosureHabitatSlots').closest('.enclosure-habitat-placeholder').classList.toggle('is-tropical', enclosure.enclosureType === 'Tropical');
+  $('#enclosureDetailsType').textContent = (enclosure.enclosureType || 'UNSPECIFIED HABITAT').toUpperCase();
+  const facts = $('#enclosureDetailsFacts'); facts.replaceChildren();
+  for (const [label,value] of [
+    ['Habitat type',enclosure.enclosureType || 'Not specified'],
+    ['Temperature range',`${enclosure.minTemperature}–${enclosure.maxTemperature} °C`],
+    ['Humidity range',`${enclosure.minHumidity}–${enclosure.maxHumidity} %`]]) {
+    const item = elem('div','enclosure-fact'); item.append(elem('span',null,label),elem('strong',null,value)); facts.append(item);
+  }
+  $('#enclosureDetailsNotes').textContent = enclosure.notes?.trim() || 'No notes added yet.';
+  const occupants = $('#enclosureDetailsPets'); occupants.replaceChildren();
+  const slots = $('#enclosureHabitatSlots'); slots.replaceChildren();
+  const count = pets.length;
+  $('#enclosureDetailsPetCount').textContent = petsError ? 'Unavailable' : `${count} ${count===1?'pet':'pets'}`;
+  const warning = $('#enclosureDetailsPetsWarning'); warning.hidden = !petsError;
+  if (petsError) warning.textContent = 'Assigned pets could not be loaded. Check the Data Management Service (port 3001) and reopen this enclosure.';
+  $('#enclosureHabitatCaption').textContent = petsError ? 'Pet illustrations unavailable until occupants load.' :
+    count > 3 ? `Showing 3 of ${count} assigned pets · all pets appear below` :
+    count === 0 ? 'No pet illustrations yet · assign a pet from its profile' :
+    `${count} of ${count} assigned ${count===1?'pet':'pets'} illustrated`;
+  // A single pet occupies the center; two occupy center and right; three use all positions.
+  const positions = count === 1 ? ['center'] : count === 2 ? ['center','right'] : ['center','left','right'];
+  pets.slice(0,3).forEach((pet,index) => {
+    const slot = elem('div',`enclosure-habitat-slot enclosure-habitat-slot--${positions[index]}`);
+    slot.append(enclosurePetPicture(pet,'enclosure-habitat-art'),elem('span','enclosure-habitat-pet-name',pet.name || 'Unnamed pet'));
+    slots.append(slot);
+  });
+  if (!petsError && !count) occupants.append(elem('p','enclosure-occupants-empty','No pets assigned yet. Use Assign Pet to choose a companion.'));
+  for (const pet of pets) {
+    const button = elem('button','enclosure-occupant-card'); button.type='button';
+    button.setAttribute('aria-label',`Open profile for ${pet.name || 'unnamed pet'}`);
+    const info = elem('span','enclosure-occupant-info');
+    info.append(elem('strong',null,pet.name || 'Unnamed pet'),elem('small',null,pet.species || 'Species unknown'));
+    button.append(enclosurePetPicture(pet,'enclosure-occupant-art'), info, elem('span','enclosure-occupant-arrow','→'));
+    button.addEventListener('click',()=>{petReturnEnclosureId=Number(enclosure.id);openPetDetails(Number(pet.id));});
+    const row = elem('div','enclosure-occupant-row');
+    const remove = elem('button','enclosure-occupant-remove','Remove'); remove.type='button';
+    remove.setAttribute('aria-label',`Remove ${pet.name || 'pet'} from this enclosure`);
+    remove.addEventListener('click',()=>confirmEnclosureAction(`Remove ${pet.name || 'this pet'} from this enclosure? The pet profile will remain registered.`,async()=>{
+      await updatePetEnclosure(pet,null); await openEnclosureDetails(Number(enclosure.id)); toast('Pet removed from enclosure.');
+    }));
+    row.append(button,remove); occupants.append(row);
+  }
+}
+async function openEnclosureDetails(id) {
+  if (!Number.isSafeInteger(id) || id<=0) return;
+  const request = ++enclosureDetailsRequest;
+  ++enclosureCollectionRequest; // invalidate any pending collection render while viewing details
+  currentPage = 'enclosures';
+  $('#main').classList.add('enclosures-active');
+  $('#main').classList.remove('pets-active','feeding-active');
+  $('#dashboardContent').hidden = true;
+  $('#dashboardDemoBanner').hidden = true;
+  $('#petsPage').hidden = true;
+  $('#addPetPage').hidden = true;
+  $('#petDetailsPage').hidden = true;
+  ++petDetailsRequest;
+  $('#feedingPage').hidden = true;
+  $('#otherPage').hidden = true;
+  $('#enclosuresPage').hidden = true;
+  $('#enclosureCreatePage').hidden = true;
+  $('#enclosureDetailsPage').hidden = false;
+  $('#enclosureDetailsContent').hidden = true;
+  $('#enclosureAssignOpen').disabled = true;
+  $('#enclosureDetailsPage').dataset.enclosureId=String(id);
+  enclosureDetailStatus('Loading enclosure profile…');
+  $('#pageEyebrow').textContent = 'HABITAT MANAGEMENT';
+  $('#pageTitle').textContent = 'Enclosure Details';
+  $('#pageDescription').textContent = 'Habitat overview and assigned companions.';
+  document.querySelectorAll('.nav-link').forEach(link=>{
+    const active=link.dataset.page==='enclosures';link.classList.toggle('active',active);
+    if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+  });
+  $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
+  window.scrollTo({top:0,left:0,behavior:'instant'});
+  const [enclosureResult,petsResult] = await Promise.allSettled([
+    getCollectionJson(`/api/enclosures/${id}`),
+    getCollectionJson(`/api/enclosures/${id}/pets`)
+  ]);
+  if (request!==enclosureDetailsRequest) return;
+  if (enclosureResult.status!=='fulfilled' || !enclosureResult.value?.id) {
+    enclosureDetailStatus('Unable to load this enclosure. It may have been removed, or the Enclosure Service is unavailable.',id);
+    return;
+  }
+  const petsError = petsResult.status!=='fulfilled' || !Array.isArray(petsResult.value);
+  renderEnclosureDetails(enclosureResult.value,petsError?[]:petsResult.value,petsError);
+  $('#enclosureAssignOpen').disabled = petsError;
+  $('#enclosureDetailsStatus').hidden=true;
+  $('#enclosureDetailsContent').hidden=false;
+}
+$('#enclosureDetailsBack').addEventListener('click',()=>{petReturnEnclosureId=null;navigate('enclosures');});
+
+// Stage 3D.2 — enclosure editing, occupancy management and confirmation.
+let currentEnclosureDetail = null;
+let enclosureEditInitial = '';
+let enclosureEditBusy = false;
+let enclosureConfirmCallback = null;
+let enclosurePendingCancel = null;
+const enclosureEditFields = ['enclosureEditName','enclosureEditType','enclosureEditMinTemp','enclosureEditMaxTemp','enclosureEditMinHum','enclosureEditMaxHum','enclosureEditNotes'];
+function enclosureEditSnapshot() {return JSON.stringify(enclosureEditFields.map(id=>$('#'+id).value));}
+async function enclosureApiRequest(url,method,payload) {
+  const response = await fetch(url,{method,headers:{'Content-Type':'application/json',Accept:'application/json'},body:payload==null?undefined:JSON.stringify(payload)});
+  let body = null;
+  if(response.status!==204) body=await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(body?.error || `Request failed (HTTP ${response.status}).`);
+  return body;
+}
+function enclosureEditError(message) {const el=$('#enclosureEditFeedback');el.hidden=!message;el.textContent=message;}
+function showEnclosureEdit() {
+  if(!currentEnclosureDetail)return;
+  const e=currentEnclosureDetail;
+  const values=[e.name,e.enclosureType||'',e.minTemperature,e.maxTemperature,e.minHumidity,e.maxHumidity,e.notes||''];
+  enclosureEditFields.forEach((id,i)=>{$('#'+id).value=values[i]??'';$('#'+id).classList.remove('enclosure-input-invalid');});
+  enclosureEditInitial=enclosureEditSnapshot(); enclosureEditError('');
+  $('#enclosureEditDialog').showModal();
+}
+function closeEnclosureEdit() {
+  if(enclosureEditBusy)return;
+  if(enclosureEditSnapshot()!==enclosureEditInitial){$('#enclosureEditDiscardDialog').showModal();return;}
+  $('#enclosureEditDialog').close();
+}
+$('#enclosureDetailsEdit').addEventListener('click',showEnclosureEdit);
+$('#enclosureEditCancel').addEventListener('click',closeEnclosureEdit);
+$('#enclosureEditDialog').addEventListener('cancel',e=>{if(enclosureEditBusy||enclosureEditSnapshot()!==enclosureEditInitial){e.preventDefault();if(!enclosureEditBusy)$('#enclosureEditDiscardDialog').showModal();}});
+$('#enclosureEditKeep').addEventListener('click',()=>$('#enclosureEditDiscardDialog').close());
+$('#enclosureEditDiscard').addEventListener('click',()=>{$('#enclosureEditDiscardDialog').close();$('#enclosureEditDialog').close();});
+$('#enclosureEditForm').addEventListener('submit',async e=>{
+  e.preventDefault();if(enclosureEditBusy||!currentEnclosureDetail)return;
+  enclosureEditFields.forEach(id=>$('#'+id).classList.remove('enclosure-input-invalid'));
+  const name=$('#enclosureEditName').value.trim();
+  const numericIds=['enclosureEditMinTemp','enclosureEditMaxTemp','enclosureEditMinHum','enclosureEditMaxHum'];
+  const raw=numericIds.map(id=>$('#'+id).value.trim());
+  const numbers=raw.map(Number);
+  let error='',bad=[];
+  if(!name){error='Please enter an enclosure name.';bad=['enclosureEditName'];}
+  else if(raw.some(v=>v==='')||numbers.some(n=>!Number.isFinite(n))){error='Enter valid numbers in every environmental field.';bad=numericIds;}
+  else if(numbers[0]>=numbers[1]){error='Minimum temperature must be lower than maximum temperature.';bad=numericIds.slice(0,2);}
+  else if(numbers[2]<0||numbers[3]>100||numbers[2]>=numbers[3]){error='Humidity must be between 0% and 100%, with minimum lower than maximum.';bad=numericIds.slice(2);}
+  if(error){bad.forEach(id=>$('#'+id).classList.add('enclosure-input-invalid'));enclosureEditError(error);return;}
+  const [minTemperature,maxTemperature,minHumidity,maxHumidity]=numbers;
+  const payload={name,enclosureType:$('#enclosureEditType').value||null,notes:$('#enclosureEditNotes').value.trim()||null,minTemperature,maxTemperature,minHumidity,maxHumidity};
+  enclosureEditBusy=true;$('#enclosureEditSave').disabled=true;enclosureEditError('');
+  try{
+    const id=Number(currentEnclosureDetail.id);
+    await enclosureApiRequest(`/api/enclosures/${id}`,'PUT',payload);
+    enclosureEditInitial=enclosureEditSnapshot();$('#enclosureEditDialog').close();
+    await openEnclosureDetails(id);toast('Enclosure updated successfully.');
+  }catch(err){enclosureEditError(err.message);}
+  finally{enclosureEditBusy=false;$('#enclosureEditSave').disabled=false;}
+});
+function confirmEnclosureAction(message,callback,title='Confirm action') {
+  enclosureConfirmCallback=callback;
+  $('#enclosureConfirmTitle').textContent=title;
+  $('#enclosureConfirmText').textContent=message;
+  $('#enclosureConfirmError').hidden=true;
+  $('#enclosureConfirmProceed').disabled=false;
+  $('#enclosureConfirmDialog').showModal();
+}
+$('#enclosureConfirmCancel').addEventListener('click',()=>{$('#enclosureConfirmDialog').close();enclosureConfirmCallback=null;});
+$('#enclosureConfirmProceed').addEventListener('click',async()=>{
+  if(!enclosureConfirmCallback)return;
+  $('#enclosureConfirmProceed').disabled=true;
+  try{await enclosureConfirmCallback();enclosureConfirmCallback=null;$('#enclosureConfirmDialog').close();}
+  catch(error){const el=$('#enclosureConfirmError');el.hidden=false;el.textContent=error.message;}
+  finally{$('#enclosureConfirmProceed').disabled=false;}
+});
+$('#enclosureDeleteOpen').addEventListener('click',()=>{
+  const e=currentEnclosureDetail;if(!e)return;
+  $('#enclosureEditDialog').close();
+  confirmEnclosureAction(`Permanently delete ${e.name}? Historical readings belonging to this enclosure will also be deleted. Deletion is blocked while pets are assigned.`,async()=>{
+    await enclosureApiRequest(`/api/enclosures/${e.id}`,'DELETE');
+    currentEnclosureDetail=null;navigate('enclosures');toast('Enclosure permanently deleted.');
+  },'Delete enclosure permanently?');
+});
+async function updatePetEnclosure(pet,enclosureId){
+  // PUT requires a complete profile; never overwrite other values with defaults.
+  const full=await getCollectionJson(`/api/pets/${pet.id}`);
+  const payload={name:full.name,species:full.species,enclosure_id:enclosureId,
+    gender:full.gender||'unknown',date_of_birth:full.date_of_birth||null,
+    notes:full.notes??null,illustration_key:full.illustration_key??null};
+  await enclosureApiRequest(`/api/pets/${pet.id}`,'PUT',payload);
+}
+let enclosureAssignablePets=[];
+function renderEnclosureAssignmentOptions(){
+  const host=$('#enclosureAssignmentOptions');host.replaceChildren();
+  const search=$('#enclosureAssignmentSearch').value.trim().toLowerCase();
+  const available=enclosureAssignablePets.filter(p=>Number(p.enclosure_id)!==Number(currentEnclosureDetail?.id)).filter(p=>`${p.name||''} ${p.species||''}`.toLowerCase().includes(search));
+  if(!available.length){host.append(elem('p','enclosure-occupants-empty','No available pets match your search.'));return;}
+  available.forEach(p=>{
+    const btn=elem('button','enclosure-assignment-option');btn.type='button';
+    const info=elem('span');info.append(elem('strong',null,p.name||'Unnamed pet'),elem('small',null,`${p.species||'Species unknown'} · ${p.enclosure_id==null?'Unassigned':'Currently in another enclosure'}`));
+    btn.append(enclosurePetPicture(p,'enclosure-occupant-art'),info);
+    btn.addEventListener('click',()=>{
+      const id=Number(currentEnclosureDetail.id);
+      $('#enclosureAssignmentDialog').close();
+      confirmEnclosureAction(`Assign ${p.name||'this pet'} to ${currentEnclosureDetail.name}? ${p.enclosure_id==null?'':'This will move the pet from its current enclosure.'}`,async()=>{
+        await updatePetEnclosure(p,id);await openEnclosureDetails(id);toast('Pet assigned successfully.');
+      });
+    });
+    host.append(btn);
+  });
+}
+$('#enclosureAssignOpen').addEventListener('click',async()=>{
+  const msg=$('#enclosureAssignmentFeedback');msg.hidden=true;msg.textContent='';
+  $('#enclosureAssignmentSearch').value='';enclosureAssignablePets=[];
+  $('#enclosureAssignmentOptions').replaceChildren(elem('p','enclosure-occupants-empty','Loading pets…'));
+  $('#enclosureAssignmentDialog').showModal();
+  try{const all=await getCollectionJson('/api/pets');if(!Array.isArray(all))throw new Error('Invalid pets response');if(!$('#enclosureAssignmentDialog').open)return;enclosureAssignablePets=all;renderEnclosureAssignmentOptions();}
+  catch(err){if(!$('#enclosureAssignmentDialog').open)return;msg.textContent='Unable to load pets. Check Data Management and try again.';msg.hidden=false;$('#enclosureAssignmentOptions').replaceChildren();}
+});
+$('#enclosureAssignmentSearch').addEventListener('input',renderEnclosureAssignmentOptions);
+$('#enclosureAssignmentCancel').addEventListener('click',()=>$('#enclosureAssignmentDialog').close());
+$('#enclosureDetailsClose').addEventListener('click',()=>navigate('enclosures'));
+
 // Stage 3D.1 — Enclosure collection and creation, using real Enclosure/Pets APIs.
 let enclosureCollectionRequest = 0;
 let enclosureCreateSaving = false;
@@ -1333,6 +1580,13 @@ function renderEnclosuresCollection() {
     ranges.append(temp, humidity);
     card.append(head, occupancy, ranges);
     if (enclosure.notes) card.append(elem('p', 'enclosure-card-note', enclosure.notes));
+    const detailsButton = elem('button', 'enclosure-card-open', 'View Details →');
+    detailsButton.type = 'button';
+    detailsButton.setAttribute('aria-label', `View details for ${enclosure.name}`);
+    detailsButton.addEventListener('click', (event) => { event.stopPropagation(); openEnclosureDetails(Number(enclosure.id)); });
+    card.addEventListener('click', () => openEnclosureDetails(Number(enclosure.id)));
+    card.classList.add('enclosure-card--interactive');
+    card.append(detailsButton);
     host.append(card);
   }
 }
@@ -1368,7 +1622,8 @@ function openEnclosureCreate() {
   $('#enclosureCreateForm').reset();
   clearEnclosureValidation();
   enclosureFormInitial = enclosureFormSnapshot();
-  $('#enclosureCreateStatus').textContent = 'Name and environmental ranges are required. Type and notes are optional.';
+  $('#enclosureCreateStatus').textContent = '';
+  $('#enclosureCreateStatus').hidden = true;
   $('#enclosuresPage').hidden = true;
   $('#enclosureCreatePage').hidden = false;
   $('#pageTitle').textContent = 'Add Enclosure';
@@ -1412,10 +1667,12 @@ function clearEnclosureValidation() {
   }
   const status = $('#enclosureCreateStatus');
   status.classList.remove('is-error');
+  status.hidden = true;
 }
 function showEnclosureValidation(message, fieldIds, groupId = null) {
   const status = $('#enclosureCreateStatus');
   status.textContent = message;
+  status.hidden = false;
   status.classList.add('is-error');
   fieldIds.forEach(id => {
     const field = $(`#${id}`);
@@ -1430,7 +1687,8 @@ for (const id of enclosureRequiredFieldIds) {
   $(`#${id}`).addEventListener('input', () => {
     if ($('#enclosureCreateStatus').classList.contains('is-error')) {
       clearEnclosureValidation();
-      $('#enclosureCreateStatus').textContent = 'Review your values, then select Create Enclosure.';
+      $('#enclosureCreateStatus').textContent = '';
+      $('#enclosureCreateStatus').hidden = true;
     }
   });
 }
@@ -1467,7 +1725,7 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
     enclosureType: $('#enclosureNewType').value || null,
     notes: $('#enclosureNewNotes').value.trim() || null};
   enclosureCreateSaving = true;
-  $('#enclosureCreateSave').disabled = true; status.textContent = 'Saving enclosure…';
+  $('#enclosureCreateSave').disabled = true; status.hidden = false; status.textContent = 'Saving enclosure…';
   try {
     const response = await fetch('/api/enclosures', {method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body)});
     const payload = await response.json().catch(()=>({}));
@@ -1479,7 +1737,7 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
     await loadEnclosuresCollection();
   } catch (error) {
     console.error('Enclosure creation failed:',error);
-    status.textContent = error.message || 'Unable to create enclosure. Please try again.';
+    status.hidden = false; status.textContent = error.message || 'Unable to create enclosure. Please try again.';
     status.classList.add('is-error');
   } finally {
     enclosureCreateSaving = false; $('#enclosureCreateSave').disabled = false;

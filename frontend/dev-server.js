@@ -60,6 +60,10 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/feeding-groups' || pathname.startsWith('/api/feeding-groups/') || pathname === '/api/feedings' || pathname.startsWith('/api/feedings/')) {
     return proxy(req, res, pathname, 3001, '/api');
   }
+  // Assigned pets are owned by Data Management, not the Enclosure Service.
+  if (/^\/api\/enclosures\/\d+\/pets\/?$/.test(pathname)) {
+    return proxy(req, res, pathname, 3001, '/api');
+  }
   if (pathname === '/api/enclosures' || pathname.startsWith('/api/enclosures/')) {
     return proxy(req, res, pathname, 3002, '/api');
   }
@@ -87,5 +91,5 @@ server.on('error', (error) => {
 });
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Frontend + API proxy running at http://localhost:${PORT}`);
-  console.log('Routes: /api/pets, /api/feedings, /api/feeding-groups -> :3001; /api/enclosures -> :3002');
+  console.log('Routes: /api/pets, /api/feedings, /api/feeding-groups, /api/enclosures/:id/pets -> :3001; other /api/enclosures -> :3002');
 });

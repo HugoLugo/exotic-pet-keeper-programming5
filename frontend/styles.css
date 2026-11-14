@@ -539,3 +539,84 @@
 .main-area.enclosures-active > .topbar,.main-area.enclosures-active > .enclosure-management,.main-area.enclosures-active > .enclosure-create-page{position:relative;z-index:1}
 @media(max-width:1100px){.main-area.enclosures-active::before{width:min(75vw,880px);opacity:.5}}
 @media(max-width:680px){.main-area.enclosures-active::before{display:none}.enclosure-create-toolbar{align-items:flex-start;flex-wrap:wrap}.enclosure-create-toolbar-actions{width:100%}}
+
+
+/* Stage 3D.2.1 — enclosure details (illustration-ready read-only view). */
+.main-area.enclosures-active > .enclosure-details-page{position:relative;z-index:1}
+.enclosure-details-page{max-width:1120px;padding-bottom:45px}
+.enclosure-details-toolbar{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px}
+.enclosure-details-preview-label{font-size:10px;letter-spacing:.13em;font-weight:800;color:#79916f}
+.enclosure-card-open{display:block;margin-top:16px;border:1px solid #cddcc7;border-radius:10px;padding:10px 14px;width:100%;background:#eaf0e3;color:#2e5b35;font-size:12px;font-weight:800;text-align:center}
+.enclosure-card-open:hover{background:#dfead7}
+.enclosure-habitat-placeholder{position:relative;isolation:isolate;overflow:hidden;aspect-ratio:16 / 8;min-height:275px;max-height:560px;border-radius:22px;border:1px solid #d9e1d2;background:radial-gradient(ellipse at 50% 105%,#cbd2b5 0%,#dfe5cb 33%,transparent 65%),linear-gradient(145deg,#edf0e1,#e3e9dd 70%,#e9e7d7);padding:clamp(18px,3vw,34px);margin-bottom:22px}
+.enclosure-habitat-placeholder:after{content:"";position:absolute;inset:auto 0 0;height:16%;background:linear-gradient(0deg,#b9c4a7a3,transparent);pointer-events:none;z-index:-1}
+.enclosure-habitat-head{position:relative;z-index:2;max-width:62%}
+.enclosure-habitat-head h2{font-family:Georgia,serif;font-size:clamp(24px,3.1vw,40px);line-height:1.15;color:#294731;margin:9px 0}
+.enclosure-habitat-head p{font-size:12px;color:#6d7a68;line-height:1.5;margin:0}
+.enclosure-habitat-slots{position:absolute;inset:0;pointer-events:none}
+.enclosure-habitat-slot{position:absolute;bottom:7%;width:24%;height:49%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;transform:translateX(-50%)}
+.enclosure-habitat-slot--center{left:50%;width:27%;height:55%}
+.enclosure-habitat-slot--left{left:19%}
+.enclosure-habitat-slot--right{left:81%}
+.enclosure-habitat-art{display:flex;flex:1;min-height:0;width:100%;align-items:flex-end;justify-content:center}
+.enclosure-habitat-art img{width:100%;height:100%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 7px 6px #273c2928)}
+.enclosure-art-fallback{display:grid;place-items:center;min-height:50px;width:100%;font-size:36px;color:#6e916b}
+.enclosure-habitat-pet-name{max-width:100%;font-size:12px;font-weight:800;color:#35513b;background:#f7f8efdc;padding:5px 11px;border-radius:16px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.enclosure-habitat-caption{position:absolute;bottom:10px;left:20px;margin:0;z-index:2;color:#4e6750;font-size:11px;background:#f7f8edce;border-radius:8px;padding:5px 9px}
+.enclosure-details-panels{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,1fr);gap:20px;align-items:start}
+.enclosure-occupants-count{font-size:12px;font-weight:800;color:#41683e;background:#eaf0df;padding:8px 12px;border-radius:14px}
+.enclosure-details-subnote{font-size:12px;color:var(--sub);line-height:1.55;margin:-4px 0 18px}
+.enclosure-occupants-list{display:grid;gap:10px}
+.enclosure-occupant-card{display:flex;width:100%;align-items:center;gap:13px;text-align:left;background:#f7f8f0;border:1px solid #e3e8db;border-radius:13px;padding:10px 13px;color:var(--text)}
+.enclosure-occupant-card:hover{background:#edf3e4;border-color:#bccfb4}
+.enclosure-occupant-art{display:grid;place-items:center;flex:none;width:65px;height:61px;background:#e8eddd;border-radius:11px;overflow:hidden}
+.enclosure-occupant-art img{width:100%;height:100%;object-fit:contain}
+.enclosure-occupant-info{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere}
+.enclosure-occupant-info strong{font-size:14px}.enclosure-occupant-info small{font-size:12px;color:var(--sub)}
+.enclosure-occupant-arrow{margin-left:auto;color:#47794e;font-size:20px}
+.enclosure-occupants-empty,.enclosure-details-pet-warning{padding:16px;background:#f5f7ee;color:#657367;border-radius:11px;font-size:13px;line-height:1.6}
+.enclosure-details-pet-warning{background:#fff0e8;color:#934b3e;margin-top:12px}
+.enclosure-facts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.enclosure-fact{border-radius:12px;background:#f5f7ef;border:1px solid #e6eadf;padding:14px;display:grid;gap:6px}
+.enclosure-fact:first-child{grid-column:1/-1}
+.enclosure-fact span,.enclosure-details-notes strong{font-size:11px;font-weight:800;color:#6e7e68}
+.enclosure-fact strong{font-size:16px;color:#2d4d34;overflow-wrap:anywhere}
+.enclosure-details-notes{border-top:1px solid #e8e9de;margin-top:18px;padding-top:16px}
+.enclosure-details-notes p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:13px;color:#516354;margin:9px 0 0}
+@media(max-width:850px){.enclosure-details-panels{grid-template-columns:1fr}}
+@media(max-width:680px){.enclosure-habitat-placeholder{aspect-ratio:4 / 3;min-height:260px;padding:17px}.enclosure-habitat-head{max-width:100%}.enclosure-habitat-head h2{font-size:24px}.enclosure-habitat-head p{font-size:11px;max-width:90%}.enclosure-habitat-slot{width:29%;height:39%;bottom:14%}.enclosure-habitat-slot--center{width:32%;height:44%}.enclosure-habitat-slot--left{left:17%}.enclosure-habitat-slot--right{left:83%}.enclosure-habitat-pet-name{font-size:10px;padding:4px 6px}.enclosure-habitat-caption{font-size:10px;left:9px;bottom:6px}.enclosure-details-preview-label{display:none}}
+
+.enclosure-card--interactive{cursor:pointer}.enclosure-card--interactive:hover{border-color:#afc7a5;box-shadow:0 9px 25px #344b2021}
+
+/* Stage 3D.2 functional details + approved tropical artwork. */
+.enclosure-habitat-placeholder.is-tropical{background:#e8ebdc url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center center/contain no-repeat;}
+.enclosure-habitat-placeholder.is-tropical:after{display:none}
+.enclosure-habitat-head{max-width:65%;padding:12px 16px;border-radius:13px;background:#f8f8eed9;backdrop-filter:blur(2px)}
+.enclosure-habitat-slot{bottom:9%;height:41%;width:21%;}
+.enclosure-habitat-slot--center{left:50%;height:47%;width:24%}
+.enclosure-habitat-slot--left{left:18%}
+.enclosure-habitat-slot--right{left:81%}
+.enclosure-occupants-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.enclosure-occupants-actions .primary-button{font-size:12px;padding:9px 12px;white-space:nowrap}
+.enclosure-occupant-remove{margin-left:auto;flex:none;background:#fff7f3;color:#9c4c3f;border:1px solid #edd1c8;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:700}
+.enclosure-occupant-remove:hover,.enclosure-danger-button:hover{background:#fbe5df}
+.enclosure-occupant-info{flex:1}
+.enclosure-management-dialog{width:min(92vw,720px);max-height:85vh;overflow:auto}
+.enclosure-edit-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0}
+.enclosure-edit-fields label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;color:#31513a}
+.enclosure-edit-fields input,.enclosure-edit-fields select,.enclosure-edit-fields textarea,.enclosure-management-dialog input{width:100%;font:inherit;background:#fff;border:1px solid #d8dfd1;border-radius:10px;padding:11px;color:#274731}
+.enclosure-edit-full{grid-column:1/-1}
+.enclosure-delete-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid #e4e7dc;margin-top:18px;padding-top:15px;color:#7a8178;font-size:11px}
+.enclosure-danger-button{border:1px solid #e4bdb4;border-radius:10px;padding:10px 12px;color:#9c4133;background:#fff3ef;font-weight:800;cursor:pointer}
+.enclosure-assignment-options{display:grid;gap:8px;max-height:310px;overflow:auto;margin:14px 0}
+.enclosure-assignment-option{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid #dde6d8;background:#f7f9f1;padding:11px;border-radius:11px;color:#2d4d34;cursor:pointer}
+.enclosure-assignment-option:hover{background:#eaf3e6}
+.enclosure-assignment-option:disabled{opacity:.55;cursor:default}
+.enclosure-assignment-option span{display:grid;gap:3px}.enclosure-assignment-option small{color:#708070}
+.enclosure-form-feedback[hidden]{display:none!important}
+@media(max-width:680px){.enclosure-edit-fields{grid-template-columns:1fr}.enclosure-details-toolbar{align-items:flex-start}.enclosure-habitat-placeholder.is-tropical{background-size:contain;aspect-ratio:16/10;min-height:230px}.enclosure-habitat-head{max-width:85%;padding:7px 9px}.enclosure-habitat-head h2{font-size:18px}.enclosure-habitat-slot{bottom:7%;height:30%;width:25%}.enclosure-habitat-slot--center{height:35%;width:28%}.enclosure-occupants-panel .section-heading{align-items:flex-start;gap:10px;flex-wrap:wrap}}
+
+.enclosure-occupant-row{display:flex;align-items:center;gap:9px;min-width:0}
+.enclosure-occupant-row>.enclosure-occupant-card{flex:1;min-width:0}
+.enclosure-occupant-row>.enclosure-occupant-remove{margin-left:0}
+.enclosure-habitat-placeholder.is-tropical{aspect-ratio:1672/941;max-height:none}

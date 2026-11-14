@@ -62,6 +62,40 @@
         <div class="pets-collection-message" id="enclosuresMessage" role="status" aria-live="polite" hidden></div>
         <div id="enclosuresGrid" class="enclosures-grid" aria-live="polite"></div>
       </section>
+      <section class="enclosure-details-page" id="enclosureDetailsPage" aria-label="Individual enclosure details" hidden>
+        <div class="enclosure-details-toolbar">
+          <button type="button" class="add-pet-back" id="enclosureDetailsBack">← Back to Enclosures</button>
+          <div class="pet-details-actions">
+            <button type="button" class="pet-details-icon-button" id="enclosureDetailsEdit" aria-label="Edit enclosure" title="Edit enclosure">✎</button>
+            <button type="button" class="pet-details-close" id="enclosureDetailsClose">× <span>Close</span></button>
+          </div>
+        </div>
+        <div class="pets-collection-message" id="enclosureDetailsStatus" role="status" aria-live="polite">Loading enclosure…</div>
+        <div id="enclosureDetailsContent" hidden>
+          <section class="enclosure-habitat-placeholder" aria-label="Habitat illustration preview">
+            <div class="enclosure-habitat-head">
+              <span class="section-kicker" id="enclosureDetailsType">HABITAT</span>
+              <h2 id="enclosureDetailsName">Enclosure</h2>
+              
+            </div>
+            <div class="enclosure-habitat-slots" id="enclosureHabitatSlots" aria-label="Up to three assigned animals"></div>
+            <p class="enclosure-habitat-caption" id="enclosureHabitatCaption"></p>
+          </section>
+          <div class="enclosure-details-panels">
+            <section class="panel enclosure-occupants-panel" aria-labelledby="enclosureOccupantsTitle">
+              <div class="section-heading"><div><span class="section-kicker">YOUR COMPANIONS</span><h2 id="enclosureOccupantsTitle">Assigned Pets</h2></div><div class="enclosure-occupants-actions"><span class="enclosure-occupants-count" id="enclosureDetailsPetCount"></span><button type="button" class="primary-button" id="enclosureAssignOpen">+ Assign Pet</button></div></div>
+              <p class="enclosure-details-subnote">Open a pet profile or manage who lives in this enclosure.</p>
+              <div class="enclosure-occupants-list" id="enclosureDetailsPets"></div>
+              <p class="enclosure-details-pet-warning" id="enclosureDetailsPetsWarning" role="status" hidden></p>
+            </section>
+            <section class="panel enclosure-facts-panel" aria-labelledby="enclosureFactsTitle">
+              <div class="section-heading"><div><span class="section-kicker">HABITAT SETTINGS</span><h2 id="enclosureFactsTitle">Enclosure Information</h2></div></div>
+              <div class="enclosure-facts-grid" id="enclosureDetailsFacts"></div>
+              <div class="enclosure-details-notes"><strong>Notes</strong><p id="enclosureDetailsNotes"></p></div>
+            </section>
+          </div>
+        </div>
+      </section>
       <section class="enclosure-create-page" id="enclosureCreatePage" aria-label="Create enclosure" hidden>
         <form id="enclosureCreateForm" novalidate>
           <div class="enclosure-create-toolbar">
@@ -71,8 +105,8 @@
               <button type="button" class="pet-details-close" id="enclosureCreateCancel">Cancel</button>
             </div>
           </div>
-          <p class="add-pet-lead">Set the habitat's acceptable temperature and humidity ranges. Environmental values are not automatically chosen for you.</p>
-          <p class="enclosure-form-feedback" id="enclosureCreateStatus" role="status" aria-live="polite">Name and environmental ranges are required. Type and notes are optional.</p>
+          
+          <p class="enclosure-form-feedback" id="enclosureCreateStatus" role="status" aria-live="polite" hidden></p>
           <div class="enclosure-form-panel">
             <span class="section-kicker">HABITAT PROFILE</span><h2>Enclosure Information</h2>
             <div class="enclosure-form-grid">
@@ -234,6 +268,40 @@
         <form id="feedingRecordForm" novalidate><span class="section-kicker">CARE LOG</span><h2 id="feedingRecordDialogTitle">Add Feeding</h2><label>Food given <input id="feedingRecordFood" maxlength="200" required placeholder="e.g. 1 cricket"></label><label>Feeding date <input id="feedingRecordDate" type="date" required></label><label>Notes (optional) <textarea id="feedingRecordNotes" rows="3"></textarea></label><p id="feedingRecordMessage" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingRecordCancel">Cancel</button><button class="primary-button" id="feedingRecordSave" type="submit">Save Feeding</button></div></form>
       </dialog>
       <dialog id="feedingConfirmDialog" class="feeding-dialog" aria-labelledby="feedingConfirmTitle"><h2 id="feedingConfirmTitle">Confirm action</h2><p id="feedingConfirmText"></p><div class="feeding-actions"><button class="add-pet-cancel" id="feedingConfirmCancel" type="button">Cancel</button><button class="primary-button" id="feedingConfirmProceed" type="button">Confirm</button></div></dialog>
+
+      <dialog id="enclosureEditDialog" class="feeding-dialog enclosure-management-dialog" aria-labelledby="enclosureEditTitle">
+        <form id="enclosureEditForm" novalidate>
+          <span class="section-kicker">HABITAT MANAGEMENT</span><h2 id="enclosureEditTitle">Edit Enclosure</h2>
+          <div class="enclosure-edit-fields">
+            <label>Enclosure name <input id="enclosureEditName" maxlength="120" required></label>
+            <label>Habitat type <select id="enclosureEditType"><option value="">Not specified</option><option>Tropical</option><option>Desert</option><option>Temperate</option><option>Aquatic</option><option>Paludarium</option><option>Other</option></select></label>
+            <label>Minimum temperature (°C) <input id="enclosureEditMinTemp" type="number" step="any" required></label>
+            <label>Maximum temperature (°C) <input id="enclosureEditMaxTemp" type="number" step="any" required></label>
+            <label>Minimum humidity (%) <input id="enclosureEditMinHum" type="number" min="0" max="100" step="any" required></label>
+            <label>Maximum humidity (%) <input id="enclosureEditMaxHum" type="number" min="0" max="100" step="any" required></label>
+            <label class="enclosure-edit-full">Notes <textarea id="enclosureEditNotes" maxlength="2000" rows="3"></textarea></label>
+          </div>
+          <p id="enclosureEditFeedback" class="feeding-message" role="alert" hidden></p>
+          <div class="feeding-actions"><button type="submit" class="primary-button" id="enclosureEditSave">Save Changes</button><button type="button" class="pet-details-close" id="enclosureEditCancel">Cancel</button></div>
+          <div class="enclosure-delete-row"><button type="button" id="enclosureDeleteOpen" class="enclosure-danger-button">Delete Enclosure</button><span>Only possible when no pets are assigned.</span></div>
+        </form>
+      </dialog>
+      <dialog id="enclosureAssignmentDialog" class="feeding-dialog enclosure-management-dialog" aria-labelledby="enclosureAssignmentTitle">
+        <div><span class="section-kicker">YOUR COMPANIONS</span><h2 id="enclosureAssignmentTitle">Assign a Pet</h2><p class="feeding-hint">Choose an unassigned pet or move one from another enclosure.</p></div>
+        <label>Find a pet <input id="enclosureAssignmentSearch" type="search" placeholder="Search name or species"></label>
+        <div id="enclosureAssignmentOptions" class="enclosure-assignment-options"></div>
+        <p id="enclosureAssignmentFeedback" class="feeding-message" role="alert" hidden></p>
+        <div class="feeding-actions"><button type="button" class="pet-details-close" id="enclosureAssignmentCancel">Cancel</button></div>
+      </dialog>
+      <dialog id="enclosureConfirmDialog" class="feeding-dialog enclosure-management-dialog" aria-labelledby="enclosureConfirmTitle">
+        <h2 id="enclosureConfirmTitle">Confirm action</h2><p id="enclosureConfirmText"></p>
+        <p id="enclosureConfirmError" class="feeding-message" role="alert" hidden></p>
+        <div class="feeding-actions"><button type="button" class="pet-details-close" id="enclosureConfirmCancel">Cancel</button><button type="button" class="primary-button" id="enclosureConfirmProceed">Confirm</button></div>
+      </dialog>
+      <dialog id="enclosureEditDiscardDialog" class="feeding-dialog enclosure-management-dialog" aria-labelledby="enclosureEditDiscardTitle">
+        <h2 id="enclosureEditDiscardTitle">Discard unsaved changes?</h2><p>Your enclosure edits will be lost.</p>
+        <div class="feeding-actions"><button type="button" class="primary-button" id="enclosureEditKeep">Keep Editing</button><button type="button" class="pet-details-close" id="enclosureEditDiscard">Discard Changes</button></div>
+      </dialog>
       <section class="placeholder-panel panel" id="otherPage" hidden><span class="section-kicker">NEXT IMPLEMENTATION PHASE</span><h2 id="otherTitle"></h2><p>This screen has not been implemented yet. We are approving the dashboard layout first, then we'll build this page using the same design system.</p><button class="primary-button" data-go="dashboard">Back to Dashboard</button></section>
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     </main>
