@@ -55,14 +55,17 @@
       <section class="pet-details-page" id="petDetailsPage" aria-label="Individual pet details" hidden>
         <div class="pet-details-toolbar">
           <div class="pet-details-actions" aria-label="Pet profile actions">
-            <button type="button" class="pet-details-icon-button" id="petDetailsEdit" aria-label="Edit pet (available in Stage 3B)" title="Edit pet — coming in Stage 3B" disabled>
+            <button type="button" class="pet-details-icon-button" id="petDetailsEdit" aria-label="Edit pet" title="Edit pet">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4 10.5-10.5Z"/></svg>
             </button>
+            <button type="button" class="primary-button" id="petDetailsSave" hidden>Save Changes</button>
             <button type="button" class="pet-details-close" id="petDetailsClose" aria-label="Close pet profile and return to Pets" title="Close profile">× <span>Close</span></button>
           </div>
         </div>
         <div class="pets-collection-message" id="petDetailsStatus" role="status" aria-live="polite" hidden></div>
+        <p id="petEditMessage" class="pet-edit-message" role="status" aria-live="polite" hidden></p>
         <div id="petDetailsContent" hidden>
+          <div id="petEditContainer" class="pet-edit-container" hidden></div>
           <div class="pet-details-hero">
             <div class="pet-details-art" id="petDetailsArtwork"></div>
             <div class="pet-details-intro">
@@ -145,6 +148,7 @@
           <div class="add-pet-actions"><p class="add-pet-save-info" id="addPetSaveMessage" role="status" aria-live="polite">Name and species are required. All other fields are optional.</p><button type="button" class="add-pet-cancel" id="cancelAddPet">Cancel</button><button type="submit" class="primary-button" id="createPetButton">Create Pet</button></div>
         </form>
       </section>
+      <dialog id="petEditConfirm" class="pet-edit-dialog" aria-labelledby="petEditConfirmTitle"><h2 id="petEditConfirmTitle">Discard unsaved changes?</h2><p>Your edits will be lost. You can keep editing instead.</p><div class="pet-edit-dialog-actions"><button type="button" class="add-pet-cancel" id="petEditKeep">Keep Editing</button><button type="button" class="primary-button" id="petEditDiscard">Discard Changes</button></div></dialog>
       <dialog id="illustrationDialog" class="illustration-dialog" aria-labelledby="illustrationDialogTitle">
         <div class="illustration-dialog-header"><div><span class="section-kicker">PERSONALIZE YOUR PET</span><h2 id="illustrationDialogTitle">Choose an illustration</h2><p>Choose any artwork you like, independent of species.</p></div><button id="illustrationDialogClose" class="illustration-dialog-close" type="button" aria-label="Close illustration picker">×</button></div>
         <div class="illustration-options" id="illustrationOptions"></div>

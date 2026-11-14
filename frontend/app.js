@@ -51,8 +51,14 @@ function renderFeedings() {
 let toastTimeout;
 function toast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(toastTimeout); toastTimeout = setTimeout(() => t.hidden = true, 4500); }
 function navigate(page) {
+  if (petSaving) return;
+  if (petEditing && !petSaving) {
+    if (isPetEditDirty() && !window.confirm('Discard unsaved changes?')) return;
+    stopPetEdit();
+  }
   const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.']};
   if (!pages[page]) return;
+  ++editStartRequest;
   currentPage = page;
   $('#main').classList.toggle('pets-active', page === 'pets');
   $('#dashboardContent').hidden = page !== 'dashboard';
@@ -302,8 +308,10 @@ function renderDetailsFeedings(rows) {
   }
 }
 async function openPetDetails(id) {
+  if (petSaving || petEditing) return;
   if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) return;
   const request = ++petDetailsRequest;
+  ++editStartRequest;
   $('#petDetailsPage').dataset.petId = String(id);
   currentPage = 'pets';
   $('#main').classList.add('pets-active');
@@ -317,6 +325,7 @@ async function openPetDetails(id) {
   $('#pageTitle').textContent = 'Pet Details';
   $('#pageDescription').textContent = 'Your companion’s profile and feeding history.';
   $('#petDetailsContent').hidden = true;
+  $('#petDetailsEdit').disabled = true;
   detailStatus('Loading pet profile…');
   document.querySelectorAll('.nav-link').forEach(link => {
     const active = link.dataset.page === 'pets';
@@ -340,6 +349,8 @@ async function openPetDetails(id) {
     if (enclosureResult.status === 'fulfilled' && Array.isArray(enclosureResult.value)) {
       collectionEnclosures = new Map(enclosureResult.value.map(e => [Number(e.id), e.name]));
     }
+    activePet = petResult.value;
+    $('#petDetailsEdit').disabled = false;
     renderDetailsProfile(petResult.value);
     if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
       renderDetailsFeedings(feedingResult.value);
@@ -356,7 +367,7 @@ async function openPetDetails(id) {
     detailStatus(error.message || 'Unable to load the pet profile.', Number(id));
   }
 }
-$('#petDetailsClose').addEventListener('click', () => navigate('pets'));
+$('#petDetailsClose').addEventListener('click', () => { if (petEditing) requestCancelPetEdit(); else navigate('pets'); });
 $('#petDetailsRetryFeedings').addEventListener('click', () => {
   const id = Number($('#petDetailsPage').dataset.petId);
   if (id > 0) openPetDetails(id);
@@ -416,10 +427,15 @@ function populateAddPetIllustrations() {
     } else art.append(elem('span', 'collection-pet-fallback', '◇'));
     button.append(art, elem('strong', null, choice.label));
     button.addEventListener('click', () => {
-      selectedNewPetIllustration = choice.key;
-      syncNewPetPortrait();
+      if (petEditing) {
+        selectedEditPetIllustration = choice.key;
+        syncEditPetPortrait();
+      } else {
+        selectedNewPetIllustration = choice.key;
+        syncNewPetPortrait();
+      }
       $('#illustrationDialog').close();
-      $('#illustrationPickerOpen').focus();
+      (petEditing ? $('#editIllustrationPickerOpen') : $('#illustrationPickerOpen')).focus();
     });
     host.append(button);
   });
@@ -560,7 +576,7 @@ function closeAddPetForm() {
 }
 
 populateAddPetIllustrations();
-$('#illustrationPickerOpen').addEventListener('click', () => $('#illustrationDialog').showModal());
+$('#illustrationPickerOpen').addEventListener('click', () => { syncNewPetPortrait(); $('#illustrationDialog').showModal(); });
 $('#illustrationDialogClose').addEventListener('click', () => $('#illustrationDialog').close());
 $('#illustrationDialog').addEventListener('click', (event) => {
   if (event.target === $('#illustrationDialog')) $('#illustrationDialog').close();
@@ -669,17 +685,17 @@ $('#addPetForm').addEventListener('submit', async event => {
 });
 // Stage 2A Rev 2 — accessible, dependency-free birth-date calendar.
 // The hidden field retains the backend's YYYY-MM-DD date format for Stage 2B.
-function createBirthCalendar() {
-  const input = $('#newPetBirth');
-  const trigger = $('#newPetBirthTrigger');
-  const label = $('#newPetBirthLabel');
-  const popup = $('#newPetCalendar');
-  const wrap = $('#newPetCalendarWrap');
-  const monthSelect = $('#newPetCalendarMonth');
-  const yearSelect = $('#newPetCalendarYear');
-  const days = $('#newPetCalendarDays');
-  const prev = $('#newPetCalendarPrev');
-  const next = $('#newPetCalendarNext');
+function createBirthCalendar(prefix = "newPet") {
+  const input = $('#' + prefix + 'Birth');
+  const trigger = $('#' + prefix + 'BirthTrigger');
+  const label = $('#' + prefix + 'BirthLabel');
+  const popup = $('#' + prefix + 'Calendar');
+  const wrap = $('#' + prefix + 'CalendarWrap');
+  const monthSelect = $('#' + prefix + 'CalendarMonth');
+  const yearSelect = $('#' + prefix + 'CalendarYear');
+  const days = $('#' + prefix + 'CalendarDays');
+  const prev = $('#' + prefix + 'CalendarPrev');
+  const next = $('#' + prefix + 'CalendarNext');
   const today = new Date();
   const maxYear = today.getFullYear();
   const maxMonth = today.getMonth();
@@ -758,14 +774,14 @@ function createBirthCalendar() {
     monthSelect.focus();
   }
   trigger.addEventListener('click', () => open() ? close() : show());
-  $('#newPetCalendarClose').addEventListener('click', () => close(true));
-  $('#newPetCalendarClear').addEventListener('click', () => {
+  $('#' + prefix + 'CalendarClose').addEventListener('click', () => close(true));
+  $('#' + prefix + 'CalendarClear').addEventListener('click', () => {
     input.value = '';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     syncLabel();
     close(true);
   });
-  $('#newPetCalendarToday').addEventListener('click', () => {
+  $('#' + prefix + 'CalendarToday').addEventListener('click', () => {
     input.value = iso(maxYear, maxMonth, maxDay);
     input.dispatchEvent(new Event('change', { bubbles: true }));
     syncLabel();
@@ -807,6 +823,207 @@ function createBirthCalendar() {
     Array.from(days.querySelectorAll('.add-pet-calendar-day')).find(button => Number(button.textContent) === nextDate.getDate())?.focus();
   });
   syncLabel();
-  return {reset() {close(); syncLabel();}, close};
+  return {reset() {close(); syncLabel();}, close, refresh:syncLabel};
 }
 const birthCalendar = createBirthCalendar();
+
+
+// Stage 3B — inline editing reuses the existing Add Pet controls and CSS.
+// The original Add Pet form is never moved or changed.
+let activePet = null;
+let petEditing = false;
+let petSaving = false;
+let editSnapshot = '';
+let editStartRequest = 0;
+let selectedEditPetIllustration = null;
+let editGenderDropdown, editEnclosureDropdown, editBirthCalendar;
+const editContainer = $('#petEditContainer');
+const editForm = document.createElement('form');
+editForm.id = 'editPetForm';
+editForm.noValidate = true;
+// Duplicate only the approved form's visual fields with unique IDs.
+for (const source of ['.add-pet-profile-row','.add-pet-details-panel']) {
+  const cloned = $('#addPetForm').querySelector(source).cloneNode(true);
+  for (const node of [cloned,...cloned.querySelectorAll('*')]) {
+    for (const attribute of ['id','for','aria-controls']) {
+      if (!node.hasAttribute(attribute)) continue;
+      let value = node.getAttribute(attribute);
+      value = value.replaceAll('newPet','editPet')
+        .replaceAll('illustrationPickerOpen','editIllustrationPickerOpen')
+        .replaceAll('addPetPortrait','editPetPortrait')
+        .replaceAll('illustrationSelectionLabel','editIllustrationSelectionLabel');
+      node.setAttribute(attribute,value);
+    }
+  }
+  editForm.append(cloned);
+}
+editContainer.append(editForm);
+editGenderDropdown = createAddPetDropdown('editPetGender','editPetGenderTrigger','editPetGenderOptions');
+editEnclosureDropdown = createAddPetDropdown('editPetEnclosure','editPetEnclosureTrigger','editPetEnclosureOptions');
+editBirthCalendar = createBirthCalendar('editPet');
+$('#editIllustrationPickerOpen').addEventListener('click', () => {
+  syncEditPetPortrait();
+  $('#illustrationDialog').showModal();
+});
+
+function syncEditPetPortrait() {
+  const item = illustrationChoices.find(i => i.key === selectedEditPetIllustration) || illustrationChoices[0];
+  const image = $('#editPetPortraitImage');
+  image.hidden = !item.filename;
+  $('#editPetPortraitFallback').hidden = !!item.filename;
+  if (item.filename) { image.src = `${assets}${item.filename}`; image.alt = `${item.label} illustration`; }
+  else image.removeAttribute('src');
+  $('#editIllustrationSelectionLabel').textContent = item.filename
+    ? `${item.label} illustration selected. You can change it anytime.`
+    : 'No illustration selected — neutral placeholder will be used.';
+  document.querySelectorAll('.illustration-option').forEach(button => {
+    const chosen = button.dataset.key === (selectedEditPetIllustration || 'none');
+    button.classList.toggle('selected',chosen);
+    button.setAttribute('aria-pressed',String(chosen));
+  });
+}
+function editFormPayload() {
+  const name = $('#editPetName').value.trim();
+  const species = $('#editPetSpecies').value.trim();
+  if (!name || !species) throw new Error('Pet name and species are required. Enter "Unknown" if necessary.');
+  if (name.length > 120 || species.length > 160) throw new Error('Name or species is too long.');
+  const gender = $('#editPetGender').value;
+  if (!['unknown','male','female'].includes(gender)) throw new Error('Choose a valid gender.');
+  const enclosureValue = $('#editPetEnclosure').value;
+  const enclosure_id = enclosureValue === '' ? null : Number(enclosureValue);
+  if (enclosure_id !== null && (!Number.isSafeInteger(enclosure_id) || enclosure_id <= 0)) throw new Error('Choose an available enclosure.');
+  const date_of_birth = $('#editPetBirth').value || null;
+  if (date_of_birth) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date_of_birth);
+    if (!match) throw new Error('Choose a valid date of birth.');
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    const today = new Date();
+    const localToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day || date_of_birth > localToday) throw new Error('Birth date must be a real date and cannot be in the future.');
+  }
+  const notes = $('#editPetNotes').value.trim() || null;
+  if (notes && notes.length > 2000) throw new Error('Notes cannot exceed 2,000 characters.');
+  return {name,species,gender,date_of_birth,notes,enclosure_id,illustration_key:selectedEditPetIllustration};
+}
+function editState() {
+  return JSON.stringify({
+    name:$('#editPetName').value, species:$('#editPetSpecies').value,
+    gender:$('#editPetGender').value, date_of_birth:$('#editPetBirth').value,
+    notes:$('#editPetNotes').value, enclosure_id:$('#editPetEnclosure').value,
+    illustration_key:selectedEditPetIllustration
+  });
+}
+function isPetEditDirty() { return petEditing && editState() !== editSnapshot; }
+function editMessage(message, error = false) {
+  const box = $('#petEditMessage');
+  box.hidden = !message;
+  box.textContent = message;
+  box.classList.toggle('is-error',error);
+}
+function stopPetEdit() {
+  ++editStartRequest;
+  petEditing = false;
+  $('#petDetailsPage').classList.remove('is-editing');
+  editContainer.hidden = true;
+  $('#petDetailsEdit').hidden = false;
+  $('#petDetailsSave').hidden = true;
+  $('#petDetailsClose span').textContent = 'Close';
+  $('#petDetailsClose').setAttribute('aria-label','Close pet profile and return to Pets');
+  editGenderDropdown.close(); editEnclosureDropdown.close(); editBirthCalendar.close();
+  editMessage('');
+}
+async function beginPetEdit() {
+  if (!activePet || petEditing || petSaving) return;
+  const request = ++editStartRequest;
+  const editingPetId = activePet.id;
+  // Refresh enclosure choices; do not allow editing with a stale/unavailable list.
+  editMessage('Loading enclosure choices…');
+  $('#petDetailsEdit').disabled = true;
+  let options;
+  try {
+    options = await getCollectionJson('/api/enclosures');
+    if (!Array.isArray(options)) throw new Error('Invalid enclosure response');
+  } catch (error) {
+    if (request !== editStartRequest || $('#petDetailsPage').hidden) return;
+    editMessage('Enclosure options could not be loaded. Try Edit again when the Enclosure Service is running.',true);
+    $('#petDetailsEdit').disabled = false;
+    return;
+  }
+  if (request !== editStartRequest || $('#petDetailsPage').hidden || activePet?.id !== editingPetId) return;
+  $('#petDetailsEdit').disabled = false;
+  collectionEnclosures = new Map(options.map(e => [Number(e.id),e.name]));
+  const select = $('#editPetEnclosure');
+  select.replaceChildren(new Option('Unassigned — you can add an enclosure later',''));
+  options.forEach(e => { if (e.id != null && typeof e.name === 'string') select.append(new Option(e.name,String(e.id))); });
+  if (activePet.enclosure_id != null && !options.some(e => Number(e.id) === Number(activePet.enclosure_id))) {
+    editMessage('This pet’s current enclosure is unavailable. Editing is disabled until the enclosure can be loaded.',true);
+    return;
+  }
+  $('#editPetName').value = activePet.name || '';
+  $('#editPetSpecies').value = activePet.species || '';
+  $('#editPetNotes').value = activePet.notes || '';
+  $('#editPetGender').value = activePet.gender || 'unknown';
+  $('#editPetBirth').value = activePet.date_of_birth || '';
+  select.value = activePet.enclosure_id == null ? '' : String(activePet.enclosure_id);
+  selectedEditPetIllustration = activePet.illustration_key || null;
+  editGenderDropdown.render(); editEnclosureDropdown.render(); editBirthCalendar.refresh();
+  petEditing = true;
+  editSnapshot = editState();
+  syncEditPetPortrait();
+  $('#petDetailsPage').classList.add('is-editing');
+  editContainer.hidden = false;
+  $('#petDetailsEdit').hidden = true;
+  $('#petDetailsSave').hidden = false;
+  $('#petDetailsClose span').textContent = 'Cancel';
+  $('#petDetailsClose').setAttribute('aria-label','Cancel editing pet');
+  editMessage('');
+  $('#editPetName').focus();
+}
+function requestCancelPetEdit() {
+  if (petSaving) return;
+  if (isPetEditDirty()) $('#petEditConfirm').showModal();
+  else stopPetEdit();
+}
+$('#petDetailsEdit').addEventListener('click',beginPetEdit);
+$('#petEditKeep').addEventListener('click',() => $('#petEditConfirm').close());
+$('#petEditDiscard').addEventListener('click',() => { $('#petEditConfirm').close(); stopPetEdit(); });
+$('#petEditConfirm').addEventListener('cancel', () => {});
+$('#petDetailsSave').addEventListener('click',() => editForm.requestSubmit());
+editForm.addEventListener('submit',async event => {
+  event.preventDefault();
+  if (!petEditing || petSaving || !activePet) return;
+  let payload;
+  try { payload = editFormPayload(); }
+  catch(error) { editMessage(error.message,true); return; }
+  if (!isPetEditDirty()) { stopPetEdit(); return; }
+  petSaving = true;
+  $('#petDetailsSave').disabled = true;
+  $('#petDetailsClose').disabled = true;
+  $('#petDetailsSave').textContent = 'Saving…';
+  editMessage('Saving your changes…');
+  try {
+    const response = await fetch(`/api/pets/${activePet.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(typeof result?.error === 'string' ? result.error : `Update failed (HTTP ${response.status})`);
+    if (!result || Number(result.id) !== Number(activePet.id)) {
+      throw new Error('Unexpected response. Check the pet record before saving again.');
+    }
+    activePet = result;
+    renderDetailsProfile(activePet);
+    stopPetEdit();
+    loadPetsCollection();
+    toast('Pet changes saved.');
+  } catch(error) {
+    console.error('Updating pet failed:',error);
+    editMessage(`Could not save changes: ${error.message}. Your entries are preserved. If the connection failed, verify the pet before retrying.`,true);
+  } finally {
+    petSaving = false;
+    $('#petDetailsSave').disabled = false;
+    $('#petDetailsClose').disabled = false;
+    $('#petDetailsSave').textContent = 'Save Changes';
+  }
+});
