@@ -1,12 +1,6 @@
-// DESIGN PREVIEW ONLY. These example records are deliberately separate from API calls.
-// Later: replace this module's demo data with a data-access layer for ports 3001/3002/3004.
+// Environmental readings, alerts and recent feedings below remain demo examples.
+// Dashboard pet cards and pet/enclosure counts use the real APIs.
 const assets = './public/assets/illustrations/animals/';
-const pets = [
-  { id: 1, name: 'Nox', species: 'Leopard Gecko', asset: 'leopard-gecko.webp', enclosure: 'Enclosure 1' },
-  { id: 2, name: 'Kukulcán', species: 'Ball Python', asset: 'ball-python.webp', enclosure: 'Enclosure 2' },
-  { id: 3, name: 'Vesper', species: 'Tarantula', asset: 'tarantula.webp', enclosure: 'Unassigned' },
-  { id: 4, name: 'Atlas', species: 'Scorpion', asset: 'scorpion.webp', enclosure: 'Unassigned' }
-];
 const enclosures = [
   { name: 'Enclosure 1', pet: 'Nox', temperature: 28.4, humidity: 45, status: 'Normal', time: '14 Nov, 14:32' },
   { name: 'Enclosure 2', pet: 'Kukulcán', temperature: 32.7, humidity: 58, status: 'Abnormal', time: '14 Nov, 14:30' },
@@ -38,11 +32,84 @@ function renderAlerts() {
   const host = $('#alertItems'); host.replaceChildren();
   alerts.forEach((alert) => { const row = elem('div','alert-item'); row.append(elem('span','alert-icon','!')); const text = elem('div'); text.append(elem('strong',null,alert.title),elem('p',null,alert.details),elem('small',null,alert.time)); row.append(text); host.append(row); });
 }
-function renderPets(search = '') {
-  const host = $('#petsGrid'); host.replaceChildren();
-  const matches = pets.filter((pet) => `${pet.name} ${pet.species} ${pet.enclosure}`.toLowerCase().includes(search.toLowerCase()));
-  matches.forEach((pet) => { const card = elem('article','pet-card'); const imageBox = elem('div', `pet-image pet-image--${pet.asset.replace('.webp', '')}`); const image = elem('img'); image.src = `${assets}${pet.asset}`; image.alt = `Illustration of ${pet.species}`; imageBox.append(image); const info = elem('div','pet-info'); info.append(elem('strong',null,pet.name),elem('span',null,pet.species),elem('small',null,`⌂  ${pet.enclosure}`)); card.append(imageBox,info); host.append(card); });
-  $('#noPets').hidden = matches.length !== 0;
+let dashboardPets = [];
+let dashboardEnclosures = new Map();
+let dashboardPetsStatus = 'loading';
+let dashboardEnclosuresStatus = 'loading';
+let dashboardRequest = 0;
+
+function renderDashboardPets() {
+  const host = $('#petsGrid');
+  host.replaceChildren();
+  const feedback = $('#noPets');
+  feedback.hidden = true;
+  if (dashboardPetsStatus === 'loading') { feedback.textContent = 'Loading your pets…'; feedback.hidden = false; return; }
+  if (dashboardPetsStatus === 'error') { feedback.textContent = 'Unable to load pets. Check the Data Management Service and reload the Dashboard.'; feedback.hidden = false; return; }
+  if (!dashboardPets.length) {
+    feedback.textContent = 'No pets registered yet. Visit Pets to add your first companion.';
+    feedback.hidden = false;
+    return;
+  }
+  // Keep this overview to one row of three on desktop.
+  const recent = [...dashboardPets].sort((a,b) => Number(b.id) - Number(a.id)).slice(0,3);
+  for (const pet of recent) {
+    const card = elem('button', 'pet-card dashboard-pet-link');
+    card.type = 'button';
+    card.setAttribute('aria-label', `View profile for ${pet.name || 'unnamed pet'}`);
+    card.addEventListener('click', () => openPetDetails(pet.id));
+    const imageBox = elem('div', 'pet-image');
+    const filename = Object.hasOwn(approvedIllustrations,pet.illustration_key)
+      ? approvedIllustrations[pet.illustration_key] : null;
+    if (filename) {
+      const image = elem('img');
+      image.src = `${assets}${filename}`;
+      image.alt = '';
+      image.loading = 'lazy';
+      if (pet.illustration_key === 'scorpion') image.classList.add('dashboard-pet-scorpion');
+      image.addEventListener('error', () => imageBox.replaceChildren(elem('span','dashboard-pet-fallback','◇')), {once:true});
+      imageBox.append(image);
+    } else {
+      imageBox.append(elem('span','dashboard-pet-fallback','◇'));
+    }
+    const info = elem('div','pet-info');
+    const enclosure = pet.enclosure_id == null ? 'Unassigned'
+      : dashboardEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
+    info.append(elem('strong',null,pet.name || 'Unnamed pet'),elem('span',null,pet.species || 'Unknown'),elem('small',null,`⌂  ${enclosure}`));
+    card.append(imageBox,info);
+    host.append(card);
+  }
+}
+
+async function loadDashboardData() {
+  const request = ++dashboardRequest;
+  dashboardPetsStatus = 'loading';
+  dashboardEnclosuresStatus = 'loading';
+  $('#petCount').textContent = '—';
+  $('#enclosureCount').textContent = '—';
+  renderDashboardPets();
+  const [petResult, enclosureResult] = await Promise.allSettled([
+    getCollectionJson('/api/pets'),getCollectionJson('/api/enclosures')
+  ]);
+  if (request !== dashboardRequest) return;
+  if (petResult.status === 'fulfilled' && Array.isArray(petResult.value)) {
+    dashboardPets = petResult.value;
+    dashboardPetsStatus = 'ready';
+    $('#petCount').textContent = String(dashboardPets.length);
+  } else {
+    dashboardPetsStatus = 'error';
+    $('#petCount').textContent = '—';
+    console.error('Dashboard pets API unavailable',petResult.reason);
+  }
+  if (enclosureResult.status === 'fulfilled' && Array.isArray(enclosureResult.value)) {
+    dashboardEnclosures = new Map(enclosureResult.value.map(item => [Number(item.id),item.name]));
+    dashboardEnclosuresStatus = 'ready';
+    $('#enclosureCount').textContent = String(enclosureResult.value.length);
+  } else {
+    dashboardEnclosuresStatus = 'error';
+    $('#enclosureCount').textContent = '—';
+    console.error('Dashboard enclosure API unavailable',enclosureResult.reason);
+  }
+  renderDashboardPets();
 }
 function renderFeedings() {
   const host = $('#feedingRows'); host.replaceChildren();
@@ -50,10 +117,15 @@ function renderFeedings() {
 }
 let toastTimeout;
 function toast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(toastTimeout); toastTimeout = setTimeout(() => t.hidden = true, 4500); }
+let pendingPetEditNavigation = null;
 function navigate(page) {
   if (petSaving) return;
-  if (petEditing && !petSaving) {
-    if (isPetEditDirty() && !window.confirm('Discard unsaved changes?')) return;
+  if (petEditing) {
+    if (isPetEditDirty()) {
+      pendingPetEditNavigation = page;
+      $('#petEditConfirm').showModal();
+      return;
+    }
     stopPetEdit();
   }
   const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.']};
@@ -73,30 +145,20 @@ function navigate(page) {
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
   if (page === 'pets') { loadPetsCollection(); }
-  if (page === 'dashboard') $('#search').focus();
+  if (page === 'dashboard') { loadDashboardData(); }
 }
-$('#petCount').textContent = pets.length;
-$('#enclosureCount').textContent = enclosures.length;
-$('#alertCount').textContent = alerts.length;
-renderReadings(); renderAlerts(); renderPets(); renderFeedings();
+$('#alertCount').textContent = alerts.length; // Demo only, explicitly labeled in UI.
+renderReadings(); renderAlerts(); renderFeedings();
 document.querySelectorAll('[data-page]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.page)));
 document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.go)));
-$('#search').addEventListener('input', (event) => {
-  if (currentPage === 'pets') {
-    $('#petsPageSearch').value = event.target.value;
-    renderPetsCollection();
-  } else {
-    navigate('dashboard');
-    renderPets(event.target.value);
-  }
-});
-$('#bell').addEventListener('click', () => navigate('alerts'));
+$('#headerHome').addEventListener('click', () => navigate('dashboard'));
+$('#bell').addEventListener('click', () => toast('Notifications will be available in a future stage.'));
 $('#menuButton').addEventListener('click', () => {const open = $('#sidebar').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded',String(open));});
-$('#addPet').addEventListener('click', openAddPetForm);
+$('#addPet').addEventListener('click', () => navigate('pets'));
 $('#feedingHistory').addEventListener('click', () => toast('Feeding history page is planned. This is sample data.'));
 
 
-// Stage 1A: pets collection backed by existing services. Dashboard sample records remain unchanged.
+// Pets collection backed by existing services. Dashboard pet overview is connected separately.
 const approvedIllustrations = Object.freeze({
   gecko: 'leopard-gecko.webp',
   python: 'ball-python.webp',
@@ -225,7 +287,6 @@ function renderPetsCollection() {
 }
 
 $('#petsPageSearch').addEventListener('input', () => {
-  $('#search').value = $('#petsPageSearch').value;
   renderPetsCollection();
 });
 $('#petsPageAddPet').addEventListener('click', openAddPetForm);
@@ -982,13 +1043,20 @@ async function beginPetEdit() {
 }
 function requestCancelPetEdit() {
   if (petSaving) return;
+  pendingPetEditNavigation = null;
   if (isPetEditDirty()) $('#petEditConfirm').showModal();
   else stopPetEdit();
 }
 $('#petDetailsEdit').addEventListener('click',beginPetEdit);
-$('#petEditKeep').addEventListener('click',() => $('#petEditConfirm').close());
-$('#petEditDiscard').addEventListener('click',() => { $('#petEditConfirm').close(); stopPetEdit(); });
-$('#petEditConfirm').addEventListener('cancel', () => {});
+$('#petEditKeep').addEventListener('click',() => { pendingPetEditNavigation = null; $('#petEditConfirm').close(); });
+$('#petEditDiscard').addEventListener('click',() => {
+  const destination = pendingPetEditNavigation;
+  pendingPetEditNavigation = null;
+  $('#petEditConfirm').close();
+  stopPetEdit();
+  if (destination) navigate(destination);
+});
+$('#petEditConfirm').addEventListener('cancel', () => { pendingPetEditNavigation = null; });
 $('#petDetailsSave').addEventListener('click',() => editForm.requestSubmit());
 editForm.addEventListener('submit',async event => {
   event.preventDefault();
@@ -1027,3 +1095,6 @@ editForm.addEventListener('submit',async event => {
     $('#petDetailsSave').textContent = 'Save Changes';
   }
 });
+
+// Initial dashboard load: live pet/enclosure summary, demo monitoring and feeding.
+loadDashboardData();
