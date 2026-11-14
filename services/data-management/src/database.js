@@ -25,6 +25,20 @@ db.exec(`
         illustration_key TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS feeding_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS feeding_group_members (
+        group_id INTEGER NOT NULL,
+        pet_id INTEGER NOT NULL,
+        PRIMARY KEY (group_id, pet_id),
+        FOREIGN KEY (group_id) REFERENCES feeding_groups(id) ON DELETE CASCADE,
+        FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS feeding_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         pet_id INTEGER NOT NULL,

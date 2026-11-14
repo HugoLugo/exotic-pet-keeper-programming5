@@ -10,11 +10,7 @@ const alerts = [
   { title: 'Enclosure 2: Temperature too high', details: '32.7 °C · configured maximum 30.0 °C', time: '14 Nov · 14:30' },
   { title: 'Enclosure 2: Humidity below minimum', details: '58% · configured minimum 60%', time: '14 Nov · 14:30' }
 ];
-const feedings = [
-  { pet: 'Nox', food: '2 × Cricket', time: '14 Nov · 09:00' },
-  { pet: 'Kukulcán', food: '1 × Small rat', time: '13 Nov · 20:00' },
-  { pet: 'Vesper', food: '1 × Cricket', time: '12 Nov · 18:00' }
-];
+const feedings = []; // Real feedings load asynchronously from the Data Management API.
 const $ = (selector) => document.querySelector(selector);
 function elem(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function renderReadings() {
@@ -113,6 +109,7 @@ async function loadDashboardData() {
 }
 function renderFeedings() {
   const host = $('#feedingRows'); host.replaceChildren();
+  if (!feedings.length) host.append(elem('p','feeding-hint','Loading recent feeding records…'));
   feedings.forEach(({pet, food, time}) => {const row=elem('div','feeding-item'); const left=elem('div'); left.append(elem('strong',null,pet),elem('small',null,time)); row.append(left,elem('span','feeding-food',food)); host.append(row);});
 }
 let toastTimeout;
@@ -128,23 +125,28 @@ function navigate(page) {
     }
     stopPetEdit();
   }
-  const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.']};
+  const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.'],feeding:['Feeding','Log meals, build groups, and manage care records.']};
   if (!pages[page]) return;
   ++editStartRequest;
   currentPage = page;
   $('#main').classList.toggle('pets-active', page === 'pets');
+  $('#main').classList.toggle('feeding-active', page === 'feeding');
   $('#dashboardContent').hidden = page !== 'dashboard';
   $('#petsPage').hidden = page !== 'pets';
+  $('#feedingPage').hidden = page !== 'feeding';
   $('#addPetPage').hidden = true;
   $('#petDetailsPage').hidden = true;
   ++petDetailsRequest;
-  $('#otherPage').hidden = page === 'dashboard' || page === 'pets';
+  $('#otherPage').hidden = page === 'dashboard' || page === 'pets' || page === 'feeding';
   $('#dashboardDemoBanner').hidden = page !== 'dashboard';
-  $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
+  $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : page === 'feeding' ? 'CARE MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
   $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1]; $('#otherTitle').textContent = `${pages[page][0]} page coming next`;
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
+  // Navigation is a new view: never carry scroll position from the previous page.
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   if (page === 'pets') { loadPetsCollection(); }
+  if (page === 'feeding') { loadFeedingWorkspace(); }
   if (page === 'dashboard') { loadDashboardData(); }
 }
 $('#alertCount').textContent = alerts.length; // Demo only, explicitly labeled in UI.
@@ -155,7 +157,7 @@ $('#headerHome').addEventListener('click', () => navigate('dashboard'));
 $('#bell').addEventListener('click', () => toast('Notifications will be available in a future stage.'));
 $('#menuButton').addEventListener('click', () => {const open = $('#sidebar').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded',String(open));});
 $('#addPet').addEventListener('click', () => navigate('pets'));
-$('#feedingHistory').addEventListener('click', () => toast('Feeding history page is planned. This is sample data.'));
+$('#feedingHistory').addEventListener('click', () => navigate('feeding'));
 
 
 // Pets collection backed by existing services. Dashboard pet overview is connected separately.
@@ -355,7 +357,7 @@ function renderDetailsFeedings(rows) {
   host.replaceChildren();
   $('#petDetailsFeedingCount').textContent = `${rows.length} record${rows.length === 1 ? '' : 's'}`;
   if (!rows.length) {
-    host.append(elem('p', 'pet-details-empty', 'No feeding records yet. Feeding management will be added in a later stage.'));
+    host.append(elem('p', 'pet-details-empty', 'No feeding records yet. Use Add Feeding to log the first meal.'));
     return;
   }
   for (const feeding of rows) {
@@ -363,7 +365,11 @@ function renderDetailsFeedings(rows) {
     const left = elem('div');
     left.append(elem('strong', null, detailText(feeding.food, 'Feeding')),
       elem('small', null, detailText(feeding.feeding_date, 'Date not provided')));
-    item.append(left);
+    const actions = elem('div','feeding-entry-actions');
+    const edit = elem('button','text-button','Edit'); edit.type='button'; edit.addEventListener('click',()=>openFeedingRecord('edit',feeding));
+    const del = elem('button','text-button feeding-danger','Delete'); del.type='button'; del.addEventListener('click',()=>deleteFeedingRecord(feeding));
+    actions.append(edit,del);
+    item.append(left,actions);
     if (feeding.notes) item.append(elem('p', null, feeding.notes));
     host.append(item);
   }
@@ -376,12 +382,14 @@ async function openPetDetails(id) {
   $('#petDetailsPage').dataset.petId = String(id);
   currentPage = 'pets';
   $('#main').classList.add('pets-active');
+  $('#main').classList.remove('feeding-active');
   $('#dashboardContent').hidden = true;
   $('#dashboardDemoBanner').hidden = true;
   $('#petsPage').hidden = true;
   $('#addPetPage').hidden = true;
   $('#otherPage').hidden = true;
   $('#petDetailsPage').hidden = false;
+  $('#feedingPage').hidden = true;
   $('#pageEyebrow').textContent = 'PET MANAGEMENT';
   $('#pageTitle').textContent = 'Pet Details';
   $('#pageDescription').textContent = 'Your companion’s profile and feeding history.';
@@ -1098,3 +1106,162 @@ editForm.addEventListener('submit',async event => {
 
 // Initial dashboard load: live pet/enclosure summary, demo monitoring and feeding.
 loadDashboardData();
+
+// Stage 3C — Feeding Management. This uses existing individual feeding APIs
+// and additive feeding-group/bulk endpoints in Data Management.
+const feedState = {pets:[],groups:[],selected:new Set(),groupEditing:null,busy:false};
+const isoToday = () => {const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const apiDate = iso => {const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+const isoDate = display => {const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(display||'');return m?`${m[3]}-${m[2]}-${m[1]}`:'';};
+async function feedingRequest(url,method='GET',body) {
+  const response=await fetch(url,{method,headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  const data=response.status===204?null:await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.error||`Request failed (HTTP ${response.status})`);
+  return data;
+}
+function feedingFeedback(id,message,error=false){const target=$(id);target.textContent=message;target.classList.toggle('feeding-error',error);}
+function feedingOption(pet,selected,onChange){
+  const label=elem('label','feeding-pet-choice');const check=elem('input');check.type='checkbox';check.checked=selected;
+  check.addEventListener('change',()=>onChange(check.checked));
+  const info=elem('span');info.append(elem('strong',null,pet.name),elem('small',null,pet.species||'Unknown species'));
+  label.append(check,info);return label;
+}
+function filteredFeedingPets(){const query=$('#feedingPetSearch').value.trim().toLowerCase();const species=$('#feedingSpeciesFilter').value;
+ return feedState.pets.filter(p=>(!query||`${p.name} ${p.species}`.toLowerCase().includes(query))&&(!species||p.species===species));}
+function renderFeedingChoices(){
+ const host=$('#feedingPetChoices');host.replaceChildren();
+ const pets=filteredFeedingPets();if(!pets.length)host.append(elem('p','feeding-hint','No matching animals. You can create pets from the Pets page.'));
+ for(const pet of pets)host.append(feedingOption(pet,feedState.selected.has(pet.id),checked=>{
+   if(checked)feedState.selected.add(pet.id);else feedState.selected.delete(pet.id);
+   renderFeedingChoices();
+ }));
+ $('#feedingSelectedCount').textContent=`${feedState.selected.size} selected`;
+ $('#quickFeedingSave').textContent=`Save ${feedState.selected.size} Feeding${feedState.selected.size===1?'':'s'}`;
+}
+function renderFeedingGroups(){
+ const host=$('#feedingGroupsList');host.replaceChildren();
+ const select=$('#feedingGroupSelect');const previous=select.value;select.replaceChildren(new Option('Select a saved group (optional)',''));
+ for(const group of feedState.groups){
+   select.add(new Option(`${group.name} (${group.pet_ids.length})`,String(group.id)));
+   const card=elem('article','feeding-group-card');const info=elem('div');info.append(elem('strong',null,group.name),elem('small',null,`${group.pet_ids.length} animal${group.pet_ids.length===1?'':'s'}`));
+   const actions=elem('div','feeding-entry-actions');const use=elem('button','text-button','Select');use.type='button';use.addEventListener('click',()=>applyFeedingGroup(group));
+   const edit=elem('button','text-button','Edit');edit.type='button';edit.addEventListener('click',()=>openGroupForm(group));
+   const remove=elem('button','text-button feeding-danger','Delete');remove.type='button';remove.addEventListener('click',()=>confirmFeeding(`Delete group “${group.name}”? Its animals and feeding histories will be preserved.`,async()=>{
+     await feedingRequest(`/api/feeding-groups/${group.id}`,'DELETE');await reloadFeedingGroups();toast('Feeding group deleted.');
+   }));
+   actions.append(use,edit,remove);card.append(info,actions);host.append(card);
+ }
+ if([...select.options].some(option=>option.value===previous))select.value=previous;
+ if(!feedState.groups.length)host.append(elem('p','feeding-hint','No groups yet. Create one to save a reusable selection of pets.'));
+}
+async function reloadFeedingGroups(){feedState.groups=await feedingRequest('/api/feeding-groups');renderFeedingGroups();}
+function applyFeedingGroup(group){feedState.selected=new Set(group.pet_ids);$('#feedingGroupSelect').value=String(group.id);renderFeedingChoices();feedingFeedback('#quickFeedingMessage',`${group.name}: ${group.pet_ids.length} animals selected. Uncheck any that did not eat.`);}
+async function loadFeedingWorkspace(){
+ feedingFeedback('#quickFeedingMessage','Loading feeding data…');
+ try{
+  const [pets,groups]=await Promise.all([feedingRequest('/api/pets'),feedingRequest('/api/feeding-groups')]);
+  feedState.pets=pets.map(p=>({...p,id:Number(p.id)}));feedState.groups=groups;
+  feedState.selected=new Set([...feedState.selected].filter(id=>pets.some(p=>Number(p.id)===id)));
+  const species=[...new Set(pets.map(p=>p.species||'Unknown'))].sort((a,b)=>a.localeCompare(b));
+  const select=$('#feedingSpeciesFilter');const old=select.value;select.replaceChildren(new Option('All species',''));
+  for(const value of species)select.add(new Option(value,value));if(species.includes(old))select.value=old;
+  renderFeedingGroups();renderFeedingChoices();feedingFeedback('#quickFeedingMessage','');
+ }catch(err){feedingFeedback('#quickFeedingMessage',`Could not load feeding data: ${err.message}`,true);}
+}
+$('#feedingPetSearch').addEventListener('input',renderFeedingChoices);
+$('#feedingSpeciesFilter').addEventListener('change',renderFeedingChoices);
+$('#feedingGroupSelect').addEventListener('change',()=>{const group=feedState.groups.find(g=>String(g.id)===$('#feedingGroupSelect').value);if(group)applyFeedingGroup(group);});
+$('#feedingSelectVisible').addEventListener('click',()=>{for(const p of filteredFeedingPets())feedState.selected.add(p.id);renderFeedingChoices();});
+$('#feedingDeselectAll').addEventListener('click',()=>{feedState.selected.clear();$('#feedingGroupSelect').value='';renderFeedingChoices();});
+$('#quickDate').value=isoToday();
+$('#quickFeedingForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(feedState.busy)return;
+ const pet_ids=[...feedState.selected];const food=$('#quickFood').value.trim();const feeding_date=apiDate($('#quickDate').value);const notes=$('#quickNotes').value.trim();
+ if(!pet_ids.length||!food||!feeding_date){feedingFeedback('#quickFeedingMessage','Select at least one animal, enter food and choose a valid date.',true);return;}
+ feedState.busy=true;$('#quickFeedingSave').disabled=true;feedingFeedback('#quickFeedingMessage','Saving feedings…');
+ try{const data=await feedingRequest('/api/feedings/bulk','POST',{pet_ids,food,feeding_date,notes});
+  feedingFeedback('#quickFeedingMessage',`Saved ${data.count} individual feeding record${data.count===1?'':'s'} successfully.`);
+  toast(`${data.count} feeding record${data.count===1?'':'s'} saved.`);feedState.selected.clear();renderFeedingChoices();$('#quickFood').value='';$('#quickNotes').value='';loadRecentFeedings();
+ }catch(err){feedingFeedback('#quickFeedingMessage',`Could not save feedings: ${err.message}. Selection and fields were preserved.`,true);}
+ finally{feedState.busy=false;$('#quickFeedingSave').disabled=false;}
+});
+function renderGroupMembers(selected){const host=$('#feedingGroupMembers');host.replaceChildren();for(const pet of feedState.pets){
+ host.append(feedingOption(pet,selected.has(pet.id),checked=>{if(checked)selected.add(pet.id);else selected.delete(pet.id);}));
+ }if(!feedState.pets.length)host.append(elem('p','feeding-hint','No pets registered yet.'));}
+let groupMembersDraft=new Set(),groupInitial='';
+function openGroupForm(group=null){feedState.groupEditing=group;groupMembersDraft=new Set(group?.pet_ids||[]);
+ $('#feedingGroupDialogTitle').textContent=group?'Edit Feeding Group':'Create Feeding Group';$('#feedingGroupName').value=group?.name||'';
+ renderGroupMembers(groupMembersDraft);feedingFeedback('#feedingGroupError','');groupInitial=JSON.stringify({name:$('#feedingGroupName').value,pet_ids:[...groupMembersDraft].sort((a,b)=>a-b)});$('#feedingGroupDialog').showModal();}
+function groupIsDirty(){return JSON.stringify({name:$('#feedingGroupName').value,pet_ids:[...groupMembersDraft].sort((a,b)=>a-b)})!==groupInitial;}
+function cancelGroupForm(){if(groupIsDirty())confirmFeeding('Discard your unsaved group changes?',()=>$('#feedingGroupDialog').close());else $('#feedingGroupDialog').close();}
+$('#feedingCreateGroup').addEventListener('click',()=>openGroupForm());$('#feedingGroupCancel').addEventListener('click',cancelGroupForm);
+$('#feedingGroupDialog').addEventListener('cancel',e=>{if(groupIsDirty()){e.preventDefault();cancelGroupForm();}});
+$('#groupSelectAll').addEventListener('click',()=>{groupMembersDraft=new Set(feedState.pets.map(p=>p.id));renderGroupMembers(groupMembersDraft);});
+$('#groupClearAll').addEventListener('click',()=>{groupMembersDraft.clear();renderGroupMembers(groupMembersDraft);});
+$('#feedingGroupForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(feedState.busy)return;const name=$('#feedingGroupName').value.trim();if(!name){feedingFeedback('#feedingGroupError','Enter a group name.',true);return;}
+ const group=feedState.groupEditing;feedState.busy=true;$('#feedingGroupSave').disabled=true;
+ try{await feedingRequest(group?`/api/feeding-groups/${group.id}`:'/api/feeding-groups',group?'PUT':'POST',{name,pet_ids:[...groupMembersDraft]});
+  $('#feedingGroupDialog').close();await reloadFeedingGroups();toast(group?'Feeding group updated.':'Feeding group created.');
+ }catch(err){feedingFeedback('#feedingGroupError',`Could not save group: ${err.message}`,true);}
+ finally{feedState.busy=false;$('#feedingGroupSave').disabled=false;}
+});
+// Confirmation dialog is reusable for destructive operations and unsaved forms.
+let feedingConfirmAction=null;
+function confirmFeeding(message,action){feedingConfirmAction=action;$('#feedingConfirmText').textContent=message;$('#feedingConfirmDialog').showModal();}
+$('#feedingConfirmCancel').addEventListener('click',()=>{$('#feedingConfirmDialog').close();feedingConfirmAction=null;});
+$('#feedingConfirmDialog').addEventListener('close',()=>{feedingConfirmAction=null;});
+$('#feedingConfirmProceed').addEventListener('click',async()=>{
+ const action=feedingConfirmAction;if(!action)return;$('#feedingConfirmProceed').disabled=true;
+ try{await action();$('#feedingConfirmDialog').close();}catch(err){$('#feedingConfirmText').textContent=`Action failed: ${err.message}`;}
+ finally{$('#feedingConfirmProceed').disabled=false;}
+});
+// Individual feeding is kept independent of pet-profile editing.
+let recordMode='add',recordBeingEdited=null,recordPetId=null,recordInitial='',recordBusy=false;
+function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),notes:$('#feedingRecordNotes').value.trim()};}
+function recordIsDirty(){return JSON.stringify(recordFields())!==recordInitial;}
+function openFeedingRecord(mode,record=null){
+ if(!activePet||petEditing)return toast('Finish pet profile editing first.');
+ recordMode=mode;recordBeingEdited=record;recordPetId=Number(activePet.id);
+ $('#feedingRecordDialogTitle').textContent=mode==='edit'?'Edit Feeding Record':'Add Feeding';
+ $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';
+ $('#feedingRecordSave').textContent=mode==='edit'?'Save Changes':'Save Feeding';feedingFeedback('#feedingRecordMessage','');
+ recordInitial=JSON.stringify(recordFields());$('#feedingRecordDialog').showModal();
+}
+function cancelFeedingRecord(){if(recordIsDirty())confirmFeeding('Discard your unsaved feeding changes?',()=>$('#feedingRecordDialog').close());else $('#feedingRecordDialog').close();}
+$('#petAddFeeding').addEventListener('click',()=>openFeedingRecord('add'));
+$('#feedingRecordCancel').addEventListener('click',cancelFeedingRecord);
+$('#feedingRecordDialog').addEventListener('cancel',e=>{if(recordIsDirty()){e.preventDefault();cancelFeedingRecord();}});
+$('#feedingRecordForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(recordBusy)return;const payload=recordFields();
+ if(!payload.food||!payload.feeding_date){feedingFeedback('#feedingRecordMessage','Food and feeding date are required.',true);return;}
+ recordBusy=true;$('#feedingRecordSave').disabled=true;
+ try{const path=`/api/pets/${recordPetId}/feedings${recordMode==='edit'?`/${recordBeingEdited.id}`:''}`;
+  await feedingRequest(path,recordMode==='edit'?'PUT':'POST',payload);$('#feedingRecordDialog').close();
+  await refreshPetFeedings(recordPetId);loadRecentFeedings();toast(recordMode==='edit'?'Feeding updated.':'Feeding added.');
+ }catch(err){feedingFeedback('#feedingRecordMessage',`Could not save: ${err.message}`,true);}
+ finally{recordBusy=false;$('#feedingRecordSave').disabled=false;}
+});
+async function refreshPetFeedings(petId){if(Number($('#petDetailsPage').dataset.petId)!==petId)return;
+ try{const records=await feedingRequest(`/api/pets/${petId}/feedings`);
+  if(Number($('#petDetailsPage').dataset.petId)!==petId)return;
+  renderDetailsFeedings(records);$('#petDetailsFeedingError').hidden=true;
+ }catch(err){toast(`Could not refresh feeding history: ${err.message}`);}
+}
+function deleteFeedingRecord(record){if(!activePet||petEditing)return;const petId=Number(activePet.id);
+ confirmFeeding(`Permanently delete “${record.food}” from ${record.feeding_date}? This cannot be undone.`,async()=>{
+  await feedingRequest(`/api/pets/${petId}/feedings/${record.id}`,'DELETE');
+  await refreshPetFeedings(petId);loadRecentFeedings();toast('Feeding record deleted.');
+ });
+}
+async function loadRecentFeedings(){
+ try{const records=await feedingRequest('/api/feedings/recent');const host=$('#feedingRows');host.replaceChildren();
+  if(!records.length){host.append(elem('p','feeding-hint','No feeding records yet. Visit Feeding to log a meal.'));return;}
+  for(const record of records.slice(0,3)){
+   const row=elem('div','feeding-item');const left=elem('div');left.append(elem('strong',null,record.pet_name),elem('small',null,record.feeding_date));
+   row.append(left,elem('span','feeding-food',record.food));host.append(row);
+  }
+  $('#dashboardDemoBanner').replaceChildren(elem('span','demo-tag','LIVE + PREVIEW'),document.createTextNode(' Pets, enclosures and feeding are live · Readings and alerts are demo examples'));
+ }catch(err){console.warn('Recent feedings unavailable',err);$('#feedingRows').replaceChildren(elem('p','feeding-hint','Recent feeding records are unavailable. Check the Data Management Service.'));}
+}
+loadRecentFeedings();

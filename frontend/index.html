@@ -16,6 +16,7 @@
         <button class="nav-link active" data-page="dashboard" aria-current="page"><span class="nav-glyph nav-glyph--dashboard" aria-hidden="true"></span> Dashboard</button>
         <button class="nav-link" data-page="pets"><span class="nav-glyph nav-glyph--pets" aria-hidden="true"></span> Pets</button>
         <button class="nav-link" data-page="enclosures"><span class="nav-glyph nav-glyph--enclosures" aria-hidden="true"></span> Enclosures</button>
+        <button class="nav-link" data-page="feeding"><span class="nav-glyph nav-glyph--feeding" aria-hidden="true"></span> Feeding</button>
         <button class="nav-link" data-page="alerts"><span class="nav-glyph nav-glyph--alerts" aria-hidden="true"></span> Alerts</button>
       </nav>
       <div class="sidebar-footer">Made for thoughtful exotic pet care<span>Programming 5 · Frontend preview</span></div>
@@ -92,7 +93,7 @@
             </section>
             <section class="pet-details-panel" aria-labelledby="petDetailsFeedingHeading">
               <span class="section-kicker">CARE LOG</span>
-              <div class="pet-details-section-head"><h3 id="petDetailsFeedingHeading">Feeding History</h3><span id="petDetailsFeedingCount"></span></div>
+              <div class="pet-details-section-head"><h3 id="petDetailsFeedingHeading">Feeding History</h3><span id="petDetailsFeedingCount"></span></div><button type="button" class="primary-button feeding-add-individual" id="petAddFeeding">+ Add Feeding</button>
               <div id="petDetailsFeedings"></div>
               <div id="petDetailsFeedingError" hidden><p class="pet-details-empty">Unable to load feeding history. Other profile information is still available.</p><button type="button" class="text-button" id="petDetailsRetryFeedings">Try again</button></div>
             </section>
@@ -158,6 +159,36 @@
         <div class="illustration-dialog-header"><div><span class="section-kicker">PERSONALIZE YOUR PET</span><h2 id="illustrationDialogTitle">Choose an illustration</h2><p>Choose any artwork you like, independent of species.</p></div><button id="illustrationDialogClose" class="illustration-dialog-close" type="button" aria-label="Close illustration picker">×</button></div>
         <div class="illustration-options" id="illustrationOptions"></div>
       </dialog>
+      <section id="feedingPage" class="feeding-management" aria-label="Feeding management" hidden>
+        <div class="feeding-layout">
+          <section class="panel feeding-workspace" aria-labelledby="quickFeedTitle">
+            <div class="section-heading"><div><span class="section-kicker">FEEDING SESSION</span><h2 id="quickFeedTitle">Quick Feeding</h2></div><span id="feedingSelectedCount" class="feeding-counter">0 selected</span></div>
+            <p class="feeding-hint">Select any combination of pets. Groups make selection faster, but you decide who actually ate.</p>
+            <div class="feeding-controls"><label>Choose a group <select id="feedingGroupSelect"><option value="">Select a saved group (optional)</option></select></label><label>Filter pets <input id="feedingPetSearch" type="search" placeholder="Search name or species…"></label><label>Species (optional) <select id="feedingSpeciesFilter"><option value="">All species</option></select></label></div>
+            <div class="feeding-selection-actions"><button class="text-button" id="feedingSelectVisible" type="button">Select filtered</button><button class="text-button" id="feedingDeselectAll" type="button">Clear selection</button></div>
+            <div id="feedingPetChoices" class="feeding-choices" aria-live="polite"></div>
+            <form id="quickFeedingForm" class="feeding-form" novalidate>
+              <label>Food given <span aria-hidden="true">*</span><input id="quickFood" maxlength="200" placeholder="e.g. 1 cricket" required></label>
+              <label>Feeding date <span aria-hidden="true">*</span><input id="quickDate" type="date" required></label>
+              <label class="feeding-wide">Notes (optional)<textarea id="quickNotes" rows="3" placeholder="Shared observations from this feeding session"></textarea></label>
+              <p id="quickFeedingMessage" class="feeding-message feeding-wide" role="status" aria-live="polite"></p>
+              <div class="feeding-wide feeding-actions"><button class="primary-button" id="quickFeedingSave" type="submit">Save Feedings</button></div>
+            </form>
+          </section>
+          <section class="panel feeding-groups-panel" aria-labelledby="feedingGroupsTitle">
+            <div class="section-heading"><div><span class="section-kicker">YOUR ROUTINE</span><h2 id="feedingGroupsTitle">Feeding Groups</h2></div><button id="feedingCreateGroup" class="primary-button" type="button">+ Create Group</button></div>
+            <p class="feeding-hint">Group pets however you feed them, regardless of species. Pets can belong to several groups.</p>
+            <div id="feedingGroupsList" class="feeding-group-list" aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+      <dialog id="feedingGroupDialog" class="feeding-dialog" aria-labelledby="feedingGroupDialogTitle">
+        <form id="feedingGroupForm" novalidate><span class="section-kicker">ORGANIZE YOUR PETS</span><h2 id="feedingGroupDialogTitle">Create Group</h2><label>Group name <input id="feedingGroupName" maxlength="100" required placeholder="e.g. Saturday Feeders"></label><p class="feeding-hint">Select members; you can change the selection later.</p><div class="feeding-selection-actions"><button class="text-button" id="groupSelectAll" type="button">Select all</button><button class="text-button" id="groupClearAll" type="button">Clear</button></div><div id="feedingGroupMembers" class="feeding-choices"></div><p id="feedingGroupError" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingGroupCancel">Cancel</button><button type="submit" class="primary-button" id="feedingGroupSave">Save Group</button></div></form>
+      </dialog>
+      <dialog id="feedingRecordDialog" class="feeding-dialog" aria-labelledby="feedingRecordDialogTitle">
+        <form id="feedingRecordForm" novalidate><span class="section-kicker">CARE LOG</span><h2 id="feedingRecordDialogTitle">Add Feeding</h2><label>Food given <input id="feedingRecordFood" maxlength="200" required placeholder="e.g. 1 cricket"></label><label>Feeding date <input id="feedingRecordDate" type="date" required></label><label>Notes (optional) <textarea id="feedingRecordNotes" rows="3"></textarea></label><p id="feedingRecordMessage" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingRecordCancel">Cancel</button><button class="primary-button" id="feedingRecordSave" type="submit">Save Feeding</button></div></form>
+      </dialog>
+      <dialog id="feedingConfirmDialog" class="feeding-dialog" aria-labelledby="feedingConfirmTitle"><h2 id="feedingConfirmTitle">Confirm action</h2><p id="feedingConfirmText"></p><div class="feeding-actions"><button class="add-pet-cancel" id="feedingConfirmCancel" type="button">Cancel</button><button class="primary-button" id="feedingConfirmProceed" type="button">Confirm</button></div></dialog>
       <section class="placeholder-panel panel" id="otherPage" hidden><span class="section-kicker">NEXT IMPLEMENTATION PHASE</span><h2 id="otherTitle"></h2><p>This screen has not been implemented yet. We are approving the dashboard layout first, then we'll build this page using the same design system.</p><button class="primary-button" data-go="dashboard">Back to Dashboard</button></section>
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     </main>

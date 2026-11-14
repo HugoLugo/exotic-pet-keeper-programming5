@@ -455,3 +455,36 @@
 @media(max-width:450px) {
   .dashboard-grid .pets-panel .pets-grid { grid-template-columns:minmax(0,1fr); }
 }
+
+/* Stage 3C — Feeding: Soft Illustrative Cards, no changes to approved pet artwork. */
+.nav-glyph--feeding{-webkit-mask-image:url('./public/assets/icons/icon-feeding.svg');mask-image:url('./public/assets/icons/icon-feeding.svg')}
+.feeding-management{max-width:1450px}.feeding-topline{margin:12px 0 22px}.feeding-topline h2{font:normal 32px Georgia,serif;color:var(--forest);margin:7px 0}.feeding-topline p,.feeding-hint{font-size:13px;color:var(--sub);line-height:1.55}.feeding-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(290px,1fr);gap:20px;align-items:start}.feeding-counter{background:#e8efdd;color:#345d35;font-size:12px;font-weight:750;padding:9px 12px;border-radius:20px}.feeding-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.feeding-controls label,.feeding-form label,.feeding-dialog label{display:grid;gap:7px;font-size:12px;font-weight:750;color:#3a563d}.feeding-controls input,.feeding-controls select,.feeding-form input,.feeding-form textarea,.feeding-dialog input,.feeding-dialog textarea{width:100%;min-width:0;background:#fffdf9;border:1px solid #daddd0;border-radius:10px;color:#203428;padding:11px 12px;font:inherit;font-size:13px}.feeding-form textarea,.feeding-dialog textarea{resize:vertical}.feeding-selection-actions{display:flex;gap:9px;margin:14px 0;flex-wrap:wrap}.feeding-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;max-height:330px;overflow-y:auto;padding:5px 3px}.feeding-pet-choice{border:1px solid #e5e8db;background:#fafaf4;border-radius:11px;display:flex!important;align-items:center;gap:10px;padding:12px;cursor:pointer;min-width:0}.feeding-pet-choice:has(input:checked){background:#eaf2df;border-color:#a4c399}.feeding-pet-choice input{width:17px;height:17px;accent-color:#386d38;flex:none;margin:0}.feeding-pet-choice strong,.feeding-pet-choice small{display:block;overflow-wrap:anywhere}.feeding-pet-choice strong{font-size:13px}.feeding-pet-choice small{color:var(--sub);font-size:11px;font-weight:400;margin-top:4px}.feeding-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;border-top:1px solid var(--line);margin-top:20px;padding-top:20px}.feeding-wide{grid-column:1/-1}.feeding-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:10px}.feeding-message{min-height:18px;margin:0;color:#356a3e;font-size:12px;line-height:1.5}.feeding-error{color:#a44533}.feeding-group-list{display:grid;gap:10px}.feeding-group-card{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #e7e8de;background:#fbfaf5;border-radius:12px;padding:13px;flex-wrap:wrap}.feeding-group-card strong,.feeding-group-card small{display:block}.feeding-group-card strong{font-size:13px}.feeding-group-card small{font-size:11px;color:var(--sub);margin-top:5px}.feeding-entry-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}.feeding-entry-actions .text-button{font-size:11px;padding:7px}.feeding-danger{background:#fbebe6;color:#9b4535}.feeding-danger:hover{background:#f7dcd3}.feeding-dialog{width:min(570px,calc(100vw - 30px));max-height:90vh;overflow:auto;background:#fffdf9;color:var(--text);border:1px solid #e1e5d5;border-radius:20px;padding:25px;box-shadow:0 20px 70px #18261f33}.feeding-dialog::backdrop{background:#18271f99}.feeding-dialog form{display:grid;gap:15px}.feeding-dialog h2{font:normal 27px Georgia,serif;margin:7px 0 10px}.feeding-dialog .feeding-choices{max-height:240px}.feeding-dialog>p{line-height:1.6;font-size:14px}.feeding-add-individual{margin:0 0 17px}.pet-details-feeding{flex-wrap:wrap}.pet-details-feeding .feeding-entry-actions{margin-left:auto}.feeding-workspace,.feeding-groups-panel{min-width:0}@media(max-width:1100px){.feeding-layout{grid-template-columns:1fr}}@media(max-width:680px){.feeding-controls{grid-template-columns:1fr}.feeding-choices{grid-template-columns:1fr}.feeding-form{grid-template-columns:1fr}.feeding-dialog{padding:18px}.feeding-group-card{align-items:flex-start}}
+
+
+/* Stage 3C visual polish — user-approved Feeding botanical artwork.
+   Same fixed, non-interactive background treatment as Pets; only visible on Feeding. */
+.main-area.feeding-active { isolation:isolate; }
+.main-area.feeding-active::before {
+  content:"";
+  position:fixed;
+  z-index:0;
+  pointer-events:none;
+  right:0;
+  bottom:0;
+  width:min(68vw, 1040px);
+  aspect-ratio:1536 / 1024;
+  background:url("./public/assets/illustrations/botanical/feeding-botanical-grasses.webp") center / contain no-repeat;
+  opacity:.66;
+  -webkit-mask-image:linear-gradient(to right,transparent 0%,black 20%,black 100%),linear-gradient(to bottom,transparent 0%,black 22%,black 100%);
+  mask-image:linear-gradient(to right,transparent 0%,black 20%,black 100%),linear-gradient(to bottom,transparent 0%,black 22%,black 100%);
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
+}
+.main-area.feeding-active > .topbar,
+.main-area.feeding-active > .feeding-management { position:relative; z-index:1; }
+@media(max-width:1100px) {
+  .main-area.feeding-active::before { width:min(75vw,850px); opacity:.52; }
+}
+@media(max-width:680px) {
+  .main-area.feeding-active::before { display:none; }
+}

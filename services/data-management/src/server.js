@@ -360,6 +360,7 @@ app.delete('/pets/:id', (req, res) => {
     // Delete dependent feeding records and pet together, or undo both on failure.
     try {
         db.exec('BEGIN IMMEDIATE');
+        db.prepare('DELETE FROM feeding_group_members WHERE pet_id = ?').run(id);
         db.prepare('DELETE FROM feeding_records WHERE pet_id = ?').run(id);
         db.prepare('DELETE FROM pets WHERE id = ?').run(id);
         db.exec('COMMIT');
@@ -389,6 +390,125 @@ app.get('/enclosures/:id/pets', (req, res) => {
     `).all(id);
 
     res.status(200).json(pets);
+});
+
+
+// --------------------------------------------------
+// FEEDING GROUPS + ATOMIC QUICK FEEDING (STAGE 3C)
+// --------------------------------------------------
+
+function feedingGroupDetails(group) {
+    const members = db.prepare(`
+        SELECT p.id, p.name, p.species FROM feeding_group_members m
+        JOIN pets p ON p.id = m.pet_id WHERE m.group_id = ?
+        ORDER BY LOWER(p.name), p.id
+    `).all(group.id);
+    return { ...group, members, pet_ids: members.map(p => p.id) };
+}
+
+function parseGroupBody(body) {
+    const { name, pet_ids } = body || {};
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) {
+        return { error: 'Group name must be 1–100 characters' };
+    }
+    if (!Array.isArray(pet_ids) || pet_ids.length > 500 ||
+        !pet_ids.every(isValidId) || new Set(pet_ids).size !== pet_ids.length) {
+        return { error: 'pet_ids must be an array of unique, positive integer pet IDs (maximum 500)' };
+    }
+    const findPet = db.prepare('SELECT id FROM pets WHERE id = ?');
+    if (!pet_ids.every(id => !!findPet.get(id))) {
+        return { error: 'One or more pets do not exist' };
+    }
+    return { name: name.trim(), pet_ids };
+}
+
+app.get('/feeding-groups', (req, res) => {
+    const groups = db.prepare('SELECT * FROM feeding_groups ORDER BY LOWER(name), id').all();
+    res.json(groups.map(feedingGroupDetails));
+});
+
+app.post('/feeding-groups', (req, res) => {
+    const input = parseGroupBody(req.body);
+    if (input.error) return res.status(400).json({ error: input.error });
+    let groupId;
+    try {
+        db.exec('BEGIN IMMEDIATE');
+        groupId = Number(db.prepare('INSERT INTO feeding_groups (name) VALUES (?)').run(input.name).lastInsertRowid);
+        const add = db.prepare('INSERT INTO feeding_group_members (group_id, pet_id) VALUES (?, ?)');
+        for (const petId of input.pet_ids) add.run(groupId, petId);
+        db.exec('COMMIT');
+    } catch (err) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw err;
+    }
+    res.status(201).json(feedingGroupDetails(db.prepare('SELECT * FROM feeding_groups WHERE id = ?').get(groupId)));
+});
+
+app.put('/feeding-groups/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!isValidId(id)) return res.status(400).json({ error: 'Invalid group ID' });
+    if (!db.prepare('SELECT id FROM feeding_groups WHERE id = ?').get(id)) return res.status(404).json({ error: 'Group not found' });
+    const input = parseGroupBody(req.body);
+    if (input.error) return res.status(400).json({ error: input.error });
+    try {
+        db.exec('BEGIN IMMEDIATE');
+        db.prepare('UPDATE feeding_groups SET name = ? WHERE id = ?').run(input.name, id);
+        db.prepare('DELETE FROM feeding_group_members WHERE group_id = ?').run(id);
+        const add = db.prepare('INSERT INTO feeding_group_members (group_id, pet_id) VALUES (?, ?)');
+        for (const petId of input.pet_ids) add.run(id, petId);
+        db.exec('COMMIT');
+    } catch (err) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw err;
+    }
+    res.json(feedingGroupDetails(db.prepare('SELECT * FROM feeding_groups WHERE id = ?').get(id)));
+});
+
+app.delete('/feeding-groups/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!isValidId(id)) return res.status(400).json({ error: 'Invalid group ID' });
+    const result = db.prepare('DELETE FROM feeding_groups WHERE id = ?').run(id);
+    if (!result.changes) return res.status(404).json({ error: 'Group not found' });
+    res.status(204).send();
+});
+
+app.post('/feedings/bulk', (req, res) => {
+    const { pet_ids, food, feeding_date, notes } = req.body || {};
+    if (!Array.isArray(pet_ids) || !pet_ids.length || pet_ids.length > 500 ||
+        !pet_ids.every(isValidId) || new Set(pet_ids).size !== pet_ids.length) {
+        return res.status(400).json({ error: 'Select 1–500 unique, valid pet IDs' });
+    }
+    if (!isValidFeeding(food, feeding_date, notes)) {
+        return res.status(400).json({ error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required' });
+    }
+    const findPet = db.prepare('SELECT id FROM pets WHERE id = ?');
+    if (!pet_ids.every(id => !!findPet.get(id))) {
+        return res.status(400).json({ error: 'One or more selected pets do not exist. Refresh the list and try again.' });
+    }
+    const createdIds = [];
+    try {
+        db.exec('BEGIN IMMEDIATE');
+        const insert = db.prepare('INSERT INTO feeding_records (pet_id, food, feeding_date, notes) VALUES (?, ?, ?, ?)');
+        for (const petId of pet_ids) {
+            const result = insert.run(petId, food.trim(), toDatabaseDate(feeding_date), typeof notes === 'string' ? notes.trim() : null);
+            createdIds.push(Number(result.lastInsertRowid));
+        }
+        db.exec('COMMIT');
+    } catch (err) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw err;
+    }
+    const find = db.prepare('SELECT * FROM feeding_records WHERE id = ?');
+    res.status(201).json({ count: createdIds.length, records: createdIds.map(id => formatFeeding(find.get(id))) });
+});
+
+app.get('/feedings/recent', (req, res) => {
+    const records = db.prepare(`
+        SELECT f.*, p.name AS pet_name FROM feeding_records f
+        JOIN pets p ON p.id = f.pet_id
+        ORDER BY f.feeding_date DESC, f.id DESC LIMIT 30
+    `).all();
+    res.json(records.map(formatFeeding));
 });
 
 // --------------------------------------------------
