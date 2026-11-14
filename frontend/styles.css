@@ -152,3 +152,72 @@
   .stat-card, .pet-card, .icon-button.bell { transition:none !important; }
   .stat-card:hover, .pet-card:hover, .icon-button.bell:hover { transform:none; }
 }
+
+
+/* Frontend Phase 2 / Stage 1A — Pets collection. Scoped to this page. */
+.pets-management { width:100%; }
+.pets-management-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; margin:6px 0 22px; }
+.pets-management-heading p { margin:8px 0 0; font-size:13px; color:var(--sub); }
+.pets-management-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:20px; }
+.pets-management-search { background:#fff; border:1px solid #e6e4d9; border-radius:13px; min-height:48px; width:min(100%,490px); display:flex; align-items:center; gap:12px; padding:0 15px; box-shadow:var(--shadow); }
+.pets-search-symbol { display:inline-flex; align-items:center; justify-content:center; flex:none; font-size:24px; line-height:1; color:#527357; transform:translateY(-4px); }
+.pets-management-search input { min-width:0; width:100%; border:0; outline:0; background:transparent; font-size:13px; color:var(--text); }
+.pets-management-search:focus-within { outline:2px solid #83ad6a; outline-offset:2px; }
+.pets-results-count { color:#667267; font-size:12px; }
+.pets-collection-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,225px),1fr)); gap:18px; align-items:stretch; }
+.collection-pet-card { background:#fffdf7; border:1px solid #e7e5d8; border-radius:17px; overflow:hidden; box-shadow:var(--shadow); transition:transform .19s ease,box-shadow .19s ease,border-color .19s ease; min-width:0; }
+.collection-pet-card:hover { transform:translateY(-3px); box-shadow:0 13px 28px rgba(38,53,32,.11); border-color:#cddbbe; }
+.collection-pet-art { display:grid; place-items:center; background:linear-gradient(135deg,#edf2e2,#f7f1e1); aspect-ratio:1.5; overflow:hidden; }
+.collection-pet-art img { display:block; width:100%; height:100%; object-fit:contain; padding:12px; filter:drop-shadow(0 7px 6px #2d3e2520); }
+.collection-pet-art .collection-art-tarantula { padding:2px; }
+.collection-pet-fallback { display:grid; place-items:center; width:64px; height:64px; border:2px solid #a8bb9f; border-radius:50%; color:#779174; font-size:48px; line-height:1; font-family:Georgia,serif; }
+.collection-pet-info { padding:17px 17px 13px; }
+.collection-pet-info h3 { font-size:17px; margin:0 0 5px; color:#203d29; overflow-wrap:anywhere; }
+.collection-pet-species { color:#67736a; font-size:13px; margin:0 0 14px; min-height:18px; overflow-wrap:anywhere; }
+.collection-pet-enclosure { background:#ecf1e4; color:#41623e; border-radius:9px; padding:9px 10px; font-size:12px; white-space:normal; overflow-wrap:anywhere; margin:0 0 14px; }
+.collection-pet-footer { border-top:1px solid #e9e9e0; padding-top:11px; }
+.collection-details-button { background:transparent; border:0; padding:3px 0; color:#718075; font-size:12px; font-weight:700; cursor:not-allowed; }
+.pets-collection-message { padding:25px; margin-bottom:18px; border:1px solid #e4e5d8; border-radius:15px; background:#fffdf7; color:#566558; font-size:14px; }
+.pets-collection-message p { margin:0 0 12px; }
+.pets-collection-message p:last-child { margin-bottom:0; }
+@media(max-width:680px) { .pets-management-heading { align-items:flex-start; } .pets-management-heading .primary-button { flex:none; } .pets-collection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; } .collection-pet-info { padding:12px; } .collection-pet-info h3 { font-size:15px; } .collection-pet-art { aspect-ratio:1.25; } }
+@media(max-width:390px) { .pets-management-heading { flex-wrap:wrap; } .pets-collection-grid { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .collection-pet-card { transition:none; } .collection-pet-card:hover { transform:none; } }
+
+
+/* Pets Stage 1A Rev 5 — full artwork anchored within the browser viewport.
+   This does not change the layout, spacing, or positioning of actual UI. */
+.main-area.pets-active .header-actions .search-box { display:none; }
+.main-area.pets-active { isolation:isolate; }
+.main-area.pets-active::before {
+  content:"";
+  position:fixed;
+  z-index:0;
+  pointer-events:none;
+  right:0;
+  bottom:0;
+  width:min(73vw, 1200px);
+  aspect-ratio:1754 / 897;
+  background:url("./public/assets/illustrations/botanical/pets-botanical-background.webp") center / contain no-repeat;
+  opacity:.70;
+  -webkit-mask-image:linear-gradient(to right,transparent 0%,black 28%,black 89%,transparent 100%),linear-gradient(to bottom,transparent 0%,black 27%,black 88%,transparent 100%);
+  mask-image:linear-gradient(to right,transparent 0%,black 28%,black 89%,transparent 100%),linear-gradient(to bottom,transparent 0%,black 27%,black 88%,transparent 100%);
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
+}
+.main-area.pets-active > .topbar,
+.main-area.pets-active > .pets-management { position:relative; z-index:1; }
+.pets-management { position:relative; min-height:clamp(600px, calc(100vh - 180px), 900px); }
+@media (max-width:1100px) {
+  .main-area.pets-active::before {
+    width:min(78vw,900px);
+    right:0;
+    bottom:0;
+    opacity:.52;
+  }
+}
+@media (max-width:680px) {
+  .main-area.pets-active .header-actions { width:auto; margin-left:auto; }
+  .main-area.pets-active::before { display:none; }
+  .pets-management { min-height:0; }
+}

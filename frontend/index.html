@@ -23,10 +23,10 @@
     <main class="main-area" id="main">
       <header class="topbar">
         <button class="menu-button icon-button" id="menuButton" aria-label="Toggle navigation" aria-expanded="false">☰</button>
-        <div class="page-heading"><span class="eyebrow">YOUR HABITAT AT A GLANCE</span><h1 id="pageTitle">Dashboard</h1><p id="pageDescription">Overview of your pets, enclosures, and recent activity.</p></div>
+        <div class="page-heading"><span class="eyebrow" id="pageEyebrow">YOUR HABITAT AT A GLANCE</span><h1 id="pageTitle">Dashboard</h1><p id="pageDescription">Overview of your pets, enclosures, and recent activity.</p></div>
         <div class="header-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search pets..." aria-label="Search pets" /></label><button class="icon-button bell" id="bell" aria-label="View alerts"><span class="notification-glyph" aria-hidden="true"></span><span class="notification-dot"></span></button></div>
       </header>
-      <div class="demo-banner" role="status"><span class="demo-tag">DESIGN PREVIEW</span> Example records only · backend not connected yet</div>
+      <div class="demo-banner" id="dashboardDemoBanner" role="status"><span class="demo-tag">DESIGN PREVIEW</span> Example records only · backend not connected yet</div>
       <div id="dashboardContent">
         <section class="stats-grid" aria-label="Overview statistics">
           <article class="stat-card"><div><span class="stat-label">Registered Pets</span><strong id="petCount">0</strong><span class="stat-note">Animals in your care</span></div><img src="./public/assets/illustrations/animals/leopard-gecko.webp" alt="" /></article>
@@ -40,6 +40,18 @@
           <section class="panel feeding-panel" aria-labelledby="feedingTitle"><div class="section-heading"><div><span class="section-kicker">CARE LOG</span><h2 id="feedingTitle">Recent Feeding</h2></div><button class="text-button" id="feedingHistory">View History <span aria-hidden="true">→</span></button></div><div class="feed-list" id="feedingRows"></div></section>
         </div>
       </div>
+      <section class="pets-management" id="petsPage" aria-labelledby="petsCollectionTitle" hidden>
+        <div class="pets-management-heading">
+          <div><span class="section-kicker" id="petsCollectionTitle">YOUR ANIMAL COLLECTION</span><p>Manage your companions in one place.</p></div>
+          <button class="primary-button" id="petsPageAddPet" type="button">+ Add Pet</button>
+        </div>
+        <div class="pets-management-toolbar">
+          <label class="pets-management-search"><span class="pets-search-symbol" aria-hidden="true">⌕</span><input id="petsPageSearch" type="search" placeholder="Search by name or species..." aria-label="Search registered pets by name or species" /></label>
+          <span class="pets-results-count" id="petsResultsCount" aria-live="polite"></span>
+        </div>
+        <div class="pets-collection-message" id="petsCollectionMessage" role="status" aria-live="polite" hidden></div>
+        <div class="pets-collection-grid" id="petsCollectionGrid" aria-live="polite"></div>
+      </section>
       <section class="placeholder-panel panel" id="otherPage" hidden><span class="section-kicker">NEXT IMPLEMENTATION PHASE</span><h2 id="otherTitle"></h2><p>This screen has not been implemented yet. We are approving the dashboard layout first, then we'll build this page using the same design system.</p><button class="primary-button" data-go="dashboard">Back to Dashboard</button></section>
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     </main>

@@ -53,10 +53,17 @@ function toast(message) { const t = $('#toast'); t.textContent = message; t.hidd
 function navigate(page) {
   const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.']};
   if (!pages[page]) return;
-  $('#dashboardContent').hidden = page !== 'dashboard'; $('#otherPage').hidden = page === 'dashboard';
+  currentPage = page;
+  $('#main').classList.toggle('pets-active', page === 'pets');
+  $('#dashboardContent').hidden = page !== 'dashboard';
+  $('#petsPage').hidden = page !== 'pets';
+  $('#otherPage').hidden = page === 'dashboard' || page === 'pets';
+  $('#dashboardDemoBanner').hidden = page !== 'dashboard';
+  $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
   $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1]; $('#otherTitle').textContent = `${pages[page][0]} page coming next`;
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
+  if (page === 'pets') { loadPetsCollection(); }
   if (page === 'dashboard') $('#search').focus();
 }
 $('#petCount').textContent = pets.length;
@@ -65,8 +72,148 @@ $('#alertCount').textContent = alerts.length;
 renderReadings(); renderAlerts(); renderPets(); renderFeedings();
 document.querySelectorAll('[data-page]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.page)));
 document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.go)));
-$('#search').addEventListener('input', (event) => {navigate('dashboard'); renderPets(event.target.value);});
+$('#search').addEventListener('input', (event) => {
+  if (currentPage === 'pets') {
+    $('#petsPageSearch').value = event.target.value;
+    renderPetsCollection();
+  } else {
+    navigate('dashboard');
+    renderPets(event.target.value);
+  }
+});
 $('#bell').addEventListener('click', () => navigate('alerts'));
 $('#menuButton').addEventListener('click', () => {const open = $('#sidebar').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded',String(open));});
 $('#addPet').addEventListener('click', () => toast('Add Pet form is a planned next step. No record was created.'));
 $('#feedingHistory').addEventListener('click', () => toast('Feeding history page is planned. This is sample data.'));
+
+
+// Stage 1A: pets collection backed by existing services. Dashboard sample records remain unchanged.
+const approvedIllustrations = Object.freeze({
+  gecko: 'leopard-gecko.webp',
+  python: 'ball-python.webp',
+  tarantula: 'tarantula.webp',
+  scorpion: 'scorpion.webp'
+});
+let currentPage = 'dashboard';
+let collectionPets = [];
+let collectionEnclosures = new Map();
+let collectionState = 'idle';
+let collectionRequest = 0;
+
+async function getCollectionJson(url) {
+  const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status} requesting ${url}`);
+  return response.json();
+}
+
+function collectionMessage(message, retry = false) {
+  const box = $('#petsCollectionMessage');
+  box.replaceChildren();
+  box.append(elem('p', null, message));
+  if (retry) {
+    const button = elem('button', 'primary-button', 'Try again');
+    button.type = 'button';
+    button.addEventListener('click', loadPetsCollection);
+    box.append(button);
+  }
+  box.hidden = false;
+}
+
+async function loadPetsCollection() {
+  const request = ++collectionRequest;
+  collectionState = 'loading';
+  collectionMessage('Loading registered pets…');
+  $('#petsCollectionGrid').replaceChildren();
+  $('#petsResultsCount').textContent = '';
+  try {
+    const [petResults, enclosureResults] = await Promise.allSettled([
+      getCollectionJson('/api/pets'),
+      getCollectionJson('/api/enclosures')
+    ]);
+    if (request !== collectionRequest) return;
+    if (petResults.status !== 'fulfilled' || !Array.isArray(petResults.value)) {
+      throw new Error('Could not retrieve registered pets');
+    }
+    collectionPets = petResults.value;
+    collectionEnclosures = enclosureResults.status === 'fulfilled' && Array.isArray(enclosureResults.value)
+      ? new Map(enclosureResults.value.map(enclosure => [Number(enclosure.id), enclosure.name]))
+      : new Map();
+    collectionState = enclosureResults.status === 'fulfilled' && Array.isArray(enclosureResults.value)
+      ? 'ready' : 'partial';
+    renderPetsCollection();
+  } catch (error) {
+    if (request !== collectionRequest) return;
+    console.error('Pets collection request failed:', error);
+    collectionState = 'error';
+    $('#petsCollectionGrid').replaceChildren();
+    $('#petsResultsCount').textContent = '';
+    collectionMessage('Unable to load pets. Check that the Data Management Service (port 3001) and the frontend development server are running.', true);
+  }
+}
+
+function renderPetsCollection() {
+  if (collectionState !== 'ready' && collectionState !== 'partial') return;
+  const search = $('#petsPageSearch').value.trim().toLocaleLowerCase();
+  const matches = collectionPets.filter(pet =>
+    `${pet.name || ''} ${pet.species || ''}`.toLocaleLowerCase().includes(search)
+  );
+  const host = $('#petsCollectionGrid');
+  host.replaceChildren();
+  const message = $('#petsCollectionMessage');
+  message.hidden = true;
+  $('#petsResultsCount').textContent = `${matches.length} of ${collectionPets.length} pets`;
+  if (collectionState === 'partial') {
+    collectionMessage('Enclosure names are temporarily unavailable. Assigned enclosures are shown by ID.');
+  }
+  if (!collectionPets.length) {
+    collectionMessage('No pets registered yet. You can add your first pet in Stage 2.');
+    return;
+  }
+  if (!matches.length) {
+    collectionMessage('No pets match your search. Try another name or species.');
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  matches.forEach(pet => {
+    const card = elem('article', 'collection-pet-card');
+    const imageBox = elem('div', 'collection-pet-art');
+    const filename = Object.hasOwn(approvedIllustrations, pet.illustration_key)
+      ? approvedIllustrations[pet.illustration_key] : null;
+    if (filename) {
+      const image = elem('img');
+      image.src = `${assets}${filename}`;
+      image.alt = `Selected illustration for ${pet.name}`;
+      image.loading = 'lazy';
+      image.addEventListener('error', () => {
+        imageBox.replaceChildren(elem('span', 'collection-pet-fallback', '◇'));
+      }, { once: true });
+      if (pet.illustration_key === 'tarantula') image.classList.add('collection-art-tarantula');
+      imageBox.append(image);
+    } else {
+      imageBox.append(elem('span', 'collection-pet-fallback', '◇'));
+      imageBox.setAttribute('aria-label', 'No illustration selected');
+    }
+    const content = elem('div', 'collection-pet-info');
+    content.append(elem('h3', null, pet.name || 'Unnamed pet'));
+    content.append(elem('p', 'collection-pet-species', pet.species || 'Species not specified'));
+    const enclosure = pet.enclosure_id == null ? 'Unassigned'
+      : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
+    content.append(elem('p', 'collection-pet-enclosure', `⌂  ${enclosure}`));
+    const footer = elem('div', 'collection-pet-footer');
+    const details = elem('button', 'collection-details-button', 'View Details · Stage 3');
+    details.type = 'button';
+    details.disabled = true;
+    details.title = 'Pet details will be available in Stage 3';
+    footer.append(details);
+    content.append(footer);
+    card.append(imageBox, content);
+    fragment.append(card);
+  });
+  host.append(fragment);
+}
+
+$('#petsPageSearch').addEventListener('input', () => {
+  $('#search').value = $('#petsPageSearch').value;
+  renderPetsCollection();
+});
+$('#petsPageAddPet').addEventListener('click', () => toast('Add Pet arrives in Stage 2. No record was created.'));
