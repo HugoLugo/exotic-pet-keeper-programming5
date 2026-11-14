@@ -221,3 +221,102 @@
   .main-area.pets-active::before { display:none; }
   .pets-management { min-height:0; }
 }
+
+
+/* Stage 2A — Add Pet subview. Styling is scoped and does not alter dashboard layout. */
+.main-area.pets-active > .add-pet-page { position:relative; z-index:1; }
+.add-pet-page { max-width:1100px; padding-bottom:45px; }
+.add-pet-intro { display:flex; gap:15px; justify-content:space-between; align-items:center; margin:0 0 15px; }
+.add-pet-back { border:0; background:none; padding:8px 0; font-size:13px; font-weight:750; color:#426945; }
+.add-pet-back:hover { text-decoration:underline; }
+.add-pet-preview-tag { color:#71865e; font-weight:800; font-size:10px; letter-spacing:.08em; }
+.add-pet-lead { margin:0 0 21px; color:var(--sub); font-size:13px; }
+.add-pet-profile-row { display:grid; grid-template-columns:minmax(225px,.8fr) minmax(300px,1.2fr); gap:21px; margin-bottom:21px; }
+.add-pet-illustration-panel, .add-pet-notes-panel, .add-pet-details-panel { background:#fffdf9; border:1px solid #e7e5d8; border-radius:19px; padding:20px; box-shadow:var(--shadow); min-width:0; }
+.add-pet-panel-title { display:block; color:#506c47; font-weight:850; letter-spacing:.08em; font-size:11px; margin-bottom:12px; }
+.add-pet-optional { font-size:11px; font-weight:500; color:#81907d; letter-spacing:normal; }
+.add-pet-portrait { width:100%; min-height:220px; height:245px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:15px; background:linear-gradient(145deg,#eaf0e0,#f6f1e5); border:1px dashed #9faf90; border-radius:15px; color:#3e6544; overflow:hidden; }
+.add-pet-portrait:hover { background:linear-gradient(145deg,#e1ecd5,#f4f1e1); }
+.add-pet-portrait img { width:100%; min-height:0; max-height:182px; object-fit:contain; padding:4px; }
+.add-pet-portrait-action { font-size:12px; font-weight:750; }
+.add-pet-helper { font-size:12px; color:#768275; margin:12px 0 0; line-height:1.55; }
+.add-pet-notes-panel { display:flex; flex-direction:column; }
+.add-pet-notes-panel textarea { flex:1; width:100%; min-height:245px; resize:vertical; font:inherit; font-size:13px; line-height:1.55; border:1px solid #e1e5d7; border-radius:12px; background:#fafaf5; padding:14px; color:var(--text); }
+.add-pet-details-panel h2 { font-family:Georgia,serif; color:#203d29; font-size:25px; margin:0 0 23px; }
+.add-pet-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:19px; }
+.add-pet-field { font-size:13px; font-weight:750; color:#304833; display:flex; flex-direction:column; gap:8px; }
+.add-pet-field > span[aria-hidden] { display:inline; }
+.add-pet-field input, .add-pet-field select { width:100%; min-width:0; background:#fff; border:1px solid #dfE4d6; border-radius:10px; padding:12px; color:#2c4430; min-height:45px; }
+.add-pet-field input::placeholder { color:#939a92; }
+.add-pet-field small { font-size:11px; color:#788577; font-weight:450; line-height:1.5; }
+.add-pet-field-wide { grid-column:1 / -1; }
+.add-pet-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:12px; margin:21px 0; }
+.add-pet-save-info { margin:0 auto 0 0; font-size:12px; color:#778571; }
+.add-pet-cancel { background:#fff; color:#476249; padding:10px 17px; border-radius:10px; border:1px solid #dfe5d7; font-size:13px; font-weight:750; }
+.add-pet-actions .primary-button:disabled { opacity:.5; cursor:not-allowed; }
+.illustration-dialog { width:min(750px,calc(100% - 25px)); max-height:88vh; overflow:auto; padding:25px; background:#fffdf9; border:1px solid #e3e6d9; border-radius:20px; box-shadow:0 22px 85px #152a1e40; color:var(--text); }
+.illustration-dialog::backdrop { background:#14291e85; }
+.illustration-dialog-header { display:flex; justify-content:space-between; gap:20px; }
+.illustration-dialog-header h2 { font-family:Georgia,serif; font-size:28px; margin:8px 0; }
+.illustration-dialog-header p { font-size:12px; color:var(--sub); margin:0 0 20px; }
+.illustration-dialog-close { border:0; background:#e9f0e4; border-radius:50%; width:36px; height:36px; font-size:24px; color:#35583c; }
+.illustration-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
+.illustration-option { border:2px solid #e4e8dc; border-radius:14px; background:#fcfbf5; overflow:hidden; color:#33523a; padding:0 0 12px; display:flex; flex-direction:column; gap:10px; align-items:center; }
+.illustration-option:hover, .illustration-option.selected { border-color:#72966c; background:#f0f6e9; }
+.illustration-option-art { width:100%; height:125px; background:#edf1e3; display:grid; place-items:center; }
+.illustration-option-art img { display:block; width:100%; height:100%; object-fit:contain; padding:7px; }
+.illustration-option-art .collection-art-tarantula { padding:0; }
+.illustration-option strong { font-size:12px; }
+@media(max-width:760px) { .add-pet-profile-row { grid-template-columns:1fr; } .add-pet-notes-panel textarea { min-height:150px; } .add-pet-portrait { height:210px; } }
+@media(max-width:480px) { .add-pet-fields { grid-template-columns:1fr; } .add-pet-intro { flex-wrap:wrap; } .add-pet-profile-row { gap:13px; } .add-pet-illustration-panel, .add-pet-notes-panel, .add-pet-details-panel { padding:15px; } }
+
+
+/* Stage 2A refinement — center form and use Soft Illustrative Cards dropdown menus. */
+.add-pet-page { margin-inline:auto; }
+.add-pet-native-select { position:absolute!important; width:1px!important; height:1px!important; overflow:hidden!important; opacity:0!important; pointer-events:none!important; clip-path:inset(50%); }
+.add-pet-select-wrap { position:relative; min-width:0; }
+.add-pet-select-trigger { display:flex; align-items:center; justify-content:space-between; gap:15px; width:100%; min-height:45px; padding:11px 14px; border:1px solid #dfe4d6; border-radius:11px; background:#fffdf9; color:#304833; text-align:left; font-size:13px; font-weight:500; transition:background .15s,border-color .15s,box-shadow .15s; }
+.add-pet-select-trigger:hover { background:#f4f7ec; border-color:#afc3a5; }
+.add-pet-select-trigger[aria-expanded="true"] { border-color:#789e72; box-shadow:0 0 0 3px rgba(120,158,114,.12); }
+.add-pet-select-value { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.add-pet-chevron { display:inline-block; flex:none; width:8px; height:8px; border-right:2px solid #577353; border-bottom:2px solid #577353; transform:rotate(45deg) translateY(-2px); transition:transform .15s; }
+.add-pet-select-trigger[aria-expanded="true"] .add-pet-chevron { transform:rotate(225deg) translateY(-1px); }
+.add-pet-select-options { position:absolute; z-index:15; top:calc(100% + 6px); left:0; right:0; max-height:245px; overflow-y:auto; padding:6px; border:1px solid #dfe6d7; border-radius:13px; background:#fffdf9; box-shadow:0 13px 30px rgba(31,56,38,.14); }
+.add-pet-select-options[hidden] { display:none; }
+.add-pet-option { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:39px; padding:10px 11px; border:0; border-radius:9px; background:transparent; color:#38513b; text-align:left; font-size:13px; font-weight:500; }
+.add-pet-option:hover,.add-pet-option:focus-visible { background:#edf3e5; outline:none; }
+.add-pet-option[aria-selected="true"] { background:#e2edcf; color:#244e30; font-weight:750; }
+.add-pet-option[aria-selected="true"]::after { content:"✓"; color:#356a3c; font-weight:800; }
+.add-pet-option:disabled { color:#9aa49a; cursor:not-allowed; }
+@media(max-width:760px) { .add-pet-select-options { max-height:195px; } }
+
+
+/* Stage 2A Revision 2 — Soft Illustrative Cards date-of-birth picker */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.add-pet-calendar-wrap{position:relative;min-width:0}
+.add-pet-calendar-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:45px;padding:11px 14px;border:1px solid #dfe4d6;border-radius:11px;background:#fffdf9;color:#304833;font-size:13px;text-align:left;transition:background .15s,border-color .15s,box-shadow .15s}
+.add-pet-calendar-trigger:hover{background:#f4f7ec;border-color:#afc3a5}
+.add-pet-calendar-trigger[aria-expanded="true"]{border-color:#789e72;box-shadow:0 0 0 3px rgba(120,158,114,.12)}
+.add-pet-calendar-trigger svg{flex:none;color:#577353}
+.add-pet-calendar-placeholder{color:#899489}
+.add-pet-calendar{position:absolute;top:calc(100% + 8px);right:0;z-index:25;width:min(340px,calc(100vw - 40px));padding:16px;background:#fffdf9;border:1px solid #dfe6d7;border-radius:16px;box-shadow:0 16px 40px rgba(31,56,38,.17);color:#304833}
+.add-pet-calendar[hidden]{display:none}
+.add-pet-calendar-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.add-pet-calendar-heading strong{font:700 18px Georgia,serif;color:#203d29}
+.add-pet-calendar-close{border:0;border-radius:50%;background:#edf3e5;color:#33573c;width:29px;height:29px;font-size:21px;line-height:1}
+.add-pet-calendar-navigation{display:grid;grid-template-columns:30px minmax(0,1fr) 77px 30px;gap:6px;align-items:center;margin-bottom:13px}
+.add-pet-calendar-select-label{display:block;min-width:0}
+.add-pet-calendar-navigation select{width:100%;height:34px;min-width:0;border:1px solid #dce5d4;border-radius:9px;background:#f1f5ea;color:#35553b;font-size:12px;padding:0 3px}
+.add-pet-calendar-nav{height:34px;width:30px;border:1px solid #dce5d4;border-radius:9px;background:#edf3e5;color:#355b3c;font-size:22px}
+.add-pet-calendar-nav:disabled{opacity:.35;cursor:not-allowed}
+.add-pet-calendar-weekdays,.add-pet-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center}
+.add-pet-calendar-weekdays{margin-bottom:6px;color:#71856c;font-size:10px;font-weight:750}
+.add-pet-calendar-day{width:100%;aspect-ratio:1;border:0;border-radius:9px;background:transparent;color:#35513a;font-size:12px}
+.add-pet-calendar-day:hover:not(:disabled),.add-pet-calendar-day:focus-visible{background:#e8f0df;outline:2px solid #a5c29a;outline-offset:0}
+.add-pet-calendar-day[aria-pressed="true"]{background:#386d38;color:white;font-weight:750}
+.add-pet-calendar-day.is-today:not([aria-pressed="true"]){box-shadow:inset 0 0 0 1px #86a47d;font-weight:750}
+.add-pet-calendar-day:disabled{opacity:.25;cursor:not-allowed}
+.add-pet-calendar-footer{display:flex;justify-content:space-between;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid #e8ecdf}
+.add-pet-calendar-footer button{border:0;border-radius:8px;padding:8px 10px;background:#e8f0df;color:#355c3c;font-size:12px;font-weight:700}
+.add-pet-calendar-footer button:hover{background:#dce9d2}
+@media(max-width:480px){.add-pet-calendar{right:auto;left:0;width:min(340px,calc(100vw - 55px))}}

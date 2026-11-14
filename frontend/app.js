@@ -57,6 +57,7 @@ function navigate(page) {
   $('#main').classList.toggle('pets-active', page === 'pets');
   $('#dashboardContent').hidden = page !== 'dashboard';
   $('#petsPage').hidden = page !== 'pets';
+  $('#addPetPage').hidden = true;
   $('#otherPage').hidden = page === 'dashboard' || page === 'pets';
   $('#dashboardDemoBanner').hidden = page !== 'dashboard';
   $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
@@ -83,7 +84,7 @@ $('#search').addEventListener('input', (event) => {
 });
 $('#bell').addEventListener('click', () => navigate('alerts'));
 $('#menuButton').addEventListener('click', () => {const open = $('#sidebar').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded',String(open));});
-$('#addPet').addEventListener('click', () => toast('Add Pet form is a planned next step. No record was created.'));
+$('#addPet').addEventListener('click', openAddPetForm);
 $('#feedingHistory').addEventListener('click', () => toast('Feeding history page is planned. This is sample data.'));
 
 
@@ -216,4 +217,340 @@ $('#petsPageSearch').addEventListener('input', () => {
   $('#search').value = $('#petsPageSearch').value;
   renderPetsCollection();
 });
-$('#petsPageAddPet').addEventListener('click', () => toast('Add Pet arrives in Stage 2. No record was created.'));
+$('#petsPageAddPet').addEventListener('click', openAddPetForm);
+
+
+// Stage 2A — Add Pet design preview. No POST requests are made here.
+let selectedNewPetIllustration = null;
+const illustrationChoices = [
+  {key:null, label:'No Illustration', filename:null},
+  {key:'gecko', label:'Gecko', filename:approvedIllustrations.gecko},
+  {key:'python', label:'Python', filename:approvedIllustrations.python},
+  {key:'tarantula', label:'Tarantula', filename:approvedIllustrations.tarantula},
+  {key:'scorpion', label:'Scorpion', filename:approvedIllustrations.scorpion}
+];
+
+function syncNewPetPortrait() {
+  const current = illustrationChoices.find(choice => choice.key === selectedNewPetIllustration);
+  const image = $('#addPetPortraitImage');
+  const fallback = $('#addPetPortraitFallback');
+  if (current.filename) {
+    image.src = `${assets}${current.filename}`;
+    image.alt = `${current.label} illustration`;
+    image.hidden = false;
+    fallback.hidden = true;
+    $('#illustrationSelectionLabel').textContent = `${current.label} illustration selected. You can change it anytime.`;
+  } else {
+    image.removeAttribute('src');
+    image.hidden = true;
+    fallback.hidden = false;
+    $('#illustrationSelectionLabel').textContent = 'No illustration selected — neutral placeholder will be used.';
+  }
+  document.querySelectorAll('.illustration-option').forEach(button => {
+    const chosen = button.dataset.key === (selectedNewPetIllustration || 'none');
+    button.classList.toggle('selected', chosen);
+    button.setAttribute('aria-pressed', String(chosen));
+  });
+}
+
+function populateAddPetIllustrations() {
+  const host = $('#illustrationOptions');
+  host.replaceChildren();
+  illustrationChoices.forEach(choice => {
+    const button = elem('button', 'illustration-option');
+    button.type = 'button';
+    button.dataset.key = choice.key || 'none';
+    const art = elem('span', 'illustration-option-art');
+    if (choice.filename) {
+      const image = elem('img');
+      image.src = `${assets}${choice.filename}`;
+      image.alt = '';
+      if (choice.key === 'tarantula') image.classList.add('collection-art-tarantula');
+      art.append(image);
+    } else art.append(elem('span', 'collection-pet-fallback', '◇'));
+    button.append(art, elem('strong', null, choice.label));
+    button.addEventListener('click', () => {
+      selectedNewPetIllustration = choice.key;
+      syncNewPetPortrait();
+      $('#illustrationDialog').close();
+      $('#illustrationPickerOpen').focus();
+    });
+    host.append(button);
+  });
+  syncNewPetPortrait();
+}
+
+// Keep the actual select values in place for Stage 2B form submission.
+// The visible listboxes replace platform-styled native dropdown popups.
+function createAddPetDropdown(selectId, triggerId, listId) {
+  const select = document.getElementById(selectId);
+  const trigger = document.getElementById(triggerId);
+  const list = document.getElementById(listId);
+  const isOpen = () => trigger.getAttribute('aria-expanded') === 'true';
+  function close(restoreFocus = false) {
+    trigger.setAttribute('aria-expanded', 'false');
+    list.hidden = true;
+    if (restoreFocus) trigger.focus();
+  }
+  function render() {
+    list.replaceChildren();
+    const selected = select.options[select.selectedIndex];
+    trigger.querySelector('.add-pet-select-value').textContent = selected ? selected.text : '';
+    Array.from(select.options).forEach((option, index) => {
+      const item = elem('button', 'add-pet-option', option.text);
+      item.type = 'button';
+      item.id = `${selectId}Option${index}`;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(option.selected));
+      item.disabled = option.disabled;
+      item.dataset.value = option.value;
+      item.addEventListener('click', () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        close(true);
+      });
+      list.append(item);
+    });
+  }
+  function open(focusIndex) {
+    document.querySelectorAll('.add-pet-select-trigger[aria-expanded="true"]').forEach(other => {
+      if (other !== trigger) other.click();
+    });
+    render();
+    list.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    if (focusIndex != null) {
+      const options = Array.from(list.querySelectorAll('.add-pet-option:not(:disabled)'));
+      (options[focusIndex] || options[0])?.focus();
+    }
+  }
+  trigger.addEventListener('click', () => isOpen() ? close() : open());
+  trigger.addEventListener('keydown', event => {
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const usable = Array.from(select.options).filter(option => !option.disabled);
+      const selectedIndex = usable.findIndex(option => option.value === select.value);
+      open(event.key === 'End' ? usable.length - 1 : event.key === 'Home' ? 0 : event.key === 'ArrowUp' ? Math.max(0,selectedIndex - 1) : Math.min(usable.length - 1,selectedIndex + 1));
+    } else if (event.key === 'Escape' && isOpen()) { event.preventDefault(); close(true); }
+  });
+  list.addEventListener('keydown', event => {
+    const usable = Array.from(list.querySelectorAll('.add-pet-option:not(:disabled)'));
+    const index = usable.indexOf(document.activeElement);
+    let next = index;
+    if (event.key === 'ArrowDown') next = Math.min(usable.length - 1, index + 1);
+    else if (event.key === 'ArrowUp') next = Math.max(0, index - 1);
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = usable.length - 1;
+    else if (event.key === 'Escape' || event.key === 'Tab') {
+      if (event.key === 'Escape') event.preventDefault();
+      close(event.key === 'Escape');
+      return;
+    } else return;
+    event.preventDefault();
+    usable[next]?.focus();
+  });
+  document.addEventListener('pointerdown', event => {
+    if (isOpen() && !trigger.contains(event.target) && !list.contains(event.target)) close();
+  });
+  select.addEventListener('change', render);
+  render();
+  return {render, close};
+}
+
+const genderDropdown = createAddPetDropdown('newPetGender', 'newPetGenderTrigger', 'newPetGenderOptions');
+const enclosureDropdown = createAddPetDropdown('newPetEnclosure', 'newPetEnclosureTrigger', 'newPetEnclosureOptions');
+
+async function populateAddPetEnclosures() {
+  const selector = $('#newPetEnclosure');
+  selector.replaceChildren();
+  selector.append(new Option('Unassigned — you can add an enclosure later', ''));
+  try {
+    const enclosures = await getCollectionJson('/api/enclosures');
+    if (!Array.isArray(enclosures)) throw new Error('Invalid enclosure response');
+    enclosures.forEach(enclosure => {
+      if (enclosure.id != null && typeof enclosure.name === 'string') {
+        selector.append(new Option(enclosure.name, String(enclosure.id)));
+      }
+    });
+  } catch (error) {
+    console.warn('Could not load enclosure options in form preview:', error);
+    selector.append(new Option('Enclosure list temporarily unavailable', 'unavailable'));
+    selector.options[selector.options.length - 1].disabled = true;
+  } finally {
+    enclosureDropdown.render();
+  }
+}
+
+function openAddPetForm() {
+  // Keep the Pets sidebar active while presenting an internal subview.
+  navigate('pets');
+  $('#petsPage').hidden = true;
+  $('#addPetPage').hidden = false;
+  $('#pageEyebrow').textContent = 'PET MANAGEMENT';
+  $('#pageTitle').textContent = 'Add New Pet';
+  $('#pageDescription').textContent = 'Create a profile for your new companion.';
+  $('#addPetForm').reset();
+  birthCalendar.reset();
+  genderDropdown.close();
+  enclosureDropdown.close();
+  genderDropdown.render();
+  enclosureDropdown.render();
+  selectedNewPetIllustration = null;
+  syncNewPetPortrait();
+  populateAddPetEnclosures();
+  window.scrollTo(0,0);
+}
+function closeAddPetForm() { navigate('pets'); window.scrollTo(0,0); }
+
+populateAddPetIllustrations();
+$('#illustrationPickerOpen').addEventListener('click', () => $('#illustrationDialog').showModal());
+$('#illustrationDialogClose').addEventListener('click', () => $('#illustrationDialog').close());
+$('#illustrationDialog').addEventListener('click', (event) => {
+  if (event.target === $('#illustrationDialog')) $('#illustrationDialog').close();
+});
+$('#backToPets').addEventListener('click', closeAddPetForm);
+$('#cancelAddPet').addEventListener('click', closeAddPetForm);
+$('#addPetForm').addEventListener('submit', event => { event.preventDefault(); });
+// Stage 2A Rev 2 — accessible, dependency-free birth-date calendar.
+// The hidden field retains the backend's YYYY-MM-DD date format for Stage 2B.
+function createBirthCalendar() {
+  const input = $('#newPetBirth');
+  const trigger = $('#newPetBirthTrigger');
+  const label = $('#newPetBirthLabel');
+  const popup = $('#newPetCalendar');
+  const wrap = $('#newPetCalendarWrap');
+  const monthSelect = $('#newPetCalendarMonth');
+  const yearSelect = $('#newPetCalendarYear');
+  const days = $('#newPetCalendarDays');
+  const prev = $('#newPetCalendarPrev');
+  const next = $('#newPetCalendarNext');
+  const today = new Date();
+  const maxYear = today.getFullYear();
+  const maxMonth = today.getMonth();
+  const maxDay = today.getDate();
+  let visibleYear = maxYear;
+  let visibleMonth = maxMonth;
+  let returnFocus = trigger;
+  const open = () => !popup.hidden;
+  const iso = (year, month, day) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const valid = (year, month, day) => year < maxYear || (year === maxYear && (month < maxMonth || (month === maxMonth && day <= maxDay)));
+  const selectedParts = () => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.value);
+    return match ? [Number(match[1]), Number(match[2]) - 1, Number(match[3])] : null;
+  };
+  function syncLabel() {
+    const parts = selectedParts();
+    label.textContent = parts ? `${String(parts[2]).padStart(2, '0')}/${String(parts[1] + 1).padStart(2, '0')}/${parts[0]}` : 'Select date of birth';
+    label.classList.toggle('add-pet-calendar-placeholder', !parts);
+  }
+  function close(restoreFocus = false) {
+    popup.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) returnFocus.focus();
+  }
+  function render() {
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    monthSelect.replaceChildren(...months.map((name, index) => {
+      const option = new Option(name, String(index));
+      option.disabled = visibleYear === maxYear && index > maxMonth;
+      return option;
+    }));
+    monthSelect.value = String(visibleMonth);
+    // Allow choosing older dates directly, without navigating back month by month.
+    yearSelect.replaceChildren();
+    for (let year = maxYear; year >= maxYear - 125; year--) yearSelect.append(new Option(String(year), String(year)));
+    yearSelect.value = String(visibleYear);
+    prev.disabled = visibleYear <= maxYear - 125 && visibleMonth === 0;
+    next.disabled = visibleYear === maxYear && visibleMonth === maxMonth;
+    days.replaceChildren();
+    const offset = (new Date(visibleYear, visibleMonth, 1).getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) {
+      const gap = document.createElement('span');
+      gap.className = 'add-pet-calendar-blank';
+      gap.setAttribute('aria-hidden','true');
+      days.append(gap);
+    }
+    const lastDay = new Date(visibleYear, visibleMonth + 1, 0).getDate();
+    const selected = input.value;
+    for (let day = 1; day <= lastDay; day++) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'add-pet-calendar-day';
+      button.textContent = String(day);
+      const value = iso(visibleYear, visibleMonth, day);
+      button.setAttribute('aria-label', `${months[visibleMonth]} ${day}, ${visibleYear}`);
+      button.setAttribute('aria-pressed', String(selected === value));
+      if (visibleYear === maxYear && visibleMonth === maxMonth && day === maxDay) button.classList.add('is-today');
+      button.disabled = !valid(visibleYear, visibleMonth, day);
+      button.addEventListener('click', () => {
+        input.value = value;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        syncLabel();
+        close(true);
+      });
+      days.append(button);
+    }
+  }
+  function show() {
+    const parts = selectedParts();
+    visibleYear = parts ? parts[0] : maxYear;
+    visibleMonth = parts ? parts[1] : maxMonth;
+    render();
+    popup.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    returnFocus = trigger;
+    monthSelect.focus();
+  }
+  trigger.addEventListener('click', () => open() ? close() : show());
+  $('#newPetCalendarClose').addEventListener('click', () => close(true));
+  $('#newPetCalendarClear').addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    syncLabel();
+    close(true);
+  });
+  $('#newPetCalendarToday').addEventListener('click', () => {
+    input.value = iso(maxYear, maxMonth, maxDay);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    syncLabel();
+    close(true);
+  });
+  prev.addEventListener('click', () => {
+    if (visibleMonth === 0) {visibleMonth = 11; visibleYear--;} else visibleMonth--;
+    render();
+  });
+  next.addEventListener('click', () => {
+    if (visibleMonth === 11) {visibleMonth = 0; visibleYear++;} else visibleMonth++;
+    render();
+  });
+  monthSelect.addEventListener('change', () => { visibleMonth = Number(monthSelect.value); render(); });
+  yearSelect.addEventListener('change', () => {
+    visibleYear = Number(yearSelect.value);
+    if (visibleYear === maxYear && visibleMonth > maxMonth) visibleMonth = maxMonth;
+    render();
+  });
+  popup.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {event.preventDefault(); close(true);}
+  });
+  document.addEventListener('pointerdown', event => {
+    if (open() && !wrap.contains(event.target)) close();
+  });
+  // Keyboard navigation: arrow keys move among dates; Home/End move within a week.
+  days.addEventListener('keydown', event => {
+    const keys = {ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};
+    if (!(event.key in keys) && !['Home','End'].includes(event.key)) return;
+    const focused = document.activeElement;
+    if (!focused.classList.contains('add-pet-calendar-day')) return;
+    event.preventDefault();
+    const day = Number(focused.textContent);
+    const delta = keys[event.key] ?? (event.key === 'Home' ? -((new Date(visibleYear, visibleMonth, day).getDay()+6)%7) : (6-(new Date(visibleYear, visibleMonth, day).getDay()+6)%7));
+    const nextDate = new Date(visibleYear,visibleMonth,day+delta);
+    const year = nextDate.getFullYear(); const month = nextDate.getMonth();
+    if (year < maxYear - 125 || year > maxYear || !valid(year,month,nextDate.getDate())) return;
+    visibleYear = year; visibleMonth = month; render();
+    Array.from(days.querySelectorAll('.add-pet-calendar-day')).find(button => Number(button.textContent) === nextDate.getDate())?.focus();
+  });
+  syncLabel();
+  return {reset() {close(); syncLabel();}, close};
+}
+const birthCalendar = createBirthCalendar();

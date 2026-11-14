@@ -52,6 +52,64 @@
         <div class="pets-collection-message" id="petsCollectionMessage" role="status" aria-live="polite" hidden></div>
         <div class="pets-collection-grid" id="petsCollectionGrid" aria-live="polite"></div>
       </section>
+      <section class="add-pet-page" id="addPetPage" aria-label="Add New Pet form preview" hidden>
+        <div class="add-pet-intro">
+          <button id="backToPets" class="add-pet-back" type="button">← Back to Pets</button>
+          <span class="add-pet-preview-tag">STAGE 2A · DESIGN PREVIEW</span>
+        </div>
+        <p class="add-pet-lead">Complete your companion’s profile. Only the name and species are required.</p>
+        <form id="addPetForm" novalidate>
+          <div class="add-pet-profile-row">
+            <div class="add-pet-illustration-panel">
+              <span class="add-pet-panel-title">CHOOSE ILLUSTRATION <span class="add-pet-optional">· OPTIONAL</span></span>
+              <button type="button" id="illustrationPickerOpen" class="add-pet-portrait" aria-haspopup="dialog" aria-controls="illustrationDialog">
+                <span id="addPetPortraitFallback" class="collection-pet-fallback" aria-hidden="true">◇</span>
+                <img id="addPetPortraitImage" alt="Selected pet illustration" hidden />
+                <span class="add-pet-portrait-action">✎ Choose illustration</span>
+              </button>
+              <p class="add-pet-helper" id="illustrationSelectionLabel">No illustration selected — neutral placeholder will be used.</p>
+            </div>
+            <div class="add-pet-notes-panel">
+              <label class="add-pet-panel-title" for="newPetNotes">NOTES <span class="add-pet-optional">· OPTIONAL</span></label>
+              <textarea id="newPetNotes" name="notes" maxlength="2000" rows="7" placeholder="Personality, care needs, habits, or anything useful to remember..."></textarea>
+              <p class="add-pet-helper">You can always update these details later.</p>
+            </div>
+          </div>
+          <div class="add-pet-details-panel">
+            <h2>Pet Information</h2>
+            <div class="add-pet-fields">
+              <label class="add-pet-field">Pet name <span aria-hidden="true">*</span><input id="newPetName" name="name" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Lupita" required /></label>
+              <label class="add-pet-field">Species <span aria-hidden="true">*</span><input id="newPetSpecies" name="species" type="text" maxlength="160" autocomplete="off" placeholder="e.g. Phrynus sp. or Unknown" required /><small>Not sure of the exact species? You can enter “Unknown” and update it later.</small></label>
+              <div class="add-pet-field"><label for="newPetGenderTrigger">Gender</label><select id="newPetGender" name="gender" class="add-pet-native-select" tabindex="-1" aria-hidden="true"><option value="unknown" selected>Unknown</option><option value="male">Male</option><option value="female">Female</option></select><div class="add-pet-select-wrap"><button type="button" class="add-pet-select-trigger" id="newPetGenderTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="newPetGenderOptions"><span class="add-pet-select-value">Unknown</span><span class="add-pet-chevron" aria-hidden="true"></span></button><div class="add-pet-select-options" id="newPetGenderOptions" role="listbox" aria-label="Gender" hidden></div></div></div>
+              <div class="add-pet-field add-pet-birth-field">
+                <label for="newPetBirthTrigger">Date of birth <span class="add-pet-optional">(optional)</span></label>
+                <input id="newPetBirth" name="date_of_birth" type="hidden" value="" />
+                <div class="add-pet-calendar-wrap" id="newPetCalendarWrap">
+                  <button id="newPetBirthTrigger" type="button" class="add-pet-calendar-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="newPetCalendar"><span id="newPetBirthLabel" class="add-pet-calendar-placeholder">Select date of birth</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg></button>
+                  <div id="newPetCalendar" class="add-pet-calendar" role="dialog" aria-label="Choose date of birth" aria-modal="false" hidden>
+                    <div class="add-pet-calendar-heading"><strong>Choose a date</strong><button type="button" id="newPetCalendarClose" class="add-pet-calendar-close" aria-label="Close calendar">×</button></div>
+                    <div class="add-pet-calendar-navigation">
+                      <button type="button" id="newPetCalendarPrev" class="add-pet-calendar-nav" aria-label="Previous month">‹</button>
+                      <label class="add-pet-calendar-select-label"><span class="sr-only">Month</span><select id="newPetCalendarMonth" aria-label="Month"></select></label>
+                      <label class="add-pet-calendar-select-label"><span class="sr-only">Year</span><select id="newPetCalendarYear" aria-label="Year"></select></label>
+                      <button type="button" id="newPetCalendarNext" class="add-pet-calendar-nav" aria-label="Next month">›</button>
+                    </div>
+                    <div class="add-pet-calendar-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+                    <div id="newPetCalendarDays" class="add-pet-calendar-days" role="group" aria-label="Calendar days"></div>
+                    <div class="add-pet-calendar-footer"><button type="button" id="newPetCalendarClear">Clear date</button><button type="button" id="newPetCalendarToday">Today</button></div>
+                  </div>
+                </div>
+              </div>
+              <div class="add-pet-field add-pet-field-wide"><label for="newPetEnclosureTrigger">Enclosure <span class="add-pet-optional">(optional)</span></label><select id="newPetEnclosure" name="enclosure_id" class="add-pet-native-select" tabindex="-1" aria-hidden="true"><option value="">Unassigned — you can add an enclosure later</option></select><div class="add-pet-select-wrap"><button type="button" class="add-pet-select-trigger" id="newPetEnclosureTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="newPetEnclosureOptions"><span class="add-pet-select-value">Unassigned — you can add an enclosure later</span><span class="add-pet-chevron" aria-hidden="true"></span></button><div class="add-pet-select-options" id="newPetEnclosureOptions" role="listbox" aria-label="Enclosure" hidden></div></div><small>It’s fine to register your pet first. You can assign or change its enclosure later.</small></div>
+            </div>
+          </div>
+          <div class="add-pet-actions"><p class="add-pet-save-info" role="status">Preview only: no information will be saved in Stage 2A.</p><button type="button" class="add-pet-cancel" id="cancelAddPet">Cancel</button><button type="submit" class="primary-button" disabled title="Saving will be enabled in Stage 2B">Create Pet · Stage 2B</button></div>
+        </form>
+      </section>
+      <dialog id="illustrationDialog" class="illustration-dialog" aria-labelledby="illustrationDialogTitle">
+        <div class="illustration-dialog-header"><div><span class="section-kicker">PERSONALIZE YOUR PET</span><h2 id="illustrationDialogTitle">Choose an illustration</h2><p>Choose any artwork you like, independent of species.</p></div><button id="illustrationDialogClose" class="illustration-dialog-close" type="button" aria-label="Close illustration picker">×</button></div>
+        <div class="illustration-options" id="illustrationOptions"></div>
+      </dialog>
       <section class="placeholder-panel panel" id="otherPage" hidden><span class="section-kicker">NEXT IMPLEMENTATION PHASE</span><h2 id="otherTitle"></h2><p>This screen has not been implemented yet. We are approving the dashboard layout first, then we'll build this page using the same design system.</p><button class="primary-button" data-go="dashboard">Back to Dashboard</button></section>
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     </main>
