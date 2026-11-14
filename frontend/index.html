@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#23462f" />
+  <title>Exotic Pet Keeper · Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>Exotic Pet<br>Keeper</span></div>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-link active" data-page="dashboard" aria-current="page"><span class="nav-glyph nav-glyph--dashboard" aria-hidden="true"></span> Dashboard</button>
+        <button class="nav-link" data-page="pets"><span class="nav-glyph nav-glyph--pets" aria-hidden="true"></span> Pets</button>
+        <button class="nav-link" data-page="enclosures"><span class="nav-glyph nav-glyph--enclosures" aria-hidden="true"></span> Enclosures</button>
+        <button class="nav-link" data-page="alerts"><span class="nav-glyph nav-glyph--alerts" aria-hidden="true"></span> Alerts</button>
+      </nav>
+      <div class="sidebar-footer">Made for thoughtful exotic pet care<span>Programming 5 · Frontend preview</span></div>
+    </aside>
+    <main class="main-area" id="main">
+      <header class="topbar">
+        <button class="menu-button icon-button" id="menuButton" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+        <div class="page-heading"><span class="eyebrow">YOUR HABITAT AT A GLANCE</span><h1 id="pageTitle">Dashboard</h1><p id="pageDescription">Overview of your pets, enclosures, and recent activity.</p></div>
+        <div class="header-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search pets..." aria-label="Search pets" /></label><button class="icon-button bell" id="bell" aria-label="View alerts"><span class="notification-glyph" aria-hidden="true"></span><span class="notification-dot"></span></button></div>
+      </header>
+      <div class="demo-banner" role="status"><span class="demo-tag">DESIGN PREVIEW</span> Example records only · backend not connected yet</div>
+      <div id="dashboardContent">
+        <section class="stats-grid" aria-label="Overview statistics">
+          <article class="stat-card"><div><span class="stat-label">Registered Pets</span><strong id="petCount">0</strong><span class="stat-note">Animals in your care</span></div><img src="./public/assets/illustrations/animals/leopard-gecko.webp" alt="" /></article>
+          <article class="stat-card stat-enclosures"><div><span class="stat-label">Enclosures</span><strong id="enclosureCount">0</strong><span class="stat-note">Managed habitats</span></div><img class="stat-illustration stat-illustration--enclosures" src="./public/assets/illustrations/dashboard/enclosures.webp" alt="" aria-hidden="true" /></article>
+          <article class="stat-card stat-alerts"><div><span class="stat-label">Active Alerts</span><strong id="alertCount">0</strong><span class="stat-note">Require your attention</span></div><img class="stat-illustration stat-illustration--alerts" src="./public/assets/illustrations/dashboard/active-alerts.webp" alt="" aria-hidden="true" /></article>
+        </section>
+        <div class="dashboard-grid">
+          <section class="panel readings-panel" aria-labelledby="readingsTitle"><div class="section-heading"><div><span class="section-kicker">HABITAT MONITORING</span><h2 id="readingsTitle">Recent Environmental Readings</h2></div><button class="text-button" data-go="enclosures">View Enclosures <span aria-hidden="true">→</span></button></div><div class="table-scroll"><table><thead><tr><th>Enclosure</th><th>Temperature</th><th>Humidity</th><th>Status</th><th>Last Reading</th></tr></thead><tbody id="readingsRows"></tbody></table></div></section>
+          <section class="panel alerts-panel" aria-labelledby="alertsTitle"><div class="section-heading"><div><span class="section-kicker">NEEDS ATTENTION</span><h2 id="alertsTitle">Live Alerts</h2></div><button class="text-button" data-go="alerts">View All <span aria-hidden="true">→</span></button></div><div id="alertItems" class="alert-list"></div></section>
+          <section class="panel pets-panel" aria-labelledby="petsTitle"><div class="section-heading"><div><span class="section-kicker">YOUR COMPANIONS</span><h2 id="petsTitle">My Pets</h2></div><button class="primary-button" id="addPet">+ Add Pet</button></div><div class="pets-grid" id="petsGrid"></div><p class="empty-message" id="noPets" hidden>No pets match your search.</p></section>
+          <section class="panel feeding-panel" aria-labelledby="feedingTitle"><div class="section-heading"><div><span class="section-kicker">CARE LOG</span><h2 id="feedingTitle">Recent Feeding</h2></div><button class="text-button" id="feedingHistory">View History <span aria-hidden="true">→</span></button></div><div class="feed-list" id="feedingRows"></div></section>
+        </div>
+      </div>
+      <section class="placeholder-panel panel" id="otherPage" hidden><span class="section-kicker">NEXT IMPLEMENTATION PHASE</span><h2 id="otherTitle"></h2><p>This screen has not been implemented yet. We are approving the dashboard layout first, then we'll build this page using the same design system.</p><button class="primary-button" data-go="dashboard">Back to Dashboard</button></section>
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    </main>
+  </div>
+</body>
+</html>
