@@ -18,7 +18,10 @@ db.exec(`
         name TEXT NOT NULL,
         species TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        enclosure_id INTEGER
+        enclosure_id INTEGER,
+        gender TEXT NOT NULL DEFAULT 'unknown',
+        date_of_birth TEXT,
+        notes TEXT
     );
 
     CREATE TABLE IF NOT EXISTS feeding_records (
@@ -41,6 +44,18 @@ const hasEnclosureId = columns.some(
 if (!hasEnclosureId) {
     db.exec('ALTER TABLE pets ADD COLUMN enclosure_id INTEGER');
     console.log('Added enclosure_id column to pets table');
+}
+
+// Non-destructive migrations for existing pet databases.
+for (const [name, definition] of [
+    ['gender', "TEXT NOT NULL DEFAULT 'unknown'"],
+    ['date_of_birth', 'TEXT'],
+    ['notes', 'TEXT']
+]) {
+    if (!columns.some(column => column.name === name)) {
+        db.exec(`ALTER TABLE pets ADD COLUMN ${name} ${definition}`);
+        console.log(`Added ${name} column to pets table`);
+    }
 }
 
 module.exports = db;

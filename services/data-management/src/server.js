@@ -133,6 +133,25 @@ function isValidFeeding(food, feeding_date, notes) {
     );
 }
 
+// Pet birth dates use ISO 8601 (YYYY-MM-DD), suitable for HTML date inputs.
+function isValidBirthDate(value) {
+    if (value === null) return true;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    if (year < 1 || month < 1 || month > 12) return false;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day &&
+        value <= new Date().toISOString().slice(0, 10);
+}
+
+function isValidPetExtras(gender, dateOfBirth, notes) {
+    return ['male', 'female', 'unknown'].includes(gender) &&
+        isValidBirthDate(dateOfBirth) &&
+        (notes === null || (typeof notes === 'string' && notes.length <= 2000));
+}
+
 // --------------------------------------------------
 // HEALTH CHECK
 // --------------------------------------------------
@@ -159,7 +178,8 @@ app.get('/pets', (req, res) => {
 
  // Register a new pet
 app.post('/pets', async (req, res) => {
-    const { name, species, enclosure_id = null } = req.body || {};
+    const { name, species, enclosure_id = null, gender = 'unknown',
+        date_of_birth = null, notes = null } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -169,6 +189,12 @@ app.post('/pets', async (req, res) => {
     ) {
         return res.status(400).json({
             error: 'Name and species are required'
+        });
+    }
+
+    if (!isValidPetExtras(gender, date_of_birth, notes)) {
+        return res.status(400).json({
+            error: 'gender must be male/female/unknown; date_of_birth must be a valid YYYY-MM-DD date not in the future or null; notes must be text up to 2000 characters or null'
         });
     }
 
@@ -182,9 +208,10 @@ app.post('/pets', async (req, res) => {
     }
 
     const result = db.prepare(`
-        INSERT INTO pets (name, species, enclosure_id)
-        VALUES (?, ?, ?)
-    `).run(name.trim(), species.trim(), enclosure_id);
+        INSERT INTO pets (name, species, enclosure_id, gender, date_of_birth, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(name.trim(), species.trim(), enclosure_id, gender, date_of_birth,
+        typeof notes === 'string' ? notes.trim() : null);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -227,7 +254,8 @@ app.put('/pets/:id', async (req, res) => {
         });
     }
 
-    const { name, species, enclosure_id = null } = req.body || {};
+    const { name, species, enclosure_id = null, gender = 'unknown',
+        date_of_birth = null, notes = null } = req.body || {};
 
     if (
         typeof name !== 'string' ||
@@ -251,6 +279,12 @@ app.put('/pets/:id', async (req, res) => {
         });
     }
 
+    if (!isValidPetExtras(gender, date_of_birth, notes)) {
+        return res.status(400).json({
+            error: 'gender must be male/female/unknown; date_of_birth must be a valid YYYY-MM-DD date not in the future or null; notes must be text up to 2000 characters or null'
+        });
+    }
+
     // Validate the new enclosure assignment
     const enclosureError = await validateEnclosureAssignment(enclosure_id);
 
@@ -262,9 +296,11 @@ app.put('/pets/:id', async (req, res) => {
 
     db.prepare(`
         UPDATE pets
-        SET name = ?, species = ?, enclosure_id = ?
+        SET name = ?, species = ?, enclosure_id = ?, gender = ?,
+            date_of_birth = ?, notes = ?
         WHERE id = ?
-    `).run(name.trim(), species.trim(), enclosure_id, id);
+    `).run(name.trim(), species.trim(), enclosure_id, gender, date_of_birth,
+        typeof notes === 'string' ? notes.trim() : null, id);
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -293,19 +329,16 @@ app.delete('/pets/:id', (req, res) => {
         });
     }
 
-    const feedingRecord = db.prepare(
-        'SELECT id FROM feeding_records WHERE pet_id = ? LIMIT 1'
-    ).get(id);
-
-    if (feedingRecord) {
-        return res.status(409).json({
-            error: 'Cannot delete a pet with feeding records'
-        });
+    // Delete dependent feeding records and pet together, or undo both on failure.
+    try {
+        db.exec('BEGIN IMMEDIATE');
+        db.prepare('DELETE FROM feeding_records WHERE pet_id = ?').run(id);
+        db.prepare('DELETE FROM pets WHERE id = ?').run(id);
+        db.exec('COMMIT');
+    } catch (error) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw error;
     }
-
-    db.prepare(
-        'DELETE FROM pets WHERE id = ?'
-    ).run(id);
 
     res.status(204).send();
 });
