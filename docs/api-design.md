@@ -730,3 +730,12 @@ The objective is to demonstrate a functional
 distributed application with four independently
 running microservices, REST communication,
 data persistence, and real-time WebSocket alerts.
+
+
+### Stage 3D.1 — Optional enclosure profile metadata
+
+`GET /enclosures` and `GET /enclosures/:id` additionally return `enclosureType` and `notes` (both nullable strings). `POST /enclosures` accepts optional `enclosureType` and `notes` alongside the existing required name and four environmental thresholds. `PUT /enclosures/:id` accepts the same optional fields and preserves existing metadata when a legacy caller omits them.
+
+Allowed non-null enclosure types: `Tropical`, `Desert`, `Temperate`, `Aquatic`, `Paludarium`, `Other`. Name is trimmed and limited to 120 characters; notes are limited to 2000 characters and trimmed before storage. All existing threshold rules remain unchanged. The database startup migration adds nullable `enclosure_type` and `notes` columns only if absent, preserving old records and reading history.
+
+The frontend Enclosures collection obtains occupancy by fetching the real `/api/pets` collection and counting `enclosure_id` references. A failed Pets request leaves occupancy explicitly unavailable; it does not prevent listing enclosures. Environmental badges and sensor readings are deferred to Stage 3D.3.

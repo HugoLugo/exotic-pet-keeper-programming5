@@ -46,6 +46,51 @@
           <section class="panel feeding-panel" aria-labelledby="feedingTitle"><div class="section-heading"><div><span class="section-kicker">CARE LOG</span><h2 id="feedingTitle">Recent Feeding</h2></div><button class="text-button" id="feedingHistory">View History <span aria-hidden="true">→</span></button></div><div class="feed-list" id="feedingRows"></div></section>
         </div>
       </div>
+      <section class="enclosure-management" id="enclosuresPage" aria-label="Enclosure collection" hidden>
+        <div class="pets-management-heading enclosure-heading">
+          <div><span class="section-kicker">YOUR HABITATS</span><p>Manage enclosures and their environmental requirements.</p></div>
+          <button type="button" class="primary-button" id="enclosuresAdd">+ Add Enclosure</button>
+        </div>
+        <div class="enclosure-overview" aria-label="Enclosure summary">
+          <div class="enclosure-overview-card"><span>Total Enclosures</span><strong id="enclosuresTotal">—</strong></div>
+          <div class="enclosure-overview-card"><span>Assigned Pets</span><strong id="enclosuresOccupied">—</strong></div>
+        </div>
+        <div class="pets-management-toolbar enclosure-toolbar">
+          <label class="pets-management-search"><span class="pets-search-symbol" aria-hidden="true">⌕</span><input id="enclosuresSearch" type="search" placeholder="Search habitats..." aria-label="Search enclosures by name or type"></label>
+          <span class="pets-results-count" id="enclosuresResults" aria-live="polite"></span>
+        </div>
+        <div class="pets-collection-message" id="enclosuresMessage" role="status" aria-live="polite" hidden></div>
+        <div id="enclosuresGrid" class="enclosures-grid" aria-live="polite"></div>
+      </section>
+      <section class="enclosure-create-page" id="enclosureCreatePage" aria-label="Create enclosure" hidden>
+        <form id="enclosureCreateForm" novalidate>
+          <div class="enclosure-create-toolbar">
+            <button type="button" class="add-pet-back" id="enclosureCreateBack">← Back to Enclosures</button>
+            <div class="enclosure-create-toolbar-actions">
+              <button type="submit" class="primary-button" id="enclosureCreateSave">Create Enclosure</button>
+              <button type="button" class="pet-details-close" id="enclosureCreateCancel">Cancel</button>
+            </div>
+          </div>
+          <p class="add-pet-lead">Set the habitat's acceptable temperature and humidity ranges. Environmental values are not automatically chosen for you.</p>
+          <p class="enclosure-form-feedback" id="enclosureCreateStatus" role="status" aria-live="polite">Name and environmental ranges are required. Type and notes are optional.</p>
+          <div class="enclosure-form-panel">
+            <span class="section-kicker">HABITAT PROFILE</span><h2>Enclosure Information</h2>
+            <div class="enclosure-form-grid">
+              <label class="add-pet-field">Enclosure name <span aria-hidden="true">*</span><input id="enclosureNewName" maxlength="120" type="text" autocomplete="off" placeholder="e.g. Tropical Terrarium" required></label>
+              <label class="add-pet-field">Enclosure type <span class="add-pet-optional">(optional)</span><select id="enclosureNewType"><option value="">Not specified</option><option>Tropical</option><option>Desert</option><option>Temperate</option><option>Aquatic</option><option>Paludarium</option><option>Other</option></select></label>
+              <label class="add-pet-field">Minimum temperature (°C) <span aria-hidden="true">*</span><input id="enclosureMinTemperature" type="number" step="any" placeholder="e.g. 24" required></label>
+              <label class="add-pet-field">Maximum temperature (°C) <span aria-hidden="true">*</span><input id="enclosureMaxTemperature" type="number" step="any" placeholder="e.g. 28" required></label>
+              <p class="enclosure-field-error enclosure-field-wide" id="enclosureTemperatureError" role="alert" hidden></p>
+              <label class="add-pet-field">Minimum humidity (%) <span aria-hidden="true">*</span><input id="enclosureMinHumidity" type="number" step="any" min="0" max="100" placeholder="e.g. 65" required></label>
+              <label class="add-pet-field">Maximum humidity (%) <span aria-hidden="true">*</span><input id="enclosureMaxHumidity" type="number" step="any" min="0" max="100" placeholder="e.g. 80" required></label>
+              <p class="enclosure-field-error enclosure-field-wide" id="enclosureHumidityError" role="alert" hidden></p>
+              <label class="add-pet-field enclosure-field-wide">Notes <span class="add-pet-optional">(optional)</span><textarea id="enclosureNewNotes" maxlength="2000" rows="5" placeholder="Substrate, lighting, heating, maintenance notes..."></textarea></label>
+            </div>
+          </div>
+
+        </form>
+      </section>
+      <dialog id="enclosureDiscardDialog" class="pet-edit-dialog" aria-labelledby="enclosureDiscardTitle"><h2 id="enclosureDiscardTitle">Discard unsaved enclosure?</h2><p>Information entered in this form will be lost.</p><div class="pet-edit-dialog-actions"><button type="button" class="add-pet-cancel" id="enclosureDiscardKeep">Keep Editing</button><button type="button" class="primary-button" id="enclosureDiscardProceed">Discard Changes</button></div></dialog>
       <section class="pets-management" id="petsPage" aria-labelledby="petsCollectionTitle" hidden>
         <div class="pets-management-heading">
           <div><span class="section-kicker" id="petsCollectionTitle">YOUR ANIMAL COLLECTION</span><p>Manage your companions in one place.</p></div>

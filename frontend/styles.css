@@ -488,3 +488,54 @@
 @media(max-width:680px) {
   .main-area.feeding-active::before { display:none; }
 }
+
+
+/* Stage 3D.1 — Enclosure collection and creation; scoped to new views. */
+.enclosure-management,.enclosure-create-page{position:relative;max-width:1120px;padding-bottom:45px}
+.enclosure-heading{margin-bottom:18px}
+.enclosure-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:0 0 23px}
+.enclosure-overview-card{background:#f8f7ec;border:1px solid #e7e8dc;border-radius:16px;padding:20px 23px;display:grid;gap:7px}
+.enclosure-overview-card span{font-size:12px;color:var(--sub);font-weight:750}
+.enclosure-overview-card strong{font-family:Georgia,serif;font-size:32px;color:#294b31}
+.enclosure-toolbar{margin-bottom:20px}
+.enclosures-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:18px}
+.enclosure-card{background:linear-gradient(145deg,#fcfbf4,#f2f5eb);border:1px solid #e4e8da;border-radius:19px;padding:23px;box-shadow:0 6px 25px #344b2010;min-width:0}
+.enclosure-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.enclosure-card-head h3{font-family:Georgia,serif;font-size:22px;margin:7px 0 0;color:#294731;overflow-wrap:anywhere}
+.enclosure-card-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;background:#e9efdf;border-radius:14px;color:#53785a;font-size:32px}
+.enclosure-card-occupancy{font-size:12px;color:#61745e;margin:14px 0 19px}
+.enclosure-card-ranges{border-top:1px solid #e0e8d8;padding-top:17px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.enclosure-card-ranges>div{display:grid;gap:7px}
+.enclosure-card-ranges span{font-size:11px;color:#68776a}
+.enclosure-card-ranges strong{font-size:15px;color:#294731;overflow-wrap:anywhere}
+.enclosure-card-note{color:#657367;font-size:12px;line-height:1.5;border-top:1px solid #e0e8d8;padding-top:13px;margin:17px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.enclosure-empty{grid-column:1/-1;text-align:center;padding:60px 20px;background:#f9faf4;border:1px dashed #cbd9c6;border-radius:18px}
+.enclosure-empty h2{font-family:Georgia,serif;color:#314d35;font-size:25px;margin:8px 0}
+.enclosure-empty p{font-size:13px;color:var(--sub)}
+.enclosure-form-panel{background:#fffefa;border:1px solid #e7e8dc;border-radius:19px;padding:27px;margin:15px 0 19px;box-shadow:0 6px 20px #344b200c}
+.enclosure-form-panel h2{font-family:Georgia,serif;color:#294731;font-size:26px;margin:9px 0 24px}
+.enclosure-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
+.enclosure-form-grid .add-pet-field{min-width:0}
+.enclosure-form-grid select{width:100%;background:#fcfcf8;border:1px solid #dce3d8;border-radius:10px;padding:12px;font:inherit;color:#344e3c}
+.enclosure-form-grid select:focus-visible{outline:2px solid #54765a;outline-offset:2px}
+.enclosure-field-wide{grid-column:1/-1}
+.enclosure-field-wide textarea{min-height:115px}
+@media(max-width:680px){.enclosure-heading{flex-wrap:wrap;gap:12px}.enclosure-form-grid{grid-template-columns:1fr}.enclosure-form-panel{padding:18px}.enclosure-overview-card{padding:16px}.enclosures-grid{grid-template-columns:1fr}}
+
+.enclosure-form-grid .add-pet-field textarea{width:100%;box-sizing:border-box;background:#fff;border:1px solid #dfe4d6;border-radius:10px;padding:12px;color:#2c4430;font:inherit;resize:vertical}
+.enclosure-form-grid .add-pet-field textarea:focus-visible{outline:2px solid #54765a;outline-offset:2px}
+
+/* Stage 3D.1 review refinement — toolbar, visible validation and approved enclosure artwork. */
+.enclosure-create-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1120px;margin:0 0 17px}
+.enclosure-create-toolbar .add-pet-back{margin:0}
+.enclosure-create-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.enclosure-create-toolbar-actions .primary-button,.enclosure-create-toolbar-actions .pet-details-close{min-height:42px}
+.enclosure-form-feedback{margin:9px 0 13px;padding:12px 15px;background:#f0f5e9;border:1px solid #d7e4cd;border-radius:11px;color:#41613f;font-size:13px;line-height:1.45}
+.enclosure-form-feedback.is-error{background:#fff1ec;border-color:#d99a83;color:#903c2d;font-weight:700}
+.enclosure-form-grid .add-pet-field input.enclosure-input-invalid{border:2px solid #bf5643;background:#fff7f4;box-shadow:0 0 0 3px rgba(191,86,67,.10)}
+.enclosure-field-error{margin:-9px 0 0;color:#a24130;font-size:12px;line-height:1.5;font-weight:700}
+.main-area.enclosures-active{isolation:isolate}
+.main-area.enclosures-active::before{content:"";position:fixed;z-index:0;pointer-events:none;right:0;bottom:0;width:min(69vw,1050px);aspect-ratio:1672 / 941;background:url("./public/assets/illustrations/botanical/enclosures-habitat-background.webp") center / contain no-repeat;opacity:.67;-webkit-mask-image:linear-gradient(to right,transparent 0%,black 26%,black 100%),linear-gradient(to bottom,transparent 0%,black 22%,black 100%);mask-image:linear-gradient(to right,transparent 0%,black 26%,black 100%),linear-gradient(to bottom,transparent 0%,black 22%,black 100%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.main-area.enclosures-active > .topbar,.main-area.enclosures-active > .enclosure-management,.main-area.enclosures-active > .enclosure-create-page{position:relative;z-index:1}
+@media(max-width:1100px){.main-area.enclosures-active::before{width:min(75vw,880px);opacity:.5}}
+@media(max-width:680px){.main-area.enclosures-active::before{display:none}.enclosure-create-toolbar{align-items:flex-start;flex-wrap:wrap}.enclosure-create-toolbar-actions{width:100%}}

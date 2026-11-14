@@ -11,6 +11,8 @@ function formatEnclosure(enclosure) {
     return {
         id: enclosure.id,
         name: enclosure.name,
+        enclosureType: enclosure.enclosure_type,
+        notes: enclosure.notes,
         minTemperature: enclosure.min_temperature,
         maxTemperature: enclosure.max_temperature,
         minHumidity: enclosure.min_humidity,
@@ -58,6 +60,17 @@ function validateEnclosure(data) {
         minHumidity >= maxHumidity) {
         return 'Humidity thresholds must be between 0 and 100, with minimum lower than maximum';
     }
+
+    if (data.enclosureType != null &&
+        (typeof data.enclosureType !== 'string' ||
+        !['Tropical', 'Desert', 'Temperate', 'Aquatic', 'Paludarium', 'Other'].includes(data.enclosureType))) {
+        return 'Enclosure type must be a supported habitat type';
+    }
+    if (data.notes != null &&
+        (typeof data.notes !== 'string' || data.notes.length > 2000)) {
+        return 'Notes must be text containing at most 2000 characters';
+    }
+    if (name.trim().length > 120) return 'Enclosure name must be at most 120 characters';
 
     return null;
 }
@@ -127,7 +140,9 @@ app.post('/enclosures', (req, res) => {
         minTemperature,
         maxTemperature,
         minHumidity,
-        maxHumidity
+        maxHumidity,
+        enclosureType = null,
+        notes = null
     } = req.body;
 
     const result = db.prepare(`
@@ -136,15 +151,19 @@ app.post('/enclosures', (req, res) => {
             min_temperature,
             max_temperature,
             min_humidity,
-            max_humidity
+            max_humidity,
+            enclosure_type,
+            notes
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
         name.trim(),
         minTemperature,
         maxTemperature,
         minHumidity,
-        maxHumidity
+        maxHumidity,
+        enclosureType,
+        notes == null ? null : notes.trim()
     );
 
     const enclosure = db.prepare(`
@@ -185,7 +204,9 @@ app.put('/enclosures/:id', (req, res) => {
         minTemperature,
         maxTemperature,
         minHumidity,
-        maxHumidity
+        maxHumidity,
+        enclosureType = existing.enclosure_type,
+        notes = existing.notes
     } = req.body;
 
     // Recalculate the state using the latest reading
@@ -212,6 +233,8 @@ app.put('/enclosures/:id', (req, res) => {
             max_temperature = ?,
             min_humidity = ?,
             max_humidity = ?,
+            enclosure_type = ?,
+            notes = ?,
             is_abnormal = ?
         WHERE id = ?
     `).run(
@@ -220,6 +243,8 @@ app.put('/enclosures/:id', (req, res) => {
         maxTemperature,
         minHumidity,
         maxHumidity,
+        enclosureType,
+        notes == null ? null : notes.trim(),
         isAbnormal,
         Number(id)
     );
