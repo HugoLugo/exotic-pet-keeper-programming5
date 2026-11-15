@@ -168,7 +168,183 @@ renderReadings(); renderAlerts(); renderFeedings();
 document.querySelectorAll('[data-page]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.page)));
 document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.go)));
 $('#headerHome').addEventListener('click', () => navigate('dashboard'));
-$('#bell').addEventListener('click', () => toast('Notifications will be available in a future stage.'));
+// Stage 3D.4 follow-up: live notifications, outage visibility and state reconciliation.
+// Transient events are not durable history. REST readings remain the source of truth.
+const notificationItems = [];
+const notificationSeenIds = new Set();
+let notificationSocket = null;
+let notificationRetry = null;
+let notificationAttempts = 0;
+let notificationStopped = false;
+let notificationConnectedAt = 0;
+let notificationOutage = false;
+let notificationGeneration = 0;
+let notificationUnreadCount = 0;
+function setNotificationConnection(message) { $('#notificationConnection').textContent = message; }
+function updateNotificationBell() {
+  const bell = $('#bell');
+  const unread = $('#notificationUnread');
+  const offline = $('#notificationOffline');
+  unread.hidden = notificationUnreadCount === 0;
+  unread.textContent = notificationUnreadCount > 9 ? '9+' : String(notificationUnreadCount);
+  offline.hidden = !notificationOutage;
+  bell.classList.toggle('has-notifications', notificationUnreadCount > 0);
+  bell.classList.toggle('notifications-offline', notificationOutage);
+  bell.setAttribute('aria-label', `Environmental notifications${notificationUnreadCount ? `, ${notificationUnreadCount} unread` : ''}${notificationOutage ? ', connection unavailable' : ''}`);
+}
+function setNotificationPanelOpen(open) {
+  $('#notificationPanel').hidden = !open;
+  $('#bell').setAttribute('aria-expanded', String(open));
+  if (open) { notificationUnreadCount = 0; updateNotificationBell(); }
+}
+function renderNotificationItems() {
+  const host = $('#notificationEvents'); host.replaceChildren();
+  $('#notificationClear').disabled = notificationItems.length === 0;
+  if (!notificationItems.length) {
+    host.append(elem('p','notification-empty','No recent environmental notifications.'));
+    return;
+  }
+  for (const item of notificationItems) {
+    const system = item.type === 'notification_system';
+    const recovery = item.status === 'recovered' || item.status === 'service_restored';
+    const node = elem('div',`notification-event ${recovery ? 'is-recovery' : 'is-warning'}${system ? ' is-system' : ''}`);
+    const heading = elem('strong',null,system ? item.message : `${item.enclosureName} — ${item.status === 'recovered' ? 'Conditions restored' : item.message}`);
+    const detail = elem('p',null, system ? (item.detail || '') : `${enclosureMonitorFormat(item.temperature)} °C · ${enclosureMonitorFormat(item.humidity)}%`);
+    const source = system ? (item.status === 'status_check' ? 'Enclosure status check' : 'Notification connection') :
+      item.source === 'manual' ? 'Manual observation' : 'Automatic sensor';
+    const time = elem('small',null,`${source} · ${new Date(item.emittedAt).toLocaleString()}`);
+    node.append(heading, detail, time); host.append(node);
+  }
+}
+function addNotification(item, unread = true) {
+  if (notificationSeenIds.has(item.eventId)) return;
+  notificationSeenIds.add(item.eventId);
+  notificationItems.unshift(item);
+  if (notificationItems.length > 20) notificationItems.length = 20;
+  if (notificationSeenIds.size > 200) notificationSeenIds.delete(notificationSeenIds.values().next().value);
+  renderNotificationItems();
+  if (unread && $('#notificationPanel').hidden) notificationUnreadCount = Math.min(99,notificationUnreadCount+1);
+  updateNotificationBell();
+}
+function addNotificationSystem(status, message, detail, unread = true) {
+  addNotification({ type:'notification_system', status, message, detail,
+    eventId:`system-${++notificationGeneration}`, emittedAt:new Date().toISOString() }, unread);
+}
+function receiveNotification(raw) {
+  let event;
+  try { event = JSON.parse(raw); } catch { return; }
+  if (!event || event.type !== 'environment_alert' ||
+      typeof event.eventId !== 'string' || !Number.isSafeInteger(event.enclosureId) || event.enclosureId <= 0 ||
+      !['abnormal','recovered'].includes(event.status) || !['sensor','manual'].includes(event.source) ||
+      typeof event.message !== 'string' || typeof event.enclosureName !== 'string' ||
+      !Number.isFinite(event.temperature) || !Number.isFinite(event.humidity) ||
+      !Number.isFinite(Date.parse(event.emittedAt))) return;
+  const timestamp = Date.parse(event.emittedAt);
+  if (timestamp < notificationConnectedAt - 2000 || timestamp > Date.now() + 30000) return;
+  addNotification(event);
+}
+// A REST snapshot is not replayed WebSocket history: show only verified abnormal states.
+// In particular, a long-stale sensor reading is called 'last reported', not live.
+async function reconcileNotificationStates(socket) {
+  try {
+    const enclosures = await getCollectionJson('/api/enclosures');
+    if (!Array.isArray(enclosures)) throw new Error('Invalid enclosure list');
+    const readings = await Promise.all(enclosures.map(async enclosure => {
+      try { return { enclosure, reading: await getCollectionJson(`/api/enclosures/${enclosure.id}/readings/current`) }; }
+      catch { return null; }
+    }));
+    if (notificationSocket !== socket || notificationStopped) return;
+    let failed = 0;
+    for (const entry of readings) {
+      if (!entry) { failed++; continue; }
+      const {enclosure,reading} = entry;
+      if (reading.status !== 'abnormal' || !Number.isFinite(reading.temperature) || !Number.isFinite(reading.humidity)) continue;
+      // Do not duplicate an abnormal event that arrived live while REST checks were running.
+      if (notificationItems.some(item => item.type === 'environment_alert' && item.enclosureId === enclosure.id && item.status === 'abnormal' && Date.parse(item.emittedAt) >= notificationConnectedAt)) continue;
+      const problems = [
+        reading.temperature < enclosure.minTemperature ? 'Temperature too low' : null,
+        reading.temperature > enclosure.maxTemperature ? 'Temperature too high' : null,
+        reading.humidity < enclosure.minHumidity ? 'Humidity too low' : null,
+        reading.humidity > enclosure.maxHumidity ? 'Humidity too high' : null
+      ].filter(Boolean);
+      const recent = Number.isFinite(Date.parse(reading.recordedAt)) && Date.now() - Date.parse(reading.recordedAt) < 20000;
+      const label = reading.source === 'sensor' ? (recent ? 'Current sensor reading abnormal' : 'Last sensor reading abnormal (may be stale)') : 'Last manual observation abnormal';
+      addNotificationSystem('status_check', `${enclosure.name} — ${label}`,
+        `${problems.join(' and ') || 'Outside acceptable range'} · ${enclosureMonitorFormat(reading.temperature)} °C · ${enclosureMonitorFormat(reading.humidity)}%`);
+    }
+    if (failed) addNotificationSystem('status_check', 'Some enclosure statuses could not be checked', 'Open Enclosures to verify their conditions.');
+  } catch {
+    if (notificationSocket === socket && !notificationStopped) {
+      addNotificationSystem('status_check', 'Could not verify enclosure conditions', 'Please check the Enclosures page manually.');
+    }
+  }
+}
+function connectNotifications() {
+  if (notificationStopped || notificationSocket || typeof WebSocket === 'undefined') return;
+  const url = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname}:3004`;
+  let socket;
+  try { socket = new WebSocket(url); }
+  catch { setNotificationConnection('Live notifications unavailable · Check enclosures'); return; }
+  notificationSocket = socket;
+  setNotificationConnection(notificationOutage ? 'Notifications offline · Retrying…' : 'Connecting to Notification Service…');
+  socket.addEventListener('open', () => {
+    if (notificationSocket !== socket) return;
+    const recoveredConnection = notificationOutage;
+    notificationOutage = false;
+    notificationAttempts = 0;
+    notificationConnectedAt = Date.now();
+    setNotificationConnection('Connected · Live events');
+    updateNotificationBell();
+    if (recoveredConnection) {
+      addNotificationSystem('service_restored','Live notifications connected again','Checking current enclosure readings now.');
+      void reconcileNotificationStates(socket);
+    }
+  });
+  socket.addEventListener('message', event => { if (notificationSocket === socket) receiveNotification(event.data); });
+  socket.addEventListener('close', () => {
+    if (notificationSocket !== socket) return;
+    notificationSocket = null;
+    if (notificationStopped) return;
+    if (!notificationOutage) {
+      notificationOutage = true;
+      addNotificationSystem('service_offline','Live notifications are unavailable','You may miss alerts during this outage. Check the Enclosures page; stored readings can still be available.');
+    }
+    setNotificationConnection('Live notifications offline · Check enclosures · Retrying…');
+    updateNotificationBell();
+    const delay = Math.min(30000, 1000 * 2 ** Math.min(notificationAttempts++, 5));
+    notificationRetry = setTimeout(() => { notificationRetry = null; connectNotifications(); }, delay);
+  });
+  socket.addEventListener('error', () => { /* close handles retry; REST monitoring stays independent */ });
+}
+function stopNotifications() {
+  notificationStopped = true;
+  if (notificationRetry) clearTimeout(notificationRetry);
+  notificationRetry = null;
+  if (notificationSocket) { notificationSocket.close(); notificationSocket = null; }
+}
+$('#bell').addEventListener('click', () => setNotificationPanelOpen($('#notificationPanel').hidden));
+$('#notificationClose').addEventListener('click', () => setNotificationPanelOpen(false));
+// Clears only the browser's transient notification history, never sensor readings
+// or server-side enclosure status. Keep seen event IDs to avoid duplicates.
+$('#notificationClear').addEventListener('click', () => {
+  notificationItems.length = 0;
+  notificationUnreadCount = 0;
+  renderNotificationItems();
+  updateNotificationBell();
+});
+document.addEventListener('click', event => {
+  if (!$('#notificationPanel').hidden && !$('#notificationContainer').contains(event.target)) setNotificationPanelOpen(false);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('#notificationPanel').hidden) { setNotificationPanelOpen(false); $('#bell').focus(); }
+});
+window.addEventListener('pagehide', stopNotifications);
+window.addEventListener('pageshow', () => {
+  if (notificationStopped) { notificationStopped = false; connectNotifications(); }
+});
+renderNotificationItems();
+updateNotificationBell();
+connectNotifications();
 $('#menuButton').addEventListener('click', () => {const open = $('#sidebar').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded',String(open));});
 $('#addPet').addEventListener('click', () => navigate('pets'));
 $('#feedingHistory').addEventListener('click', () => navigate('feeding'));

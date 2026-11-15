@@ -435,6 +435,45 @@ app.delete('/enclosures/:id', async (req, res) => {
     res.status(204).send();
 });
 
+// Stage 3D.4: best-effort state-transition events. A failed notification never
+// rolls back a successfully stored reading; no queue/persistence is introduced.
+function environmentalProblems(reading, enclosure) {
+    return [
+        reading.temperature < enclosure.min_temperature ? 'Temperature too low' : null,
+        reading.temperature > enclosure.max_temperature ? 'Temperature too high' : null,
+        reading.humidity < enclosure.min_humidity ? 'Humidity too low' : null,
+        reading.humidity > enclosure.max_humidity ? 'Humidity too high' : null
+    ].filter(Boolean);
+}
+
+async function publishEnvironmentalChange(enclosure, reading, source, recovered, recordedAt) {
+    const problems = recovered ? [] : environmentalProblems(reading, enclosure);
+    const alert = {
+        enclosureId: enclosure.id,
+        enclosureName: enclosure.name,
+        temperature: reading.temperature,
+        humidity: reading.humidity,
+        message: recovered ? 'Environmental conditions returned to normal' : problems.join(' and '),
+        source,
+        status: recovered ? 'recovered' : 'abnormal',
+        problems,
+        recordedAt
+    };
+    try {
+        const response = await fetch('http://localhost:3004/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(alert),
+            signal: AbortSignal.timeout(3000)
+        });
+        if (!response.ok) console.error(`Notification Service returned HTTP ${response.status}`);
+        return response.ok;
+    } catch (error) {
+        console.error('Notification Service unavailable:', error.message);
+        return false;
+    }
+}
+
 // POST new sensor reading
 app.post('/readings', async (req, res) => {
     const { enclosureId, temperature, humidity } = req.body || {};
@@ -526,66 +565,12 @@ app.post('/readings', async (req, res) => {
     }
 
 
-    // Identify a transition from normal to abnormal
+    // Only state transitions generate events; repeated abnormal samples do not.
     const newAlert = isAbnormal && !wasAbnormal;
-
-    let alertSent = false;
-
-    // Notify only when changing from normal to abnormal
-    if (newAlert) {
-        const problems = [];
-
-        if (temperatureLow) {
-            problems.push('Temperature too low');
-        }
-
-        if (temperatureHigh) {
-            problems.push('Temperature too high');
-        }
-
-        if (humidityLow) {
-            problems.push('Humidity too low');
-        }
-
-        if (humidityHigh) {
-            problems.push('Humidity too high');
-        }
-
-        const alert = {
-            enclosureId,
-            temperature,
-            humidity,
-            message: problems.join(' and ')
-        };
-
-        try {
-            const response = await fetch(
-                'http://localhost:3004/alerts',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(alert),
-                    signal: AbortSignal.timeout(3000)
-                }
-            );
-
-            if (response.ok) {
-                alertSent = true;
-                console.log('Alert sent to Notification Service');
-            } else {
-                console.error(
-                    `Notification Service returned HTTP ${response.status}`
-                );
-            }
-        } catch (error) {
-            console.error(
-                'Notification Service unavailable:',
-                error.message
-            );
-        }
-    }
+    const recovered = !isAbnormal && wasAbnormal;
+    const alertSent = (newAlert || recovered) ? await publishEnvironmentalChange(
+        enclosure, { temperature, humidity }, 'sensor', recovered, new Date().toISOString()
+    ) : false;
 
     res.status(201).json({
         enclosureId,
@@ -599,7 +584,7 @@ app.post('/readings', async (req, res) => {
 });
 
  // POST manual historical reading
-app.post('/enclosures/:id/readings/manual', (req, res) => {
+app.post('/enclosures/:id/readings/manual', async (req, res) => {
     const { id } = req.params;
 
     // Validate enclosure ID
@@ -648,28 +633,43 @@ app.post('/enclosures/:id/readings/manual', (req, res) => {
     if (!enclosure) return res.status(404).json({ error: 'Enclosure not found' });
 
     const databaseDate = recordedAt.replace('T', ' ').replace('Z', '');
+    const previous = enclosure.monitoring_mode === 'manual' ? currentObservation(enclosure) : null;
+    const previousAbnormal = previous ? evaluateAbnormal(previous, enclosure) : false;
+    let result;
+    let current;
     try {
         db.exec('BEGIN TRANSACTION');
-        const result = db.prepare(`
+        result = db.prepare(`
             INSERT INTO reading_history (enclosure_id, temperature, humidity, recorded_at, source)
             VALUES (?, ?, ?, ?, 'manual')
         `).run(Number(id), temperature, humidity, databaseDate);
 
         if (enclosure.monitoring_mode === 'manual') {
-            const current = currentObservation(enclosure);
+            current = currentObservation(enclosure);
             db.prepare('UPDATE enclosures SET is_abnormal = ? WHERE id = ?')
                 .run(current && evaluateAbnormal(current, enclosure) ? 1 : 0, Number(id));
         }
         db.exec('COMMIT');
-        res.status(201).json({
-            id: Number(result.lastInsertRowid), enclosureId: Number(id),
-            temperature, humidity, recordedAt, source: 'manual'
-        });
     } catch (error) {
         db.exec('ROLLBACK');
         console.error('Failed to save manual reading:', error);
         return res.status(500).json({ error: 'Failed to save manual reading' });
     }
+
+    // A backdated observation is history, not a new current-state event.
+    const isCurrent = current && Number(current.id) === Number(result.lastInsertRowid);
+    const currentAbnormal = current && evaluateAbnormal(current, enclosure);
+    // Do not present old imported/backdated observations as newly detected events.
+    const recentObservation = Date.now() - date.getTime() <= 120000;
+    const newAlert = Boolean(isCurrent && recentObservation && currentAbnormal && !previousAbnormal);
+    const recovered = Boolean(isCurrent && recentObservation && !currentAbnormal && previousAbnormal);
+    const alertSent = (newAlert || recovered) ? await publishEnvironmentalChange(
+        enclosure, { temperature, humidity }, 'manual', recovered, recordedAt
+    ) : false;
+    res.status(201).json({
+        id: Number(result.lastInsertRowid), enclosureId: Number(id),
+        temperature, humidity, recordedAt, source: 'manual', newAlert, recovered, alertSent
+    });
 });
 
  // GET environmental reading history

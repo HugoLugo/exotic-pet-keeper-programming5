@@ -29,7 +29,14 @@
           <button class="icon-button header-home" id="headerHome" type="button" aria-label="Go to Dashboard" title="Home — Dashboard">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-7h6v7"/></svg>
           </button>
-          <button class="icon-button bell" id="bell" type="button" aria-label="Notifications (coming later)" title="Notifications — coming later"><span class="notification-glyph" aria-hidden="true"></span></button>
+          <div class="notification-container" id="notificationContainer">
+            <button class="icon-button bell" id="bell" type="button" aria-label="Notifications" title="Environmental notifications" aria-expanded="false" aria-controls="notificationPanel"><span class="notification-glyph" aria-hidden="true"></span><span class="notification-dot" id="notificationUnread" hidden></span><span class="notification-offline" id="notificationOffline" hidden aria-hidden="true">!</span></button>
+            <section class="notification-panel" id="notificationPanel" aria-label="Environmental notifications" hidden>
+              <div class="notification-panel-heading"><strong>Environmental notifications</strong><div class="notification-heading-actions"><button class="notification-clear" type="button" id="notificationClear" disabled title="Clear the recent notification list">Clear all</button><button type="button" id="notificationClose" aria-label="Close notifications">×</button></div></div>
+              <p class="notification-connection" id="notificationConnection" role="status">Connecting to notifications…</p>
+              <div class="notification-events" id="notificationEvents" aria-live="polite"><p class="notification-empty">No recent environmental notifications.</p></div>
+            </section>
+          </div>
         </div>
       </header>
       <div class="demo-banner" id="dashboardDemoBanner" role="status"><span class="demo-tag">DESIGN PREVIEW</span> Pets and enclosure counts are live · Readings, alerts and feeding are demo examples</div>
