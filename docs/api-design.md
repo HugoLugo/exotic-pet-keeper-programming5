@@ -230,12 +230,52 @@ reading using SQLite UPSERT.
 
 The `readings` table retains one latest reading per enclosure. Each successful
 sensor reading is also inserted into `reading_history` with source `sensor`.
-There is currently **no dedicated GET endpoint** for retrieving the latest
-temperature and humidity from `readings`. `GET /enclosures/:id` returns
-enclosure configuration and `isAbnormal`, not measurement values.
-`GET /enclosures/:id/readings/history` exposes recorded observations,
-including sensor readings and manually entered historical observations;
-it should not be described as an exact latest-reading API.
+The dedicated `GET /enclosures/:id/readings/latest` endpoint retrieves the
+latest automatic sensor measurement directly from `readings`. `GET /enclosures/:id`
+continues to return enclosure configuration and `isAbnormal`, not measurement
+values. `GET /enclosures/:id/readings/history` continues to return both sensor
+measurements and manual observations and is not a substitute for the latest
+sensor reading endpoint.
+
+#### GET /enclosures/:id/readings/latest (Implemented — Stage 3D.3.1)
+
+Returns `200 OK` for an existing enclosure. It does not write to the database,
+trigger notifications, or modify history. A saved reading returns:
+
+```json
+{
+  "enclosureId": 1,
+  "temperature": 25.5,
+  "humidity": 68,
+  "recordedAt": "2026-11-15T10:30:00Z",
+  "isAbnormal": false,
+  "status": "normal"
+}
+```
+
+`recordedAt` is a UTC ISO-8601 timestamp derived from SQLite's
+`CURRENT_TIMESTAMP` value. `status` is `normal` or `abnormal` according
+to the enclosure's current persisted `is_abnormal` state, which is also
+re-evaluated when thresholds change. This endpoint does not implement
+staleness detection; consumers must check the reading timestamp.
+
+If the enclosure exists but has never received an automatic sensor reading,
+it returns `200 OK` with an explicit empty state:
+
+```json
+{
+  "enclosureId": 1,
+  "temperature": null,
+  "humidity": null,
+  "recordedAt": null,
+  "isAbnormal": null,
+  "status": "no_reading"
+}
+```
+
+Manual history entries do not populate this endpoint. Invalid enclosure IDs
+return `400` (`Invalid enclosure ID`); nonexistent enclosures return `404`
+(`Enclosure not found`).
 
 The service compares each measurement against the enclosure's
 configured environmental thresholds and updates `is_abnormal`.

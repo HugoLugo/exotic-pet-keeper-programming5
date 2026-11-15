@@ -128,6 +128,51 @@ app.get('/enclosures/:id', (req, res) => {
     res.status(200).json(formatEnclosure(enclosure));
 });
 
+// GET the latest automatic sensor reading (manual history does not alter live status).
+app.get('/enclosures/:id/readings/latest', (req, res) => {
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+        return res.status(400).json({ error: 'Invalid enclosure ID' });
+    }
+
+    const enclosure = db.prepare(`
+        SELECT id, is_abnormal FROM enclosures WHERE id = ?
+    `).get(Number(id));
+
+    if (!enclosure) {
+        return res.status(404).json({ error: 'Enclosure not found' });
+    }
+
+    const reading = db.prepare(`
+        SELECT temperature, humidity, recorded_at
+        FROM readings
+        WHERE enclosure_id = ?
+    `).get(enclosure.id);
+
+    if (!reading) {
+        return res.status(200).json({
+            enclosureId: enclosure.id,
+            temperature: null,
+            humidity: null,
+            recordedAt: null,
+            isAbnormal: null,
+            status: 'no_reading'
+        });
+    }
+
+    const isAbnormal = enclosure.is_abnormal === 1;
+
+    res.status(200).json({
+        enclosureId: enclosure.id,
+        temperature: reading.temperature,
+        humidity: reading.humidity,
+        recordedAt: reading.recorded_at.replace(' ', 'T') + 'Z',
+        isAbnormal,
+        status: isAbnormal ? 'abnormal' : 'normal'
+    });
+});
+
 // Choose the single illustrated occupant without changing enclosure settings.
 // Fail closed if the Data Management Service cannot validate the assignment.
 app.patch('/enclosures/:id/featured-pet', async (req, res) => {
