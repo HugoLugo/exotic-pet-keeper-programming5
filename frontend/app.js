@@ -272,6 +272,7 @@ function navigate(page) {
   $('#enclosureCreatePage').hidden = true;
   $('#enclosureDetailsPage').hidden = true;
   stopEnclosureMonitoring();
+  stopEnclosureHistory();
   ++enclosureDetailsRequest;
   $('#feedingPage').hidden = page !== 'feeding';
   $('#addPetPage').hidden = true;
@@ -754,6 +755,7 @@ async function openPetDetails(id) {
   $('#petDetailsPage').hidden = false;
   $('#enclosureDetailsPage').hidden = true;
   stopEnclosureMonitoring();
+  stopEnclosureHistory();
   ++enclosureDetailsRequest;
   $('#enclosuresPage').hidden = true;
   $('#enclosureCreatePage').hidden = true;
@@ -1561,16 +1563,17 @@ function renderGroupMembers(selected){const host=$('#feedingGroupMembers');host.
  }if(!feedState.pets.length)host.append(elem('p','feeding-hint','No pets registered yet.'));}
 let groupMembersDraft=new Set(),groupInitial='';
 function openGroupForm(group=null){feedState.groupEditing=group;groupMembersDraft=new Set(group?.pet_ids||[]);
- $('#feedingGroupDialogTitle').textContent=group?'Edit Feeding Group':'Create Feeding Group';$('#feedingGroupName').value=group?.name||'';
+ $('#feedingGroupDialogTitle').textContent=group?'Edit Feeding Group':'Create Feeding Group';$('#feedingGroupName').value=group?.name||'';$('#feedingGroupName').removeAttribute('aria-invalid');
  renderGroupMembers(groupMembersDraft);feedingFeedback('#feedingGroupError','');groupInitial=JSON.stringify({name:$('#feedingGroupName').value,pet_ids:[...groupMembersDraft].sort((a,b)=>a-b)});$('#feedingGroupDialog').showModal();}
 function groupIsDirty(){return JSON.stringify({name:$('#feedingGroupName').value,pet_ids:[...groupMembersDraft].sort((a,b)=>a-b)})!==groupInitial;}
 function cancelGroupForm(){if(groupIsDirty())confirmFeeding('Discard your unsaved group changes?',()=>$('#feedingGroupDialog').close());else $('#feedingGroupDialog').close();}
 $('#feedingCreateGroup').addEventListener('click',()=>openGroupForm());$('#feedingGroupCancel').addEventListener('click',cancelGroupForm);
+$('#feedingGroupName').addEventListener('input',()=>{if($('#feedingGroupName').value.trim()){$('#feedingGroupName').removeAttribute('aria-invalid');if($('#feedingGroupError').textContent==='Enter a group name.')feedingFeedback('#feedingGroupError','');}});
 $('#feedingGroupDialog').addEventListener('cancel',e=>{if(groupIsDirty()){e.preventDefault();cancelGroupForm();}});
 $('#groupSelectAll').addEventListener('click',()=>{groupMembersDraft=new Set(feedState.pets.map(p=>p.id));renderGroupMembers(groupMembersDraft);});
 $('#groupClearAll').addEventListener('click',()=>{groupMembersDraft.clear();renderGroupMembers(groupMembersDraft);});
 $('#feedingGroupForm').addEventListener('submit',async e=>{
- e.preventDefault();if(feedState.busy)return;const name=$('#feedingGroupName').value.trim();if(!name){feedingFeedback('#feedingGroupError','Enter a group name.',true);return;}
+ e.preventDefault();if(feedState.busy)return;const name=$('#feedingGroupName').value.trim();if(!name){$('#feedingGroupName').setAttribute('aria-invalid','true');feedingFeedback('#feedingGroupError','Enter a group name.',true);$('#feedingGroupName').focus();return;}
  const group=feedState.groupEditing;feedState.busy=true;$('#feedingGroupSave').disabled=true;
  try{await feedingRequest(group?`/api/feeding-groups/${group.id}`:'/api/feeding-groups',group?'PUT':'POST',{name,pet_ids:[...groupMembersDraft]});
   $('#feedingGroupDialog').close();await reloadFeedingGroups();toast(group?'Feeding group updated.':'Feeding group created.');
@@ -1776,6 +1779,7 @@ function renderEnclosureDetails(enclosure, pets, petsError) {
 async function openEnclosureDetails(id) {
   if (!Number.isSafeInteger(id) || id<=0) return;
   stopEnclosureMonitoring();
+  stopEnclosureHistory();
   const request = ++enclosureDetailsRequest;
   ++enclosureCollectionRequest; // invalidate any pending collection render while viewing details
   currentPage = 'enclosures';
@@ -1820,6 +1824,7 @@ async function openEnclosureDetails(id) {
   $('#enclosureDetailsStatus').hidden=true;
   $('#enclosureDetailsContent').hidden=false;
   startEnclosureMonitoring(enclosureResult.value,request);
+  startEnclosureHistory(enclosureResult.value,request);
 }
 $('#enclosureDetailsBack').addEventListener('click',()=>{petReturnEnclosureId=null;navigate('enclosures');});
 
@@ -1973,6 +1978,7 @@ $('#enclosureMonitoringManualForm').addEventListener('submit',async event=>{
     tempInput.value='';humInput.value='';
     enclosureMonitorFeedback('Observation saved successfully.');
     await refreshEnclosureMonitoring(generation,id);
+    void refreshEnclosureHistory();
   } catch (error) {
     if (enclosureMonitorVisible(generation,id)) enclosureMonitorFeedback(error.message || 'Unable to save observation.',true);
   } finally {
@@ -1986,11 +1992,309 @@ document.addEventListener('visibilitychange',()=>{
     void refreshDashboardConditions();
   }
   const enclosure=enclosureMonitorActive;
+  if (!document.hidden && enclosureHistoryActive) void refreshEnclosureHistory();
   if (!document.hidden && enclosure && enclosure.monitoringMode==='automatic') {
     renderEnclosureMonitoring();
     void refreshEnclosureMonitoring(enclosureMonitorGeneration,Number(enclosure.id));
   }
 });
+
+// Stage 3D.5.2 — Historical observations, independent of live monitoring and alerts.
+// All history is enclosure-scoped. The backend returns newest-first, max 1000.
+const HISTORY_POLL_MS = 15000;
+const HISTORY_LIMIT = 1000;
+const HISTORY_NS = 'http://www.w3.org/2000/svg';
+let enclosureHistoryActive = null;
+let enclosureHistoryGeneration = 0;
+let enclosureHistoryRequest = 0;
+let enclosureHistoryTimer = null;
+let enclosureHistoryBusy = false;
+let enclosureHistoryPending = false;
+let enclosureHistoryRecords = [];
+let enclosureHistoryInvalid = 0;
+let enclosureHistoryTruncated = false;
+let enclosureHistoryError = '';
+let enclosureHistoryRange = '24h';
+let enclosureHistoryFocused = true;
+
+function stopEnclosureHistory() {
+  ++enclosureHistoryGeneration;
+  ++enclosureHistoryRequest;
+  if (enclosureHistoryTimer !== null) clearInterval(enclosureHistoryTimer);
+  enclosureHistoryTimer = null;
+  enclosureHistoryActive = null;
+  enclosureHistoryBusy = false;
+  enclosureHistoryPending = false;
+  enclosureHistoryRecords = [];
+  enclosureHistoryError = '';
+}
+function enclosureHistoryVisible() {
+  return enclosureHistoryActive && currentPage === 'enclosures' &&
+    !$('#enclosureDetailsPage').hidden && !$('#enclosureDetailsContent').hidden &&
+    Number($('#enclosureDetailsPage').dataset.enclosureId) === Number(enclosureHistoryActive.id);
+}
+function enclosureHistoryLocalDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function enclosureHistoryBounds() {
+  const now = new Date();
+  if (enclosureHistoryRange !== 'custom') {
+    const days = enclosureHistoryRange === '24h' ? 1 : enclosureHistoryRange === '7d' ? 7 : 30;
+    return {start:new Date(now.getTime()-days*86400000),end:now};
+  }
+  const from=$('#enclosureHistoryFrom').value, to=$('#enclosureHistoryTo').value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return null;
+  const start=new Date(`${from}T00:00:00`), exclusiveEnd=new Date(`${to}T00:00:00`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(exclusiveEnd.getTime()) ||
+      enclosureHistoryLocalDate(start)!==from || enclosureHistoryLocalDate(exclusiveEnd)!==to || start>exclusiveEnd) return null;
+  exclusiveEnd.setDate(exclusiveEnd.getDate()+1);
+  return {start,end:new Date(exclusiveEnd.getTime()-1)};
+}
+function enclosureHistoryQueryBounds(bounds) {
+  // The API accepts UTC calendar days, not times. Expand one day either side,
+  // then filter using exact timestamps in the browser.
+  const from=new Date(bounds.start.getTime()-86400000).toISOString().slice(0,10);
+  const to=new Date(bounds.end.getTime()+86400000).toISOString().slice(0,10);
+  return {from,to};
+}
+function enclosureHistoryValid(record,id) {
+  if (!record || !Number.isSafeInteger(record.id) || record.id<=0 || Number(record.enclosureId)!==id ||
+      typeof record.temperature!=='number' || !Number.isFinite(record.temperature) ||
+      typeof record.humidity!=='number' || !Number.isFinite(record.humidity) ||
+      record.humidity<0 || record.humidity>100 || !['sensor','manual'].includes(record.source)) return false;
+  return Boolean(enclosureMonitorDate(record.recordedAt));
+}
+function enclosureHistorySvg(tag,attrs={}) {
+  const node=document.createElementNS(HISTORY_NS,tag);
+  Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,String(value)));
+  return node;
+}
+function enclosureHistoryChart(records,bounds,metric) {
+  const host=$(`#enclosureHistory${metric==='temperature'?'Temperature':'Humidity'}`);
+  host.replaceChildren();
+  const enclosure=enclosureHistoryActive;
+  const low=metric==='temperature' ? enclosure.minTemperature : enclosure.minHumidity;
+  const high=metric==='temperature' ? enclosure.maxTemperature : enclosure.maxHumidity;
+  const values=records.map(record=>record[metric]);
+  const marks=[...values,...[low,high].filter(Number.isFinite)];
+  let min=metric==='humidity' ? 0 : Math.min(...marks);
+  let max=metric==='humidity' ? 100 : Math.max(...marks);
+  if (metric==='temperature') {
+    const pad=Math.max((max-min)*.12,.75);min-=pad;max+=pad;
+  }
+  if (!Number.isFinite(min)||!Number.isFinite(max)||max<=min) {min=0;max=1;}
+  const w=900,h=250,left=57,right=17,top=16,bottom=38;
+  const plotW=w-left-right,plotH=h-top-bottom;
+  // Focus mode zooms to the recorded timestamps without changing the selected
+  // date filter. Full range remains available to reveal gaps in coverage.
+  const times=records.map(record=>Date.parse(record.recordedAt));
+  let start=bounds.start.getTime(),end=Math.max(bounds.end.getTime(),start+1);
+  if(enclosureHistoryFocused && times.length) {
+    const first=Math.min(...times),last=Math.max(...times);
+    const pad=Math.max((last-first)*.05,5*60000);
+    start=Math.max(start,first-pad);
+    end=Math.min(end,last+pad);
+    if(end<=start) end=start+1;
+  }
+  const x=date=>left+((date-start)/(end-start))*plotW;
+  const y=value=>top+(max-value)/(max-min)*plotH;
+  const svg=enclosureHistorySvg('svg',{viewBox:`0 0 ${w} ${h}`,role:'img',
+    'aria-label':`${metric==='temperature'?'Temperature in degrees Celsius':'Humidity percentage'} history, ${records.length} observations`});
+  // The soft band represents the enclosure's configured range today, not a
+  // reconstructed historical range and not an animal-health determination.
+  if(Number.isFinite(low) && Number.isFinite(high) && low<high) {
+    const bandTop=y(high),bandBottom=y(low);
+    svg.append(enclosureHistorySvg('rect',{x:left,y:bandTop,width:plotW,height:bandBottom-bandTop,class:'enclosure-history-range-band'}));
+  }
+  for(let n=0;n<=4;n++) {
+    const value=min+(max-min)*n/4, yy=y(value);
+    svg.append(enclosureHistorySvg('line',{x1:left,y1:yy,x2:w-right,y2:yy,class:'enclosure-history-grid'}));
+    const label=enclosureHistorySvg('text',{x:left-9,y:yy+4,'text-anchor':'end',class:'enclosure-history-axis'});
+    label.textContent=enclosureMonitorFormat(value);svg.append(label);
+  }
+  const axisLabels=[new Date(start),new Date((start+end)/2),new Date(end)];
+  axisLabels.forEach((date,index)=>{
+    const txt=enclosureHistorySvg('text',{x:x(date.getTime()),y:h-12,
+      'text-anchor':index===0?'start':index===2?'end':'middle',class:'enclosure-history-axis'});
+    txt.textContent=date.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    svg.append(txt);
+  });
+  for(const value of [low,high]) {
+    if(!Number.isFinite(value)) continue;
+    svg.append(enclosureHistorySvg('line',{x1:left,y1:y(value),x2:w-right,y2:y(value),class:'enclosure-history-limit'}));
+  }
+  // Connect consecutive observations from each source independently. Lines
+  // are visual guides between known measurements, not interpolated readings.
+  let previousSensor=null, previousManual=null;
+  records.forEach(record=>{
+    const time=Date.parse(record.recordedAt);
+    const previous=record.source==='sensor' ? previousSensor : previousManual;
+    if(previous && time>=previous.time) {
+      svg.append(enclosureHistorySvg('line',{
+        x1:x(previous.time),y1:y(previous.value),x2:x(time),y2:y(record[metric]),
+        class:record.source==='manual' ? 'enclosure-history-manual-series' : 'enclosure-history-series'
+      }));
+    }
+    if(record.source==='manual') previousManual={time,value:record[metric]};
+    else previousSensor={time,value:record[metric]};
+  });
+  records.forEach(record=>{
+    const time=Date.parse(record.recordedAt), px=x(time),py=y(record[metric]);
+    const mark=record.source==='manual'
+      ? enclosureHistorySvg('polygon',{points:`${px},${py-5} ${px+5},${py} ${px},${py+5} ${px-5},${py}`,class:'enclosure-history-point manual'})
+      : enclosureHistorySvg('circle',{cx:px,cy:py,r:2.8,class:'enclosure-history-point sensor'});
+    const date=new Date(time).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'medium'});
+    const tooltip=enclosureHistorySvg('title');
+    tooltip.textContent=`${date} · ${record.source==='manual'?'Manual observation':'Sensor reading'} · ${enclosureMonitorFormat(record[metric])}${metric==='temperature'?' °C':'%'}`;
+    mark.append(tooltip);mark.setAttribute('tabindex','0');svg.append(mark);
+  });
+  host.append(svg);
+}
+// Zoom choices reflect the current date window; the cutoff is measured back
+// from the latest observation so historic/custom ranges remain useful.
+function enclosureHistoryZoomChoices() {
+  const bounds=enclosureHistoryBounds();
+  if (!bounds) return [{minutes:0,label:'All readings'}];
+  const duration=(bounds.end.getTime()-bounds.start.getTime())/60000;
+  let options;
+  if (duration<=2*1440) options=[[30,'Latest 30 minutes'],[120,'Latest 2 hours'],[360,'Latest 6 hours']];
+  else if (duration<=14*1440) options=[[360,'Latest 6 hours'],[1440,'Latest 1 day'],[4320,'Latest 3 days']];
+  else options=[[1440,'Latest 1 day'],[10080,'Latest 7 days'],[20160,'Latest 14 days']];
+  return [{minutes:0,label:'All readings'},
+    ...options.filter(([minutes])=>minutes<duration).map(([minutes,label])=>({minutes,label}))];
+}
+function updateEnclosureHistoryZoom(reset=false) {
+  const select=$('#enclosureHistoryZoom');
+  const previous=reset ? '0' : select.value;
+  const choices=enclosureHistoryZoomChoices();
+  select.replaceChildren();
+  choices.forEach(choice=>{
+    const option=document.createElement('option');
+    option.value=String(choice.minutes);
+    option.textContent=choice.label;
+    select.append(option);
+  });
+  select.value=choices.some(choice=>String(choice.minutes)===previous)?previous:'0';
+}
+function renderEnclosureHistory() {
+  if(!enclosureHistoryVisible()) return;
+  const bounds=enclosureHistoryBounds();
+  const feedback=$('#enclosureHistoryFeedback'), charts=$('#enclosureHistoryCharts');
+  if(!bounds) {feedback.hidden=false;feedback.textContent='Choose a valid start and end date (start must not be after end).';charts.hidden=true;return;}
+  if(enclosureHistoryError) {feedback.hidden=false;feedback.textContent=enclosureHistoryError;charts.hidden=true;return;}
+  const source=$('#enclosureHistorySource').value;
+  const rows=enclosureHistoryRecords.filter(r=>{
+    const t=Date.parse(r.recordedAt);
+    return t>=bounds.start.getTime() && t<=bounds.end.getTime() && (source==='all'||source===r.source);
+  });
+  const notes=[];
+  notes.push(`${rows.length} ${rows.length===1?'observation':'observations'} in this view.`);
+  if(enclosureHistoryTruncated) notes.push('The API returned its 1,000-record limit; earlier observations in this period may be missing.');
+  if(enclosureHistoryInvalid) notes.push(`${enclosureHistoryInvalid} invalid ${enclosureHistoryInvalid===1?'record was':'records were'} excluded.`);
+  if(!rows.length) notes.push('No recorded measurements match these filters.');
+  feedback.hidden=false;feedback.textContent=notes.join(' ');
+  charts.hidden=!rows.length;
+  if(!rows.length) return;
+  updateEnclosureHistoryZoom();
+  const zoomMinutes=Number($('#enclosureHistoryZoom').value);
+  const latest=Date.parse(rows[rows.length-1].recordedAt);
+  const chartRows=zoomMinutes>0
+    ? rows.filter(row=>Date.parse(row.recordedAt)>=latest-zoomMinutes*60000)
+    : rows;
+  $('#enclosureHistoryZoomCount').textContent=zoomMinutes>0
+    ? `Showing ${chartRows.length} of ${rows.length} filtered observations in the charts. Measurement details retain all filtered observations.`
+    : '';
+  enclosureHistoryChart(chartRows,bounds,'temperature');
+  enclosureHistoryChart(chartRows,bounds,'humidity');
+  const body=$('#enclosureHistoryRows');body.replaceChildren();
+  // The chart includes every returned valid point. Details are capped for usability.
+  const listed=rows.slice(-25).reverse();
+  $('#enclosureHistoryDetailsSummary').textContent=`Measurement details · latest ${listed.length} of ${rows.length}`;
+  listed.forEach(record=>{
+    const tr=elem('tr');
+    [new Date(record.recordedAt).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'medium'}),
+      record.source==='manual'?'Manual':'Sensor',`${enclosureMonitorFormat(record.temperature)} °C`,`${enclosureMonitorFormat(record.humidity)}%`]
+      .forEach(value=>tr.append(elem('td',null,value)));
+    body.append(tr);
+  });
+}
+async function refreshEnclosureHistory() {
+  if(!enclosureHistoryVisible() || document.hidden) return;
+  if(enclosureHistoryBusy) {enclosureHistoryPending=true;return;}
+  const bounds=enclosureHistoryBounds();
+  if(!bounds) {renderEnclosureHistory();return;}
+  const generation=enclosureHistoryGeneration, request=++enclosureHistoryRequest;
+  const id=Number(enclosureHistoryActive.id), query=enclosureHistoryQueryBounds(bounds);
+  enclosureHistoryBusy=true;
+  try {
+    const result=await getCollectionJson(`/api/enclosures/${id}/readings/history?from=${query.from}&to=${query.to}&limit=${HISTORY_LIMIT}`);
+    if(generation!==enclosureHistoryGeneration || request!==enclosureHistoryRequest || !enclosureHistoryVisible()) return;
+    if(!Array.isArray(result) || result.length>HISTORY_LIMIT) throw new Error('Invalid history API response');
+    enclosureHistoryTruncated=result.length===HISTORY_LIMIT;
+    enclosureHistoryInvalid=0;
+    const valid=[];
+    result.forEach(record=>{
+      if(enclosureHistoryValid(record,id)) valid.push(record);
+      else enclosureHistoryInvalid++;
+    });
+    valid.sort((a,b)=>Date.parse(a.recordedAt)-Date.parse(b.recordedAt)||a.id-b.id);
+    enclosureHistoryRecords=valid;
+    enclosureHistoryError='';
+  }catch(error) {
+    if(generation!==enclosureHistoryGeneration || !enclosureHistoryVisible()) return;
+    console.warn('Environmental history unavailable:',error);
+    enclosureHistoryError='Unable to load environmental history. Check the Enclosure Service and select Refresh history to retry.';
+  }finally {
+    if(generation===enclosureHistoryGeneration) {
+      enclosureHistoryBusy=false;
+      if(enclosureHistoryVisible()) {
+        if(enclosureHistoryPending) {
+          enclosureHistoryPending=false;
+          void refreshEnclosureHistory();
+        } else renderEnclosureHistory();
+      }
+    }
+  }
+}
+function startEnclosureHistory(enclosure,detailsRequest) {
+  stopEnclosureHistory();
+  if(detailsRequest!==enclosureDetailsRequest || $('#enclosureDetailsPage').hidden) return;
+  enclosureHistoryActive=enclosure;
+  enclosureHistoryRange='24h';
+  $('#enclosureHistorySource').value='all';
+  enclosureHistoryFocused=true;
+  $('#enclosureHistoryFocus').checked=true;
+  updateEnclosureHistoryZoom(true);
+  const today=new Date();
+  $('#enclosureHistoryTo').value=enclosureHistoryLocalDate(today);
+  today.setDate(today.getDate()-7);
+  $('#enclosureHistoryFrom').value=enclosureHistoryLocalDate(today);
+  $('#enclosureHistoryCustom').hidden=true;
+  document.querySelectorAll('[data-history-range]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.historyRange==='24h')));
+  $('#enclosureHistoryFeedback').textContent='Loading reading history…';
+  $('#enclosureHistoryCharts').hidden=true;
+  void refreshEnclosureHistory();
+  if(enclosure.monitoringMode==='automatic') {
+    const generation=enclosureHistoryGeneration;
+    enclosureHistoryTimer=setInterval(()=>{
+      if(generation!==enclosureHistoryGeneration || !enclosureHistoryVisible()) {clearInterval(enclosureHistoryTimer);enclosureHistoryTimer=null;return;}
+      if(!document.hidden) void refreshEnclosureHistory();
+    },HISTORY_POLL_MS);
+  }
+}
+document.querySelectorAll('[data-history-range]').forEach(button=>button.addEventListener('click',()=>{
+  enclosureHistoryRange=button.dataset.historyRange;
+  document.querySelectorAll('[data-history-range]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  $('#enclosureHistoryCustom').hidden=enclosureHistoryRange!=='custom';
+  updateEnclosureHistoryZoom(true);
+  if(enclosureHistoryRange==='custom') {renderEnclosureHistory();return;}
+  void refreshEnclosureHistory();
+}));
+$('#enclosureHistoryApply').addEventListener('click',()=>{updateEnclosureHistoryZoom(true);void refreshEnclosureHistory();});
+$('#enclosureHistorySource').addEventListener('change',renderEnclosureHistory);
+$('#enclosureHistoryFocus').addEventListener('change',event=>{enclosureHistoryFocused=event.target.checked;renderEnclosureHistory();});
+$('#enclosureHistoryZoom').addEventListener('change',renderEnclosureHistory);
+$('#enclosureHistoryRetry').addEventListener('click',()=>void refreshEnclosureHistory());
 
 // Stage 3D.2 — enclosure editing, occupancy management and confirmation.
 let currentEnclosureDetail = null;

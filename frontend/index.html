@@ -139,6 +139,70 @@
               </div>
             </form>
           </section>
+          <section class="panel enclosure-history-panel" aria-labelledby="enclosureHistoryTitle">
+            <div class="section-heading enclosure-history-heading">
+              <div><span class="section-kicker">HABITAT CONDITIONS</span><h2 id="enclosureHistoryTitle">Environmental History</h2></div>
+              <button type="button" class="text-button" id="enclosureHistoryRetry">Refresh history</button>
+            </div>
+            <div class="enclosure-history-controls" aria-label="History filters">
+              <div class="enclosure-history-ranges" role="group" aria-label="History date range">
+                <button type="button" data-history-range="24h" aria-pressed="true">24 hours</button>
+                <button type="button" data-history-range="7d" aria-pressed="false">7 days</button>
+                <button type="button" data-history-range="30d" aria-pressed="false">30 days</button>
+                <button type="button" data-history-range="custom" aria-pressed="false">Custom</button>
+              </div>
+              <label class="enclosure-history-source">Reading source
+                <select id="enclosureHistorySource">
+                  <option value="all">All sources</option>
+                  <option value="sensor">Sensor only</option>
+                  <option value="manual">Manual only</option>
+                </select>
+              </label>
+            </div>
+            <div class="enclosure-history-custom" id="enclosureHistoryCustom" hidden>
+              <label>From <input type="date" id="enclosureHistoryFrom"></label>
+              <label>To <input type="date" id="enclosureHistoryTo"></label>
+              <button type="button" class="text-button" id="enclosureHistoryApply">Apply dates</button>
+            </div>
+            <p class="enclosure-history-feedback" id="enclosureHistoryFeedback" role="status" aria-live="polite">Loading reading history…</p>
+            <div class="enclosure-history-charts" id="enclosureHistoryCharts" hidden>
+              <div class="enclosure-history-view-controls">
+                <label class="enclosure-history-focus"><input id="enclosureHistoryFocus" type="checkbox" checked> Fit timeline to readings <small>(uncheck to show the entire selected date range)</small></label>
+                <label class="enclosure-history-source">Chart zoom
+                  <select id="enclosureHistoryZoom">
+                    <option value="0">All readings</option>
+                    <option value="30">Latest 30 minutes</option>
+                    <option value="120">Latest 2 hours</option>
+                    <option value="360">Latest 6 hours</option>
+                  </select>
+                </label>
+              </div>
+              <p class="enclosure-history-zoom-info" id="enclosureHistoryZoomCount" aria-live="polite"></p>
+              <div class="enclosure-history-chart">
+                <h3>Temperature <span>(°C)</span></h3>
+                <div class="enclosure-history-plot" id="enclosureHistoryTemperature"></div>
+              </div>
+              <div class="enclosure-history-chart">
+                <h3>Humidity <span>(%)</span></h3>
+                <div class="enclosure-history-plot" id="enclosureHistoryHumidity"></div>
+              </div>
+              <div class="enclosure-history-legend" aria-label="Reading symbols">
+                <span><i class="enclosure-history-legend-sensor" aria-hidden="true"></i> Sensor reading</span>
+                <span><i class="enclosure-history-legend-manual" aria-hidden="true"></i> Manual observation</span>
+                <span><i class="enclosure-history-legend-limit" aria-hidden="true"></i> Configured range</span>
+              </div>
+              <p class="enclosure-history-caveat">Shaded areas and dashed lines show the enclosure's currently configured range; past settings may have differed. Solid green lines link successive sensor readings; dashed brown lines link successive manual observations. Lines are visual guides between recorded points, not measurements of conditions between them. Dates are shown in your local timezone.</p>
+              <details class="enclosure-history-details">
+                <summary id="enclosureHistoryDetailsSummary">Measurement details</summary>
+                <div class="enclosure-history-table-wrap">
+                  <table class="enclosure-history-table">
+                    <thead><tr><th>Recorded at (local)</th><th>Source</th><th>Temperature</th><th>Humidity</th></tr></thead>
+                    <tbody id="enclosureHistoryRows"></tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+          </section>
         </div>
       </section>
       <section class="enclosure-create-page" id="enclosureCreatePage" aria-label="Create enclosure" hidden>
