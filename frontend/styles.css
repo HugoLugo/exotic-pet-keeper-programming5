@@ -559,7 +559,7 @@
 .enclosure-habitat-slot--left{left:19%}
 .enclosure-habitat-slot--right{left:81%}
 .enclosure-habitat-art{display:flex;flex:1;min-height:0;width:100%;align-items:flex-end;justify-content:center}
-.enclosure-habitat-art img{width:100%;height:100%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 7px 6px #273c2928)}
+.enclosure-habitat-art img{width:100%;height:100%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 7px 6px #273c2928);transform:translateY(var(--habitat-pet-lift,0%))}
 .enclosure-art-fallback{display:grid;place-items:center;min-height:50px;width:100%;font-size:36px;color:#6e916b}
 .enclosure-habitat-pet-name{max-width:100%;font-size:12px;font-weight:800;color:#35513b;background:#f7f8efdc;padding:5px 11px;border-radius:16px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .enclosure-habitat-caption{position:absolute;bottom:10px;left:20px;margin:0;z-index:2;color:#4e6750;font-size:11px;background:#f7f8edce;border-radius:8px;padding:5px 9px}
@@ -620,3 +620,219 @@
 .enclosure-occupant-row>.enclosure-occupant-card{flex:1;min-width:0}
 .enclosure-occupant-row>.enclosure-occupant-remove{margin-left:0}
 .enclosure-habitat-placeholder.is-tropical{aspect-ratio:1672/941;max-height:none}
+
+/* Stage 3D.2 — approved tropical artwork and featured-pet alignment (15 Nov).
+   Only the Enclosure Details presentation is affected. */
+.enclosure-details-page{
+  width:100%;
+  margin-inline:auto;
+}
+/* Center this page heading without changing the other section headers. */
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;
+}
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .page-heading{
+  grid-column:2;
+  text-align:center;
+  min-width:0;
+}
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .header-actions{
+  grid-column:3;
+  justify-self:end;
+}
+/* Preserve the 1672 x 941 art framing and keep its transparent edges. */
+.enclosure-habitat-placeholder.is-tropical{
+  aspect-ratio:1672 / 941;
+  min-height:0;
+  max-height:none;
+  background-image:url('./public/assets/illustrations/enclosures/tropical-habitat.webp');
+  background-position:center;
+  background-size:contain;
+  background-repeat:no-repeat;
+}
+/* The illustrated pet is anchored lower, with its feet visually meeting the rock.
+   Keep its name ABOVE the image rather than on the rock surface. */
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center{
+  left:50%;
+  bottom:12%;
+  width:29%;
+  height:40%;
+}
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name{
+  order:-1;
+  margin-bottom:3px;
+}
+@media(max-width:680px){
+  .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar{
+    display:flex;
+    flex-wrap:wrap;
+  }
+  .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .page-heading{
+    flex:1;
+    text-align:center;
+  }
+  .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .header-actions{
+    margin-left:auto;
+  }
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center{
+    left:50%;bottom:10%;width:32%;height:40%;
+  }
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name{
+    font-size:10px;padding:3px 7px;
+  }
+}
+
+/* Stage 3D.2 habitat polish: keep page title aligned like Pet Details,
+   center only the enclosure content, soften ONLY the artwork's edges. */
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+}
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .page-heading {
+  grid-column:auto;
+  text-align:left;
+  min-width:0;
+}
+.main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .header-actions {
+  grid-column:auto;
+  margin-left:auto;
+}
+.enclosure-details-page {
+  max-width:1120px;
+  margin-inline:auto;
+}
+/* Keep the approved WebP unchanged. A masked artwork layer blends the
+   ragged transparent outer edge into the existing sage card background. */
+.enclosure-habitat-placeholder.is-tropical {
+  background-image:linear-gradient(145deg,#edf0e1,#e3e9dd 70%,#e9e7d7);
+}
+.enclosure-habitat-placeholder.is-tropical::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center / contain no-repeat;
+  -webkit-mask-image:
+    linear-gradient(to right,transparent 0%,#000 7%,#000 93%,transparent 100%),
+    linear-gradient(to bottom,transparent 0%,#000 6%,#000 94%,transparent 100%);
+  -webkit-mask-composite:source-in;
+  mask-image:
+    linear-gradient(to right,transparent 0%,#000 7%,#000 93%,transparent 100%),
+    linear-gradient(to bottom,transparent 0%,#000 6%,#000 94%,transparent 100%);
+  mask-composite:intersect;
+}
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slots {
+  z-index:1;
+}
+/* Lift the animal ~3% of the habitat height; its feet should meet the rock top. */
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center {
+  bottom:15%;
+}
+@media(max-width:680px) {
+  .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .page-heading {
+    text-align:left;
+  }
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center {
+    bottom:13%;
+  }
+}
+
+
+
+/* ==========================================
+   STAGE 3D.2 — FEATURED ANIMAL POSITIONING
+   ========================================== */
+
+/* TARANTULA */
+.enclosure-habitat-art--tarantula {
+    --habitat-pet-lift: 0%;
+}
+
+/* SCORPION */
+.enclosure-habitat-art--scorpion {
+    --habitat-pet-lift: -10%;
+}
+
+/* BALL PYTHON */
+.enclosure-habitat-art--python {
+    --habitat-pet-lift: -24%;
+}
+
+/* LEOPARD GECKO */
+.enclosure-habitat-art--gecko {
+    --habitat-pet-lift: -40%;
+}
+
+
+/* ==========================================
+   ANIMAL NAME POSITIONING
+   ========================================== */
+
+/* Default name position */
+.enclosure-habitat-slot--center {
+    --habitat-name-lift: 0px;
+}
+
+/* Tarantula name */
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--tarantula) {
+    --habitat-name-lift: 30px;
+}
+
+/* Scorpion name */
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--scorpion) {
+    --habitat-name-lift: -12px;
+}
+
+/* Python name */
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--python) {
+    --habitat-name-lift: -40px;
+}
+
+/* Gecko name */
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--gecko) {
+    --habitat-name-lift: -18px;
+}
+
+/* Apply name positioning */
+.enclosure-habitat-placeholder.is-tropical
+.enclosure-habitat-slot--center
+.enclosure-habitat-pet-name {
+    transform: translateY(var(--habitat-name-lift, 0px));
+}
+
+
+/* ==========================================
+   MOBILE ADJUSTMENTS
+   ========================================== */
+
+@media (max-width: 680px) {
+
+    .enclosure-habitat-art--scorpion {
+        --habitat-pet-lift: -5%;
+    }
+
+    .enclosure-habitat-art--python {
+        --habitat-pet-lift: -10%;
+    }
+
+    .enclosure-habitat-art--gecko {
+        --habitat-pet-lift: -8%;
+    }
+
+    .enclosure-habitat-slot--center:has(.enclosure-habitat-art--scorpion) {
+        --habitat-name-lift: -8px;
+    }
+
+    .enclosure-habitat-slot--center:has(.enclosure-habitat-art--python) {
+        --habitat-name-lift: -20px;
+    }
+
+    .enclosure-habitat-slot--center:has(.enclosure-habitat-art--gecko) {
+        --habitat-name-lift: -10px;
+    }
+}

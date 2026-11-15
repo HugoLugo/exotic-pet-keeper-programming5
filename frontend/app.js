@@ -1293,9 +1293,15 @@ function enclosureArtworkFor(pet) {
 }
 function enclosurePetPicture(pet, className) {
   const wrapper = elem('span', className);
+  if (Object.hasOwn(approvedIllustrations, pet.illustration_key)) {
+    wrapper.classList.add(`${className}--${pet.illustration_key}`);
+  }
   const url = enclosureArtworkFor(pet);
   if (!url) { wrapper.append(elem('span', 'enclosure-art-fallback', '◇')); return wrapper; }
   const img = elem('img'); img.src = url; img.alt = ''; img.loading = 'lazy';
+  if (Object.hasOwn(approvedIllustrations, pet.illustration_key)) {
+    img.classList.add(`enclosure-art-image--${pet.illustration_key}`);
+  }
   img.addEventListener('error', () => wrapper.replaceChildren(elem('span','enclosure-art-fallback','◇')), {once:true});
   wrapper.append(img); return wrapper;
 }
@@ -1326,17 +1332,18 @@ function renderEnclosureDetails(enclosure, pets, petsError) {
   $('#enclosureDetailsPetCount').textContent = petsError ? 'Unavailable' : `${count} ${count===1?'pet':'pets'}`;
   const warning = $('#enclosureDetailsPetsWarning'); warning.hidden = !petsError;
   if (petsError) warning.textContent = 'Assigned pets could not be loaded. Check the Data Management Service (port 3001) and reopen this enclosure.';
-  $('#enclosureHabitatCaption').textContent = petsError ? 'Pet illustrations unavailable until occupants load.' :
-    count > 3 ? `Showing 3 of ${count} assigned pets · all pets appear below` :
-    count === 0 ? 'No pet illustrations yet · assign a pet from its profile' :
-    `${count} of ${count} assigned ${count===1?'pet':'pets'} illustrated`;
-  // A single pet occupies the center; two occupy center and right; three use all positions.
-  const positions = count === 1 ? ['center'] : count === 2 ? ['center','right'] : ['center','left','right'];
-  pets.slice(0,3).forEach((pet,index) => {
-    const slot = elem('div',`enclosure-habitat-slot enclosure-habitat-slot--${positions[index]}`);
-    slot.append(enclosurePetPicture(pet,'enclosure-habitat-art'),elem('span','enclosure-habitat-pet-name',pet.name || 'Unnamed pet'));
+  // One representative animal in the habitat, regardless of the number of occupants.
+  // Featured Pet selection is intentionally deferred; use the first assigned pet for now.
+  const featuredPet = petsError ? null : pets[0];
+  $('#enclosureHabitatCaption').textContent = petsError ? 'Pet illustration unavailable until occupants load.' :
+    count === 0 ? 'No pets assigned yet' :
+    count === 1 ? 'Featured pet · 1 pet assigned' :
+    `Featuring ${featuredPet.name || 'one pet'} · ${count} pets assigned (see all below)`;
+  if (featuredPet) {
+    const slot = elem('div','enclosure-habitat-slot enclosure-habitat-slot--center');
+    slot.append(enclosurePetPicture(featuredPet,'enclosure-habitat-art'),elem('span','enclosure-habitat-pet-name',featuredPet.name || 'Unnamed pet'));
     slots.append(slot);
-  });
+  }
   if (!petsError && !count) occupants.append(elem('p','enclosure-occupants-empty','No pets assigned yet. Use Assign Pet to choose a companion.'));
   for (const pet of pets) {
     const button = elem('button','enclosure-occupant-card'); button.type='button';
