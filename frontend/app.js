@@ -144,6 +144,7 @@ function navigate(page) {
   $('#enclosuresPage').hidden = page !== 'enclosures';
   $('#enclosureCreatePage').hidden = true;
   $('#enclosureDetailsPage').hidden = true;
+  stopEnclosureMonitoring();
   ++enclosureDetailsRequest;
   $('#feedingPage').hidden = page !== 'feeding';
   $('#addPetPage').hidden = true;
@@ -447,6 +448,7 @@ async function openPetDetails(id) {
   $('#otherPage').hidden = true;
   $('#petDetailsPage').hidden = false;
   $('#enclosureDetailsPage').hidden = true;
+  stopEnclosureMonitoring();
   ++enclosureDetailsRequest;
   $('#enclosuresPage').hidden = true;
   $('#enclosureCreatePage').hidden = true;
@@ -1468,6 +1470,7 @@ function renderEnclosureDetails(enclosure, pets, petsError) {
 }
 async function openEnclosureDetails(id) {
   if (!Number.isSafeInteger(id) || id<=0) return;
+  stopEnclosureMonitoring();
   const request = ++enclosureDetailsRequest;
   ++enclosureCollectionRequest; // invalidate any pending collection render while viewing details
   currentPage = 'enclosures';
@@ -1511,8 +1514,174 @@ async function openEnclosureDetails(id) {
   $('#enclosureAssignOpen').disabled = petsError;
   $('#enclosureDetailsStatus').hidden=true;
   $('#enclosureDetailsContent').hidden=false;
+  startEnclosureMonitoring(enclosureResult.value,request);
 }
 $('#enclosureDetailsBack').addEventListener('click',()=>{petReturnEnclosureId=null;navigate('enclosures');});
+
+// Stage 3D.3 — Mode-aware environmental monitoring, scoped to the active enclosure.
+const MONITOR_POLL_MS = 5000;
+const MONITOR_STALE_MS = 20000;
+let enclosureMonitorTimer = null;
+let enclosureMonitorGeneration = 0;
+let enclosureMonitorInFlight = false;
+let enclosureMonitorSaving = false;
+let enclosureMonitorActive = null;
+let enclosureMonitorReading = null;
+let enclosureMonitorError = false;
+
+function stopEnclosureMonitoring() {
+  ++enclosureMonitorGeneration;
+  if (enclosureMonitorTimer !== null) clearInterval(enclosureMonitorTimer);
+  enclosureMonitorTimer = null;
+  enclosureMonitorActive = null;
+  enclosureMonitorReading = null;
+  enclosureMonitorInFlight = false;
+  enclosureMonitorError = false;
+}
+function enclosureMonitorVisible(generation, enclosureId) {
+  return generation === enclosureMonitorGeneration &&
+    !$('#enclosureDetailsPage').hidden &&
+    !$('#enclosureDetailsContent').hidden &&
+    Number($('#enclosureDetailsPage').dataset.enclosureId) === enclosureId;
+}
+function enclosureMonitorDate(value) {
+  if (typeof value !== 'string' || !/Z$/.test(value)) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+function enclosureMonitorFormat(value) {
+  return Number.isFinite(value) ? Number(value).toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+}
+function enclosureMonitorFeedback(message, error = false) {
+  const element = $('#enclosureMonitoringFeedback');
+  element.hidden = !message;
+  element.textContent = message;
+  element.classList.toggle('is-error',error);
+}
+function renderEnclosureMonitoring() {
+  const enclosure = enclosureMonitorActive;
+  if (!enclosure) return;
+  const manual = enclosure.monitoringMode === 'manual';
+  const reading = enclosureMonitorReading;
+  const validReading = reading && (reading.status === 'normal' || reading.status === 'abnormal') &&
+    Number.isFinite(reading.temperature) && Number.isFinite(reading.humidity);
+  const recorded = validReading ? enclosureMonitorDate(reading.recordedAt) : null;
+  // Automatic observations must never display as currently safe once outdated.
+  const stale = !manual && validReading && (!recorded || Math.abs(Date.now() - recorded.getTime()) > MONITOR_STALE_MS);
+  let status = 'no_reading';
+  let message = manual ? 'No manual observations recorded for this monitoring period.' : 'Waiting for the first sensor reading.';
+  if (enclosureMonitorError) {status='unavailable';message='Environmental readings unavailable. Check the Enclosure Service.';}
+  else if (validReading) {
+    if (stale) {status='stale';message=reading.status === 'abnormal' ? 'Last reading was abnormal · Sensor data outdated' : 'Sensor data outdated · Current conditions unknown';}
+    else if (reading.status === 'abnormal') {status='abnormal';message='Conditions outside the acceptable range';}
+    else {status='normal';message='Conditions within the acceptable range';}
+  }
+  const statusNode = $('#enclosureMonitoringStatus');
+  statusNode.dataset.state=status;
+  statusNode.textContent=message;
+  $('#enclosureMonitoringTemperature').textContent=validReading ? `${enclosureMonitorFormat(reading.temperature)} °C` : '—';
+  $('#enclosureMonitoringHumidity').textContent=validReading ? `${enclosureMonitorFormat(reading.humidity)}%` : '—';
+  for (const [id,value,min,max] of [
+    ['enclosureMonitoringTemperatureCard',reading?.temperature,enclosure.minTemperature,enclosure.maxTemperature],
+    ['enclosureMonitoringHumidityCard',reading?.humidity,enclosure.minHumidity,enclosure.maxHumidity]
+  ]) {
+    const node=$('#'+id);
+    node.classList.toggle('is-abnormal',Boolean(validReading && (value < min || value > max)));
+  }
+  $('#enclosureMonitoringSource').textContent=`Source: ${manual ? 'Manual observation' : 'Sensor / simulator'}`;
+  $('#enclosureMonitoringTimestamp').textContent=recorded && !enclosureMonitorError ? `Last ${manual ? 'observation' : 'reading'}: ${recorded.toLocaleString()}` : `Last ${manual ? 'observation' : 'reading'}: —`;
+}
+async function refreshEnclosureMonitoring(generation, enclosureId) {
+  if (!enclosureMonitorVisible(generation,enclosureId) || enclosureMonitorInFlight || document.hidden) return;
+  enclosureMonitorInFlight=true;
+  try {
+    const result=await getCollectionJson(`/api/enclosures/${enclosureId}/readings/current`);
+    if (!enclosureMonitorVisible(generation,enclosureId)) return;
+    if (!result || Number(result.enclosureId)!==enclosureId || result.monitoringMode!==enclosureMonitorActive.monitoringMode ||
+        !['normal','abnormal','no_reading'].includes(result.status) ||
+        (result.status!=='no_reading' && (typeof result.temperature!=='number' || typeof result.humidity!=='number' ||
+          result.source!==(enclosureMonitorActive.monitoringMode==='manual'?'manual':'sensor')))) {
+      throw new Error('Invalid monitoring response');
+    }
+    enclosureMonitorReading=result;
+    enclosureMonitorError=false;
+  } catch (error) {
+    if (!enclosureMonitorVisible(generation,enclosureId)) return;
+    enclosureMonitorError=true;
+    enclosureMonitorReading=null;
+    console.warn('Environmental monitoring unavailable:',error);
+  } finally {
+    if (generation===enclosureMonitorGeneration) {
+      enclosureMonitorInFlight=false;
+      if (enclosureMonitorVisible(generation,enclosureId)) renderEnclosureMonitoring();
+    }
+  }
+}
+function startEnclosureMonitoring(enclosure, detailsRequest) {
+  // Opening any enclosure resets the lifecycle and its previous measurement.
+  stopEnclosureMonitoring();
+  if (detailsRequest!==enclosureDetailsRequest || $('#enclosureDetailsPage').hidden) return;
+  enclosureMonitorActive=enclosure;
+  const generation=enclosureMonitorGeneration;
+  const id=Number(enclosure.id);
+  const manual=enclosure.monitoringMode==='manual';
+  $('#enclosureMonitoringMode').textContent=manual?'Manual':'Automatic';
+  $('#enclosureMonitoringTemperatureRange').textContent=`Acceptable range: ${enclosureMonitorFormat(enclosure.minTemperature)}–${enclosureMonitorFormat(enclosure.maxTemperature)} °C`;
+  $('#enclosureMonitoringHumidityRange').textContent=`Acceptable range: ${enclosureMonitorFormat(enclosure.minHumidity)}–${enclosureMonitorFormat(enclosure.maxHumidity)}%`;
+  $('#enclosureMonitoringManualForm').hidden=!manual;
+  $('#enclosureMonitoringRefresh').hidden=manual;
+  $('#enclosureManualTemperature').value='';
+  $('#enclosureManualHumidity').value='';
+  enclosureMonitorFeedback('');
+  renderEnclosureMonitoring();
+  void refreshEnclosureMonitoring(generation,id);
+  if (!manual) {
+    enclosureMonitorTimer=setInterval(()=>{
+      if (!enclosureMonitorVisible(generation,id)) {stopEnclosureMonitoring();return;}
+      renderEnclosureMonitoring(); // Age readings even when the network is unavailable.
+      void refreshEnclosureMonitoring(generation,id);
+    },MONITOR_POLL_MS);
+  }
+}
+$('#enclosureMonitoringManualForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const enclosure=enclosureMonitorActive;
+  if (!enclosure || enclosure.monitoringMode!=='manual' || enclosureMonitorSaving) return;
+  const tempInput=$('#enclosureManualTemperature');
+  const humInput=$('#enclosureManualHumidity');
+  const temperature=Number(tempInput.value);
+  const humidity=Number(humInput.value);
+  if (tempInput.value.trim()==='' || humInput.value.trim()==='' ||
+      !Number.isFinite(temperature) || !Number.isFinite(humidity) || humidity<0 || humidity>100) {
+    enclosureMonitorFeedback('Enter a valid temperature and humidity between 0% and 100%.',true);
+    return;
+  }
+  const generation=enclosureMonitorGeneration;
+  const id=Number(enclosure.id);
+  enclosureMonitorSaving=true;
+  $('#enclosureMonitoringSave').disabled=true;
+  enclosureMonitorFeedback('');
+  try {
+    const recordedAt=new Date().toISOString().replace(/\.\d{3}Z$/,'Z');
+    await enclosureApiRequest(`/api/enclosures/${id}/readings/manual`,'POST',{temperature,humidity,recordedAt});
+    if (!enclosureMonitorVisible(generation,id)) return;
+    tempInput.value='';humInput.value='';
+    enclosureMonitorFeedback('Observation saved successfully.');
+    await refreshEnclosureMonitoring(generation,id);
+  } catch (error) {
+    if (enclosureMonitorVisible(generation,id)) enclosureMonitorFeedback(error.message || 'Unable to save observation.',true);
+  } finally {
+    enclosureMonitorSaving=false;
+    $('#enclosureMonitoringSave').disabled=false;
+  }
+});
+document.addEventListener('visibilitychange',()=>{
+  const enclosure=enclosureMonitorActive;
+  if (!document.hidden && enclosure && enclosure.monitoringMode==='automatic') {
+    renderEnclosureMonitoring();
+    void refreshEnclosureMonitoring(enclosureMonitorGeneration,Number(enclosure.id));
+  }
+});
 
 // Stage 3D.2 — enclosure editing, occupancy management and confirmation.
 let currentEnclosureDetail = null;

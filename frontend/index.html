@@ -97,6 +97,41 @@
               <div class="enclosure-details-notes"><strong>Notes</strong><p id="enclosureDetailsNotes"></p></div>
             </section>
           </div>
+          <section class="panel enclosure-monitor-panel" aria-labelledby="enclosureMonitoringTitle">
+            <div class="section-heading enclosure-monitor-heading">
+              <div><span class="section-kicker">HABITAT CONDITIONS</span><h2 id="enclosureMonitoringTitle">Environmental Monitoring</h2></div>
+              <span class="enclosure-monitor-mode" id="enclosureMonitoringMode">Monitoring</span>
+            </div>
+            <div class="enclosure-monitor-status" id="enclosureMonitoringStatus" role="status" aria-live="polite" data-state="loading">Loading environmental conditions…</div>
+            <div class="enclosure-monitor-measurements">
+              <div class="enclosure-monitor-measure" id="enclosureMonitoringTemperatureCard">
+                <span class="enclosure-monitor-label">♨ Temperature</span>
+                <strong id="enclosureMonitoringTemperature">—</strong>
+                <span class="enclosure-monitor-range" id="enclosureMonitoringTemperatureRange">Acceptable range: —</span>
+              </div>
+              <div class="enclosure-monitor-measure" id="enclosureMonitoringHumidityCard">
+                <span class="enclosure-monitor-label">◉ Humidity</span>
+                <strong id="enclosureMonitoringHumidity">—</strong>
+                <span class="enclosure-monitor-range" id="enclosureMonitoringHumidityRange">Acceptable range: —</span>
+              </div>
+            </div>
+            <div class="enclosure-monitor-meta">
+              <span id="enclosureMonitoringSource">Source: —</span>
+              <span id="enclosureMonitoringTimestamp">Last measurement: —</span>
+              <span id="enclosureMonitoringRefresh" hidden>Updates every 5 seconds while viewing</span>
+            </div>
+            <form class="enclosure-monitor-form" id="enclosureMonitoringManualForm" novalidate hidden>
+              <div class="enclosure-monitor-form-head"><strong>Record an observation</strong><span>Save the conditions you measured.</span></div>
+              <div class="enclosure-monitor-form-fields">
+                <label for="enclosureManualTemperature">Temperature (°C)<input id="enclosureManualTemperature" name="temperature" type="number" step="any" inputmode="decimal" required placeholder="e.g. 26.5"></label>
+                <label for="enclosureManualHumidity">Humidity (%)<input id="enclosureManualHumidity" name="humidity" type="number" step="any" min="0" max="100" inputmode="decimal" required placeholder="e.g. 65"></label>
+              </div>
+              <div class="enclosure-monitor-form-actions">
+                <p id="enclosureMonitoringFeedback" role="status" aria-live="polite" hidden></p>
+                <button type="submit" class="primary-button" id="enclosureMonitoringSave">Save Observation</button>
+              </div>
+            </form>
+          </section>
         </div>
       </section>
       <section class="enclosure-create-page" id="enclosureCreatePage" aria-label="Create enclosure" hidden>

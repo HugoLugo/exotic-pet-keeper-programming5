@@ -886,3 +886,36 @@
 .enclosure-mode-copy small{font-size:12px;font-weight:400;line-height:1.4;color:#647669}
 .enclosure-mode-note{font-size:11px;line-height:1.5;color:#748273;margin:11px 0 0}
 @media(max-width:680px){.enclosure-mode-choices{grid-template-columns:1fr}}
+
+
+/* Stage 3D.3 — Environmental Monitoring: isolated enclosure detail panel. */
+.enclosure-monitor-panel{margin-top:20px;min-width:0}
+.enclosure-monitor-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.enclosure-monitor-mode{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;background:#ecf2e6;color:#45683e;font-size:11px;font-weight:800}
+.enclosure-monitor-status{border-radius:11px;padding:12px 15px;font-size:13px;font-weight:750;line-height:1.5;background:#f3f4eb;color:#526954;margin:15px 0}
+.enclosure-monitor-status[data-state="normal"]{background:#eaf3e7;color:#32653d}
+.enclosure-monitor-status[data-state="abnormal"]{background:#fff0e9;color:#a14634}
+.enclosure-monitor-status[data-state="stale"]{background:#fff4dd;color:#85601f}
+.enclosure-monitor-status[data-state="unavailable"]{background:#f8e9e7;color:#9d443c}
+.enclosure-monitor-measurements{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.enclosure-monitor-measure{min-width:0;display:grid;gap:10px;padding:20px;border:1px solid #e4e9db;background:#f7f9f1;border-radius:14px}
+.enclosure-monitor-measure.is-abnormal{background:#fff7f1;border-color:#eac3b3}
+.enclosure-monitor-label{color:#5d755c;font-size:12px;font-weight:800}
+.enclosure-monitor-measure strong{font-size:clamp(24px,3vw,32px);line-height:1.2;color:#294831;font-weight:800;font-variant-numeric:tabular-nums}
+.enclosure-monitor-measure.is-abnormal strong{color:#a14634}
+.enclosure-monitor-range{font-size:12px;color:#667765;line-height:1.5}
+.enclosure-monitor-meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:11px;color:#697969;padding-top:16px;line-height:1.6}
+.enclosure-monitor-form{border-top:1px solid #e6e9de;margin-top:20px;padding-top:18px;display:grid;gap:14px}
+.enclosure-monitor-form[hidden]{display:none}
+.enclosure-monitor-form-head{display:grid;gap:5px}
+.enclosure-monitor-form-head strong{font-size:14px;color:#294831}
+.enclosure-monitor-form-head span{font-size:12px;color:#6c7e6d}
+.enclosure-monitor-form-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.enclosure-monitor-form-fields label{display:grid;gap:8px;font-size:12px;font-weight:800;color:#415b45}
+.enclosure-monitor-form-fields input{width:100%;min-width:0;padding:11px 12px;border:1px solid #d9e2d2;border-radius:10px;background:#fffdf8;color:#203428;font:inherit;font-size:13px}
+.enclosure-monitor-form-fields input:focus-visible{outline:2px solid #759972;outline-offset:2px}
+.enclosure-monitor-form-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px}
+.enclosure-monitor-form-actions p{font-size:12px;color:#356a3e;margin:0;line-height:1.5}
+.enclosure-monitor-form-actions p.is-error{color:#a14634}
+.enclosure-monitor-form-actions button:disabled{opacity:.55;cursor:wait}
+@media(max-width:600px){.enclosure-monitor-measurements,.enclosure-monitor-form-fields{grid-template-columns:1fr}.enclosure-monitor-measure{padding:16px}.enclosure-monitor-form-actions{justify-content:stretch}.enclosure-monitor-form-actions button{width:100%}}
