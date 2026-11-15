@@ -865,3 +865,22 @@ older sensor observation after a mode change; new clients should use
 
 Existing frontend forms are not yet mode-aware: mode selection UI and manual
 observation entry are planned for Stages 3D.3.3B and 3D.3.3C.
+
+
+## Stage 3D.5.3 — Animal Events (implemented)
+
+Data Management owns the `animal_events` table. Observations remain associated with `pet_id`, independent of the animal's current enclosure. Historical enclosure assignments are **not** tracked by the existing schema.
+
+| Method | Endpoint | Meaning |
+|---|---|---|
+| GET | `/pets/:id/events` | Chronological observations (newest first) |
+| POST | `/pets/:id/events` | Create an event |
+| GET | `/pets/:id/events/:eventId` | Fetch an event belonging to the pet |
+| PUT | `/pets/:id/events/:eventId` | Correct an observation |
+| DELETE | `/pets/:id/events/:eventId` | Permanently remove a specific event |
+
+Events use `event_type` (`molting`, `weight`, `behavior`, `health`, `husbandry`, `other`) and `event_date` (ISO `YYYY-MM-DD`). Optional `event_time` is `HH:MM`; `utc_offset_minutes` is nullable, and no timezone is inferred when unavailable. `description` and `notes` are at most 2000 characters. Molting requires `molt_outcome` (`successful`, `incomplete`, `difficulty_observed`, `unknown`); weight requires positive finite `weight_g` (maximum 1,000,000). All other categories require a nonblank description. Type-specific fields for unrelated categories must be null. `created_at` and `updated_at` use SQLite UTC timestamps; backdated `event_date` does not modify entry timestamps. Events are deleted transactionally when their pet is permanently deleted.
+
+Individual feeding `POST` and `PUT` now accept optional `feeding_outcome`: `accepted`, `refused`, or `recorded`. The default `recorded` is retained for older callers and preexisting entries, whose actual outcome was not recorded. Feeding refusals are **not** inserted into `animal_events`; they belong to `feeding_records`. Existing group/bulk feeding behavior remains unchanged and creates `recorded` entries.
+
+The current sidebar Alerts destination is intentionally retained until Stage 3D.5.4 Records & Insights. Environmental history remains enclosure-owned.

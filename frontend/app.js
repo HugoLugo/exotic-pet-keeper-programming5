@@ -727,13 +727,14 @@ function renderDetailsFeedings(rows) {
     const item = elem('article', 'pet-details-feeding');
     const left = elem('div');
     left.append(elem('strong', null, detailText(feeding.food, 'Feeding')),
-      elem('small', null, detailText(feeding.feeding_date, 'Date not provided')));
+      elem('small', null, `Response: ${{accepted:'Accepted',refused:'Refused',recorded:'Not specified'}[feeding.feeding_outcome]||'Not specified'}`));
+    if (feeding.notes) left.append(elem('p', 'feeding-entry-note', feeding.notes));
+    left.append(elem('small', null, detailText(feeding.feeding_date, 'Date not provided')));
     const actions = elem('div','feeding-entry-actions');
     const edit = elem('button','text-button','Edit'); edit.type='button'; edit.addEventListener('click',()=>openFeedingRecord('edit',feeding));
     const del = elem('button','text-button feeding-danger','Delete'); del.type='button'; del.addEventListener('click',()=>deleteFeedingRecord(feeding));
     actions.append(edit,del);
     item.append(left,actions);
-    if (feeding.notes) item.append(elem('p', null, feeding.notes));
     host.append(item);
   }
 }
@@ -762,7 +763,7 @@ async function openPetDetails(id) {
   $('#feedingPage').hidden = true;
   $('#pageEyebrow').textContent = 'PET MANAGEMENT';
   $('#pageTitle').textContent = 'Pet Details';
-  $('#pageDescription').textContent = 'Your companion’s profile and feeding history.';
+  $('#pageDescription').textContent = 'Your companion’s profile, feeding history, and animal events.';
   $('#petDetailsContent').hidden = true;
   $('#petDetailsEdit').disabled = true;
   $('#petDetailsDelete').disabled = true;
@@ -777,10 +778,11 @@ async function openPetDetails(id) {
   $('#menuButton').setAttribute('aria-expanded', 'false');
   window.scrollTo(0,0);
   try {
-    const [petResult, feedingResult, enclosureResult] = await Promise.allSettled([
+    const [petResult, feedingResult, enclosureResult, eventResult] = await Promise.allSettled([
       getCollectionJson(`/api/pets/${id}`),
       getCollectionJson(`/api/pets/${id}/feedings`),
-      getCollectionJson('/api/enclosures')
+      getCollectionJson('/api/enclosures'),
+      getCollectionJson(`/api/pets/${id}/events`)
     ]);
     if (request !== petDetailsRequest) return;
     if (petResult.status !== 'fulfilled' || !petResult.value || !petResult.value.id) {
@@ -793,6 +795,11 @@ async function openPetDetails(id) {
     $('#petDetailsEdit').disabled = false;
     $('#petDetailsDelete').disabled = false;
     renderDetailsProfile(petResult.value);
+    if (eventResult.status === 'fulfilled' && Array.isArray(eventResult.value)) {
+      renderAnimalEvents(eventResult.value); $('#animalEventLoadError').hidden = true;
+    } else {
+      $('#animalEventList').replaceChildren(); $('#animalEventLoadError').hidden = false;
+    }
     if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
       renderDetailsFeedings(feedingResult.value);
       $('#petDetailsFeedingError').hidden = true;
@@ -1124,6 +1131,131 @@ $('#addPetForm').addEventListener('submit', async event => {
     $('#backToPets').disabled = false;
   }
 });
+// Stage 3D.5.3 refinement — consistent, dependency-free date/time controls.
+// Reuses the approved Add Pet calendar styling. Original native inputs remain
+// the form's source of truth so existing APIs and validation stay unchanged.
+const sharedDatePickers = [];
+function createSharedDatePicker(input) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'add-pet-calendar-wrap shared-date-wrap';
+  const trigger = document.createElement('button');
+  trigger.type = 'button'; trigger.className = 'add-pet-calendar-trigger';
+  trigger.setAttribute('aria-haspopup', 'dialog'); trigger.setAttribute('aria-expanded', 'false');
+  const label = document.createElement('span'); label.className = 'add-pet-calendar-placeholder';
+  const icon = document.createElement('span'); icon.className = 'shared-calendar-icon'; icon.setAttribute('aria-hidden','true'); icon.textContent = '▦';
+  trigger.append(label, icon);
+  const popup = document.createElement('div');
+  popup.className = 'add-pet-calendar'; popup.hidden = true;
+  popup.setAttribute('role','dialog'); popup.setAttribute('aria-label', 'Choose date');
+  const header = document.createElement('div'); header.className = 'add-pet-calendar-heading';
+  const heading = document.createElement('strong'); heading.textContent = 'Choose a date';
+  const closeButton = document.createElement('button'); closeButton.type='button'; closeButton.className='add-pet-calendar-close'; closeButton.textContent='×'; closeButton.setAttribute('aria-label','Close calendar');
+  header.append(heading,closeButton);
+  const navigation = document.createElement('div'); navigation.className='add-pet-calendar-navigation';
+  const prev = document.createElement('button'); prev.type='button'; prev.className='add-pet-calendar-nav'; prev.textContent='‹'; prev.setAttribute('aria-label','Previous month');
+  const month=document.createElement('select'); month.setAttribute('aria-label','Month');
+  const year=document.createElement('select'); year.setAttribute('aria-label','Year');
+  const next=document.createElement('button'); next.type='button'; next.className='add-pet-calendar-nav'; next.textContent='›'; next.setAttribute('aria-label','Next month');
+  const ml=document.createElement('div'); ml.className='add-pet-calendar-select-label'; ml.append(month);
+  const yl=document.createElement('div'); yl.className='add-pet-calendar-select-label'; yl.append(year);
+  navigation.append(prev,ml,yl,next);
+  const weekdays=document.createElement('div'); weekdays.className='add-pet-calendar-weekdays'; weekdays.setAttribute('aria-hidden','true');
+  for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) {const span=document.createElement('span');span.textContent=day;weekdays.append(span);}
+  const days=document.createElement('div'); days.className='add-pet-calendar-days'; days.setAttribute('role','group'); days.setAttribute('aria-label','Calendar days');
+  const footer=document.createElement('div'); footer.className='add-pet-calendar-footer';
+  const clear=document.createElement('button'); clear.type='button'; clear.textContent='Clear date';
+  const todayButton=document.createElement('button'); todayButton.type='button'; todayButton.textContent='Today';
+  footer.append(clear,todayButton);popup.append(header,navigation,weekdays,days,footer);
+  input.parentNode.insertBefore(wrapper,input); wrapper.append(trigger,popup,input);
+  input.classList.add('shared-date-source');input.tabIndex=-1;
+  // All affected forms validate the date in their submit handlers. Avoid hidden native invalid-field focus traps.
+  input.required=false;
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const todayISO=()=>{const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;};
+  const minAllowed=()=>input.min||'1900-01-01';
+  const maxAllowed=()=>input.max||todayISO();
+  const parts=value=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value||'');return m?[Number(m[1]),Number(m[2])-1,Number(m[3])]:null;};
+  let currentYear=new Date().getFullYear(),currentMonth=new Date().getMonth();
+  function sync(){const p=parts(input.value);label.textContent=p?`${String(p[2]).padStart(2,'0')}/${String(p[1]+1).padStart(2,'0')}/${p[0]}`:'Select date';label.classList.toggle('add-pet-calendar-placeholder',!p);}
+  function dismiss(focus=false){popup.hidden=true;trigger.setAttribute('aria-expanded','false');if(focus)trigger.focus();}
+  function choose(value){input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));sync();dismiss(true);}
+  function render(){
+    const min=minAllowed(),max=maxAllowed(),minY=Number(min.slice(0,4)),maxY=Number(max.slice(0,4));
+    month.replaceChildren(...months.map((name,i)=>new Option(name,String(i))));month.value=String(currentMonth);
+    year.replaceChildren();for(let y=maxY;y>=minY;y--)year.append(new Option(String(y),String(y)));year.value=String(currentYear);
+    const first=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-01`;
+    const last=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(new Date(currentYear,currentMonth+1,0).getDate()).padStart(2,'0')}`;
+    prev.disabled=first<=min;next.disabled=last>=max;
+    days.replaceChildren();
+    const offset=(new Date(currentYear,currentMonth,1).getDay()+6)%7;
+    for(let i=0;i<offset;i++){const blank=document.createElement('span');blank.className='add-pet-calendar-blank';blank.setAttribute('aria-hidden','true');days.append(blank);}
+    const count=new Date(currentYear,currentMonth+1,0).getDate();
+    for(let d=1;d<=count;d++){
+      const day=document.createElement('button');day.type='button';day.className='add-pet-calendar-day';day.textContent=String(d);
+      const val=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      day.setAttribute('aria-label',`${months[currentMonth]} ${d}, ${currentYear}`);day.setAttribute('aria-pressed',String(val===input.value));
+      if(val===todayISO())day.classList.add('is-today');day.disabled=val<min||val>max;
+      day.addEventListener('click',()=>choose(val));days.append(day);
+    }
+  }
+  function show(){const max=maxAllowed(),min=minAllowed(),candidate=parts(input.value)||parts(max)||parts(todayISO());
+    const safe=`${candidate[0]}-${String(candidate[1]+1).padStart(2,'0')}-${String(candidate[2]).padStart(2,'0')}`;
+    const normalized=parts(safe>max?max:(safe<min?min:safe));currentYear=normalized[0];currentMonth=normalized[1];
+    render();popup.hidden=false;trigger.setAttribute('aria-expanded','true');month.focus();}
+  trigger.addEventListener('click',()=>popup.hidden?show():dismiss());closeButton.addEventListener('click',()=>dismiss(true));
+  clear.addEventListener('click',()=>choose(''));todayButton.addEventListener('click',()=>choose(todayISO()>maxAllowed()?maxAllowed():todayISO()));
+  prev.addEventListener('click',()=>{if(currentMonth===0){currentMonth=11;currentYear--;}else currentMonth--;render();});
+  next.addEventListener('click',()=>{if(currentMonth===11){currentMonth=0;currentYear++;}else currentMonth++;render();});
+  month.addEventListener('change',()=>{currentMonth=Number(month.value);render();});
+  year.addEventListener('change',()=>{currentYear=Number(year.value);render();});
+  popup.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();dismiss(true);return;}
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)||!event.target.classList.contains('add-pet-calendar-day'))return;
+    event.preventDefault();const d=Number(event.target.textContent),shift={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[event.key]??(event.key==='Home'?-((new Date(currentYear,currentMonth,d).getDay()+6)%7):6-((new Date(currentYear,currentMonth,d).getDay()+6)%7));
+    const date=new Date(currentYear,currentMonth,d+shift);const val=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    if(val<minAllowed()||val>maxAllowed())return;currentYear=date.getFullYear();currentMonth=date.getMonth();render();
+    [...days.querySelectorAll('button')].find(b=>Number(b.textContent)===date.getDate())?.focus();
+  });
+  document.addEventListener('pointerdown',event=>{if(!popup.hidden&&!wrapper.contains(event.target))dismiss();});
+  input.addEventListener('change',sync);sync();return {sync,dismiss};
+}
+function createSharedTimePicker(input) {
+  const wrapper=document.createElement('div');wrapper.className='shared-time-wrap';
+  const sep=document.createElement('span');sep.textContent=':';sep.setAttribute('aria-hidden','true');
+  const clear=document.createElement('button');clear.type='button';clear.textContent='Clear';clear.className='shared-time-clear';
+  const values={hour:'',minute:''};
+  const controls=[];
+  function closeAll(focus=false){for(const c of controls){const wasOpen=!c.menu.hidden;c.menu.hidden=true;c.button.setAttribute('aria-expanded','false');if(focus&&wasOpen)c.button.focus();}}
+  function buildPart(kind,count,placeholder){
+    const container=document.createElement('div');container.className='shared-time-part';
+    const button=document.createElement('button');button.type='button';button.className='shared-time-trigger';button.setAttribute('aria-label',kind==='hour'?'Choose observation hour':'Choose observation minute');button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
+    const display=document.createElement('span');display.textContent=placeholder;
+    // The entire field remains clickable; no decorative glyph is needed.
+    button.append(display);
+    const menu=document.createElement('div');menu.className='shared-time-menu';menu.hidden=true;menu.setAttribute('role','listbox');menu.setAttribute('aria-label',kind==='hour'?'Hour':'Minute');
+    for(let i=0;i<count;i++){
+      const v=String(i).padStart(2,'0');const option=document.createElement('button');option.type='button';option.textContent=v;option.dataset.value=v;option.className='shared-time-option';option.setAttribute('role','option');
+      option.addEventListener('click',()=>{values[kind]=v;updateInput();closeAll(true);});menu.append(option);
+    }
+    button.addEventListener('click',()=>{const opening=menu.hidden;closeAll();if(opening){menu.hidden=false;button.setAttribute('aria-expanded','true');const selected=menu.querySelector('[aria-selected="true"]');(selected||menu.querySelector('button'))?.scrollIntoView({block:'nearest'});}});
+    menu.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeAll(true);}else if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();const choices=[...menu.querySelectorAll('button')];const i=choices.indexOf(document.activeElement);choices[Math.max(0,Math.min(choices.length-1,i+(e.key==='ArrowDown'?1:-1)))].focus();}});
+    container.append(button,menu);controls.push({kind,button,display,menu,placeholder});return container;
+  }
+  const hour=buildPart('hour',24,'Hour');const minute=buildPart('minute',60,'Minute');
+  input.parentNode.insertBefore(wrapper,input);wrapper.append(hour,sep,minute,clear,input);
+  input.classList.add('shared-time-source');input.tabIndex=-1;
+  function updateInput(){renderParts();if(values.hour&&values.minute){input.value=`${values.hour}:${values.minute}`;input.dispatchEvent(new Event('change',{bubbles:true}));}}
+  function renderParts(){for(const c of controls){c.display.textContent=values[c.kind]||c.placeholder;c.menu.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.value===values[c.kind])));}}
+  function sync(){const m=/^(\d{2}):(\d{2})$/.exec(input.value||'');values.hour=m?m[1]:'';values.minute=m?m[2]:'';renderParts();}
+  clear.addEventListener('click',()=>{values.hour='';values.minute='';input.value='';input.dispatchEvent(new Event('change',{bubbles:true}));closeAll();});
+  document.addEventListener('pointerdown',e=>{if(!wrapper.contains(e.target))closeAll();});
+  input.addEventListener('change',sync);sync();return {sync};
+}
+const sharedDateIds=['enclosureHistoryFrom','enclosureHistoryTo','quickDate','feedingRecordDate','animalEventDate'];
+for(const id of sharedDateIds){const field=$('#'+id);if(field)sharedDatePickers.push(createSharedDatePicker(field));}
+const sharedEventTime=createSharedTimePicker($('#animalEventTime'));
+function refreshSharedDateControls(){sharedDatePickers.forEach(p=>p.sync());sharedEventTime.sync();}
+
 // Stage 2A Rev 2 — accessible, dependency-free birth-date calendar.
 // The hidden field retains the backend's YYYY-MM-DD date format for Stage 2B.
 function createBirthCalendar(prefix = "newPet") {
@@ -1482,7 +1614,7 @@ startDashboardRefresh();
 
 // Stage 3C — Feeding Management. This uses existing individual feeding APIs
 // and additive feeding-group/bulk endpoints in Data Management.
-const feedState = {pets:[],groups:[],selected:new Set(),groupEditing:null,busy:false};
+const feedState = {pets:[],groups:[],selected:new Set(),refused:new Set(),groupEditing:null,busy:false};
 const isoToday = () => {const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const apiDate = iso => {const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
 const isoDate = display => {const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(display||'');return m?`${m[3]}-${m[2]}-${m[1]}`:'';};
@@ -1504,10 +1636,41 @@ function filteredFeedingPets(){const query=$('#feedingPetSearch').value.trim().t
 function renderFeedingChoices(){
  const host=$('#feedingPetChoices');host.replaceChildren();
  const pets=filteredFeedingPets();if(!pets.length)host.append(elem('p','feeding-hint','No matching animals. You can create pets from the Pets page.'));
- for(const pet of pets)host.append(feedingOption(pet,feedState.selected.has(pet.id),checked=>{
-   if(checked)feedState.selected.add(pet.id);else feedState.selected.delete(pet.id);
-   renderFeedingChoices();
- }));
+ for(const pet of pets){
+   const selected=feedState.selected.has(pet.id);
+   const row=elem('div','feeding-choice-row');
+   row.append(feedingOption(pet,selected,checked=>{
+     if(checked)feedState.selected.add(pet.id);else{feedState.selected.delete(pet.id);feedState.refused.delete(pet.id);}
+     renderFeedingChoices();
+   }));
+   if(selected){
+     const response=elem('div','feeding-response-choice');
+     const label=elem('span','feeding-response-label','Response');
+     const choices=elem('div','feeding-response-options');
+     choices.setAttribute('role','group');
+     choices.setAttribute('aria-label',`Feeding response for ${pet.name}`);
+     const buttons=[];
+     const updateResponse=()=>{
+       for(const {button,value} of buttons){
+         const active=(value==='refused')===feedState.refused.has(pet.id);
+         button.classList.toggle('is-active',active);
+         button.setAttribute('aria-pressed',String(active));
+       }
+     };
+     for(const [value,text] of [['accepted','Accepted'],['refused','Refused']]){
+       const button=elem('button',`feeding-response-option feeding-response-option--${value}`,text);
+       button.type='button';
+       button.addEventListener('click',()=>{
+         if(value==='refused')feedState.refused.add(pet.id);
+         else feedState.refused.delete(pet.id);
+         updateResponse();
+       });
+       buttons.push({button,value});choices.append(button);
+     }
+     updateResponse();response.append(label,choices);row.append(response);
+   }
+   host.append(row);
+ }
  $('#feedingSelectedCount').textContent=`${feedState.selected.size} selected`;
  $('#quickFeedingSave').textContent=`Save ${feedState.selected.size} Feeding${feedState.selected.size===1?'':'s'}`;
 }
@@ -1528,13 +1691,13 @@ function renderFeedingGroups(){
  if(!feedState.groups.length)host.append(elem('p','feeding-hint','No groups yet. Create one to save a reusable selection of pets.'));
 }
 async function reloadFeedingGroups(){feedState.groups=await feedingRequest('/api/feeding-groups');renderFeedingGroups();}
-function applyFeedingGroup(group){feedState.selected=new Set(group.pet_ids);$('#feedingGroupSelect').value=String(group.id);renderFeedingChoices();feedingFeedback('#quickFeedingMessage',`${group.name}: ${group.pet_ids.length} animals selected. Uncheck any that did not eat.`);}
+function applyFeedingGroup(group){feedState.selected=new Set(group.pet_ids);feedState.refused.clear();$('#feedingGroupSelect').value=String(group.id);renderFeedingChoices();feedingFeedback('#quickFeedingMessage',`${group.name}: ${group.pet_ids.length} animals selected. Set Refused for any animal that did not eat.`);}
 async function loadFeedingWorkspace(){
  feedingFeedback('#quickFeedingMessage','Loading feeding data…');
  try{
   const [pets,groups]=await Promise.all([feedingRequest('/api/pets'),feedingRequest('/api/feeding-groups')]);
   feedState.pets=pets.map(p=>({...p,id:Number(p.id)}));feedState.groups=groups;
-  feedState.selected=new Set([...feedState.selected].filter(id=>pets.some(p=>Number(p.id)===id)));
+  feedState.selected=new Set([...feedState.selected].filter(id=>pets.some(p=>Number(p.id)===id)));feedState.refused=new Set([...feedState.refused].filter(id=>feedState.selected.has(id)));
   const species=[...new Set(pets.map(p=>p.species||'Unknown'))].sort((a,b)=>a.localeCompare(b));
   const select=$('#feedingSpeciesFilter');const old=select.value;select.replaceChildren(new Option('All species',''));
   for(const value of species)select.add(new Option(value,value));if(species.includes(old))select.value=old;
@@ -1545,16 +1708,16 @@ $('#feedingPetSearch').addEventListener('input',renderFeedingChoices);
 $('#feedingSpeciesFilter').addEventListener('change',renderFeedingChoices);
 $('#feedingGroupSelect').addEventListener('change',()=>{const group=feedState.groups.find(g=>String(g.id)===$('#feedingGroupSelect').value);if(group)applyFeedingGroup(group);});
 $('#feedingSelectVisible').addEventListener('click',()=>{for(const p of filteredFeedingPets())feedState.selected.add(p.id);renderFeedingChoices();});
-$('#feedingDeselectAll').addEventListener('click',()=>{feedState.selected.clear();$('#feedingGroupSelect').value='';renderFeedingChoices();});
-$('#quickDate').value=isoToday();
+$('#feedingDeselectAll').addEventListener('click',()=>{feedState.selected.clear();feedState.refused.clear();$('#feedingGroupSelect').value='';renderFeedingChoices();});
+$('#quickDate').value=isoToday();refreshSharedDateControls();
 $('#quickFeedingForm').addEventListener('submit',async e=>{
  e.preventDefault();if(feedState.busy)return;
  const pet_ids=[...feedState.selected];const food=$('#quickFood').value.trim();const feeding_date=apiDate($('#quickDate').value);const notes=$('#quickNotes').value.trim();
  if(!pet_ids.length||!food||!feeding_date){feedingFeedback('#quickFeedingMessage','Select at least one animal, enter food and choose a valid date.',true);return;}
  feedState.busy=true;$('#quickFeedingSave').disabled=true;feedingFeedback('#quickFeedingMessage','Saving feedings…');
- try{const data=await feedingRequest('/api/feedings/bulk','POST',{pet_ids,food,feeding_date,notes});
+ try{const data=await feedingRequest('/api/feedings/bulk','POST',{pet_ids,refused_pet_ids:pet_ids.filter(id=>feedState.refused.has(id)),food,feeding_date,notes});
   feedingFeedback('#quickFeedingMessage',`Saved ${data.count} individual feeding record${data.count===1?'':'s'} successfully.`);
-  toast(`${data.count} feeding record${data.count===1?'':'s'} saved.`);feedState.selected.clear();renderFeedingChoices();$('#quickFood').value='';$('#quickNotes').value='';loadRecentFeedings();
+  toast(`${data.count} feeding record${data.count===1?'':'s'} saved.`);feedState.selected.clear();feedState.refused.clear();renderFeedingChoices();$('#quickFood').value='';$('#quickNotes').value='';loadRecentFeedings();
  }catch(err){feedingFeedback('#quickFeedingMessage',`Could not save feedings: ${err.message}. Selection and fields were preserved.`,true);}
  finally{feedState.busy=false;$('#quickFeedingSave').disabled=false;}
 });
@@ -1592,13 +1755,13 @@ $('#feedingConfirmProceed').addEventListener('click',async()=>{
 });
 // Individual feeding is kept independent of pet-profile editing.
 let recordMode='add',recordBeingEdited=null,recordPetId=null,recordInitial='',recordBusy=false;
-function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),notes:$('#feedingRecordNotes').value.trim()};}
+function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),feeding_outcome:$('#feedingRecordOutcome').value,notes:$('#feedingRecordNotes').value.trim()};}
 function recordIsDirty(){return JSON.stringify(recordFields())!==recordInitial;}
 function openFeedingRecord(mode,record=null){
  if(!activePet||petEditing)return toast('Finish pet profile editing first.');
  recordMode=mode;recordBeingEdited=record;recordPetId=Number(activePet.id);
  $('#feedingRecordDialogTitle').textContent=mode==='edit'?'Edit Feeding Record':'Add Feeding';
- $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';
+ $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordOutcome').value=record?.feeding_outcome||'accepted';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';refreshSharedDateControls();
  $('#feedingRecordSave').textContent=mode==='edit'?'Save Changes':'Save Feeding';feedingFeedback('#feedingRecordMessage','');
  recordInitial=JSON.stringify(recordFields());$('#feedingRecordDialog').showModal();
 }
@@ -2268,7 +2431,7 @@ function startEnclosureHistory(enclosure,detailsRequest) {
   const today=new Date();
   $('#enclosureHistoryTo').value=enclosureHistoryLocalDate(today);
   today.setDate(today.getDate()-7);
-  $('#enclosureHistoryFrom').value=enclosureHistoryLocalDate(today);
+  $('#enclosureHistoryFrom').value=enclosureHistoryLocalDate(today);refreshSharedDateControls();
   $('#enclosureHistoryCustom').hidden=true;
   document.querySelectorAll('[data-history-range]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.historyRange==='24h')));
   $('#enclosureHistoryFeedback').textContent='Loading reading history…';
@@ -2647,4 +2810,76 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
   } finally {
     enclosureCreateSaving = false; $('#enclosureCreateSave').disabled = false;
   }
+});
+
+// Stage 3D.5.3 — individual animal observations. No enclosure ownership assumed.
+const animalEventNames={molting:'Molting / Shedding',weight:'Weight Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
+const moltLabels={successful:'Successful',incomplete:'Incomplete',difficulty_observed:'Difficulty observed',unknown:'Unknown'};
+let animalEventEditing=null,animalEventPetId=null,animalEventInitial='',animalEventBusy=false;
+function animalEventFields(){
+  const type=$('#animalEventType').value,unit=$('#animalEventWeightUnit').value,weight=Number($('#animalEventWeight').value);
+  const date=$('#animalEventDate').value,time=$('#animalEventTime').value||null;
+  return {event_type:type,event_date:date,event_time:time,utc_offset_minutes:null,description:$('#animalEventDescription').value.trim()||null,
+    molt_outcome:type==='molting'?$('#animalEventMolt').value:null,weight_g:type==='weight'?(unit==='kg'?weight*1000:weight):null,notes:$('#animalEventNotes').value.trim()||null};
+}
+function animalEventFieldsDirty(){return JSON.stringify(animalEventFields())!==animalEventInitial;}
+function updateAnimalEventFields(){
+  const type=$('#animalEventType').value;$('#animalEventMoltField').hidden=type!=='molting';$('#animalEventWeightField').hidden=type!=='weight';
+  $('#animalEventDescription').required=!['molting','weight'].includes(type);
+}
+$('#animalEventType').addEventListener('change',updateAnimalEventFields);
+function openAnimalEvent(mode,record=null){
+  if(!activePet||petEditing)return toast('Finish pet profile editing first.');
+  animalEventPetId=Number(activePet.id);animalEventEditing=mode==='edit'?record:null;
+  $('#animalEventDialogTitle').textContent=record?'Edit Animal Event':'Add Animal Event';
+  $('#animalEventType').value=record?.event_type||'molting';$('#animalEventDate').value=record?.event_date||isoToday();
+  $('#animalEventDate').max=isoToday();$('#animalEventTime').value=record?.event_time||'';refreshSharedDateControls();
+  $('#animalEventMolt').value=record?.molt_outcome||'successful';$('#animalEventWeight').value=record?.weight_g??'';$('#animalEventWeightUnit').value='g';
+  $('#animalEventDescription').value=record?.description||'';$('#animalEventNotes').value=record?.notes||'';
+  updateAnimalEventFields();feedingFeedback('#animalEventMessage','');$('#animalEventSave').textContent=record?'Save Changes':'Save Event';
+  animalEventInitial=JSON.stringify(animalEventFields());$('#animalEventDialog').showModal();
+}
+function cancelAnimalEvent(){
+  if(animalEventFieldsDirty())confirmFeeding('Discard your unsaved animal event changes?',()=>$('#animalEventDialog').close());
+  else $('#animalEventDialog').close();
+}
+$('#animalEventAdd').addEventListener('click',()=>openAnimalEvent('add'));
+$('#animalEventCancel').addEventListener('click',cancelAnimalEvent);
+$('#animalEventDialog').addEventListener('cancel',e=>{if(animalEventFieldsDirty()){e.preventDefault();cancelAnimalEvent();}});
+function renderAnimalEvents(records){
+  const host=$('#animalEventList');host.replaceChildren();
+  if(!records.length){host.append(elem('p','pet-details-empty','No animal observations yet. Choose Add Event to start this animal’s history.'));return;}
+  for(const record of records){
+    const article=elem('article','animal-event-entry');const copy=elem('div','animal-event-content');
+    copy.append(elem('strong',null,animalEventNames[record.event_type]||'Observation'));
+    const time=record.event_time?` at ${record.event_time}`:'';copy.append(elem('small',null,`${apiDate(record.event_date)}${time}`));
+    if(record.molt_outcome)copy.append(elem('p',null,`Outcome: ${moltLabels[record.molt_outcome]||record.molt_outcome}`));
+    if(record.weight_g!==null)copy.append(elem('p',null,`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`));
+    if(record.description)copy.append(elem('p',null,record.description));
+    if(record.notes)copy.append(elem('p','animal-event-note',record.notes));
+    const actions=elem('div','feeding-entry-actions');const edit=elem('button','text-button','Edit');edit.type='button';edit.addEventListener('click',()=>openAnimalEvent('edit',record));
+    const del=elem('button','text-button feeding-danger','Delete');del.type='button';del.addEventListener('click',()=>{
+      if(petEditing)return toast('Finish pet profile editing first.');const petId=Number(activePet?.id);
+      if(!petId)return;confirmFeeding(`Permanently delete this ${animalEventNames[record.event_type]} observation from ${apiDate(record.event_date)}? This cannot be undone.`,async()=>{
+        await feedingRequest(`/api/pets/${petId}/events/${record.id}`,'DELETE');await refreshAnimalEvents(petId);toast('Animal event deleted.');
+      });
+    });actions.append(edit,del);article.append(copy,actions);host.append(article);
+  }
+}
+async function refreshAnimalEvents(petId){
+  try{const records=await feedingRequest(`/api/pets/${petId}/events`);
+    if(Number($('#petDetailsPage').dataset.petId)!==petId||$('#petDetailsPage').hidden)return;
+    renderAnimalEvents(records);$('#animalEventLoadError').hidden=true;
+  }catch(error){if(Number($('#petDetailsPage').dataset.petId)===petId)$('#animalEventLoadError').hidden=false;toast(`Could not refresh animal events: ${error.message}`);}
+}
+$('#animalEventRetry').addEventListener('click',()=>{const id=Number($('#petDetailsPage').dataset.petId);if(id>0)void refreshAnimalEvents(id);});
+$('#animalEventForm').addEventListener('submit',async e=>{
+  e.preventDefault();if(animalEventBusy)return;const body=animalEventFields();
+  if(!body.event_date||body.event_date>isoToday()){feedingFeedback('#animalEventMessage','Select a valid observation date that is not in the future.',true);return;}
+  if(body.event_type==='weight'&&!(Number.isFinite(body.weight_g)&&body.weight_g>0&&body.weight_g<=1000000)){feedingFeedback('#animalEventMessage','Enter a valid positive weight.',true);return;}
+  if(!['molting','weight'].includes(body.event_type)&&!body.description){feedingFeedback('#animalEventMessage','Please describe your observation.',true);return;}
+  animalEventBusy=true;$('#animalEventSave').disabled=true;const petId=animalEventPetId;
+  try{const route=`/api/pets/${petId}/events${animalEventEditing?`/${animalEventEditing.id}`:''}`;await feedingRequest(route,animalEventEditing?'PUT':'POST',body);
+    $('#animalEventDialog').close();await refreshAnimalEvents(petId);toast(animalEventEditing?'Animal event updated.':'Animal event added.');
+  }catch(error){feedingFeedback('#animalEventMessage',`Could not save: ${error.message}`,true);}finally{animalEventBusy=false;$('#animalEventSave').disabled=false;}
 });

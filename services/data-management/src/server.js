@@ -133,6 +133,41 @@ function isValidFeeding(food, feeding_date, notes) {
     );
 }
 
+const EVENT_TYPES = new Set(['molting','weight','behavior','health','husbandry','other']);
+const MOLT_OUTCOMES = new Set(['successful','incomplete','difficulty_observed','unknown']);
+const FEEDING_OUTCOMES = new Set(['recorded','accepted','refused']);
+function validOutcome(value) { return FEEDING_OUTCOMES.has(value); }
+function validateAnimalEvent(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Invalid event data';
+    const {event_type,event_date,event_time=null,utc_offset_minutes=null,description=null,molt_outcome=null,weight_g=null,notes=null} = input;
+    if (!EVENT_TYPES.has(event_type)) return 'Select a valid event type';
+    if (typeof event_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(event_date) ||
+        !isValidDate(`${event_date.slice(8,10)}/${event_date.slice(5,7)}/${event_date.slice(0,4)}`) ||
+        event_date > new Date().toISOString().slice(0,10)) return 'Enter a valid observation date that is not in the future';
+    if (event_time !== null && (typeof event_time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(event_time))) return 'Time must be HH:MM or omitted';
+    if (utc_offset_minutes !== null && (!Number.isInteger(utc_offset_minutes) || Math.abs(utc_offset_minutes)>840 || event_time===null)) return 'Invalid time-zone offset';
+    if (description !== null && (typeof description !== 'string' || description.length>2000)) return 'Description must be at most 2000 characters';
+    if (notes !== null && (typeof notes !== 'string' || notes.length>2000)) return 'Notes must be at most 2000 characters';
+    if (event_type==='molting') {
+        if (!MOLT_OUTCOMES.has(molt_outcome)) return 'Select an observed shedding outcome';
+    } else if (molt_outcome!==null) return 'Shedding outcome is only for molting events';
+    if (event_type==='weight') {
+        if (typeof weight_g!=='number' || !Number.isFinite(weight_g) || weight_g<=0 || weight_g>1000000) return 'Enter a positive, valid weight in grams';
+    } else if (weight_g!==null) return 'Weight is only for weight events';
+    if (!['molting','weight'].includes(event_type) && (!description || !description.trim())) return 'An observation description is required';
+    return null;
+}
+function eventValues(input) {
+    return [input.event_type,input.event_date,input.event_time||null,input.utc_offset_minutes??null,
+        input.description?.trim()||null,input.molt_outcome||null,input.weight_g??null,input.notes?.trim()||null];
+}
+function lookupEventPet(req,res) {
+    const petId=Number(req.params.id);
+    if (!isValidId(petId)) {res.status(400).json({error:'Invalid pet ID'});return null;}
+    if (!db.prepare('SELECT id FROM pets WHERE id = ?').get(petId)) {res.status(404).json({error:'Pet not found'});return null;}
+    return petId;
+}
+
 // Pet birth dates use ISO 8601 (YYYY-MM-DD), suitable for HTML date inputs.
 function isValidBirthDate(value) {
     if (value === null) return true;
@@ -362,6 +397,7 @@ app.delete('/pets/:id', (req, res) => {
         db.exec('BEGIN IMMEDIATE');
         db.prepare('DELETE FROM feeding_group_members WHERE pet_id = ?').run(id);
         db.prepare('DELETE FROM feeding_records WHERE pet_id = ?').run(id);
+        db.prepare('DELETE FROM animal_events WHERE pet_id = ?').run(id);
         db.prepare('DELETE FROM pets WHERE id = ?').run(id);
         db.exec('COMMIT');
     } catch (error) {
@@ -473,10 +509,14 @@ app.delete('/feeding-groups/:id', (req, res) => {
 });
 
 app.post('/feedings/bulk', (req, res) => {
-    const { pet_ids, food, feeding_date, notes } = req.body || {};
+    const { pet_ids, food, feeding_date, notes, refused_pet_ids = [] } = req.body || {};
     if (!Array.isArray(pet_ids) || !pet_ids.length || pet_ids.length > 500 ||
         !pet_ids.every(isValidId) || new Set(pet_ids).size !== pet_ids.length) {
         return res.status(400).json({ error: 'Select 1–500 unique, valid pet IDs' });
+    }
+    if (!Array.isArray(refused_pet_ids) || new Set(refused_pet_ids).size !== refused_pet_ids.length ||
+        !refused_pet_ids.every(id => isValidId(id) && pet_ids.includes(id))) {
+        return res.status(400).json({ error: 'Refused animals must be a unique subset of the selected pets' });
     }
     if (!isValidFeeding(food, feeding_date, notes)) {
         return res.status(400).json({ error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required' });
@@ -488,9 +528,9 @@ app.post('/feedings/bulk', (req, res) => {
     const createdIds = [];
     try {
         db.exec('BEGIN IMMEDIATE');
-        const insert = db.prepare('INSERT INTO feeding_records (pet_id, food, feeding_date, notes) VALUES (?, ?, ?, ?)');
+        const insert = db.prepare('INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome) VALUES (?, ?, ?, ?, ?)');
         for (const petId of pet_ids) {
-            const result = insert.run(petId, food.trim(), toDatabaseDate(feeding_date), typeof notes === 'string' ? notes.trim() : null);
+            const result = insert.run(petId, food.trim(), toDatabaseDate(feeding_date), typeof notes === 'string' ? notes.trim() : null, refused_pet_ids.includes(petId) ? 'refused' : 'accepted');
             createdIds.push(Number(result.lastInsertRowid));
         }
         db.exec('COMMIT');
@@ -509,6 +549,44 @@ app.get('/feedings/recent', (req, res) => {
         ORDER BY f.feeding_date DESC, f.id DESC LIMIT 30
     `).all();
     res.json(records.map(formatFeeding));
+});
+
+// --------------------------------------------------
+// ANIMAL EVENTS — each event belongs to one animal.
+// --------------------------------------------------
+app.get('/pets/:id/events', (req,res) => {
+    const petId=lookupEventPet(req,res); if (petId===null) return;
+    res.json(db.prepare('SELECT * FROM animal_events WHERE pet_id=? ORDER BY event_date DESC, event_time DESC,id DESC').all(petId));
+});
+app.post('/pets/:id/events', (req,res) => {
+    const petId=lookupEventPet(req,res); if (petId===null) return;
+    const error=validateAnimalEvent(req.body);if(error)return res.status(400).json({error});
+    const result=db.prepare(`INSERT INTO animal_events (pet_id,event_type,event_date,event_time,utc_offset_minutes,description,molt_outcome,weight_g,notes)
+        VALUES (?,?,?,?,?,?,?,?,?)`).run(petId,...eventValues(req.body));
+    res.status(201).json(db.prepare('SELECT * FROM animal_events WHERE id=?').get(result.lastInsertRowid));
+});
+app.get('/pets/:id/events/:eventId',(req,res)=>{
+    const petId=lookupEventPet(req,res);if(petId===null)return;
+    const eventId=Number(req.params.eventId);if(!isValidId(eventId))return res.status(400).json({error:'Invalid event ID'});
+    const record=db.prepare('SELECT * FROM animal_events WHERE pet_id=? AND id=?').get(petId,eventId);
+    if(!record)return res.status(404).json({error:'Animal event not found'});
+    res.json(record);
+});
+app.put('/pets/:id/events/:eventId',(req,res)=>{
+    const petId=lookupEventPet(req,res);if(petId===null)return;
+    const eventId=Number(req.params.eventId);if(!isValidId(eventId))return res.status(400).json({error:'Invalid event ID'});
+    if(!db.prepare('SELECT id FROM animal_events WHERE pet_id=? AND id=?').get(petId,eventId))return res.status(404).json({error:'Animal event not found'});
+    const error=validateAnimalEvent(req.body);if(error)return res.status(400).json({error});
+    db.prepare(`UPDATE animal_events SET event_type=?,event_date=?,event_time=?,utc_offset_minutes=?,description=?,molt_outcome=?,weight_g=?,notes=?,updated_at=CURRENT_TIMESTAMP
+        WHERE pet_id=? AND id=?`).run(...eventValues(req.body),petId,eventId);
+    res.json(db.prepare('SELECT * FROM animal_events WHERE pet_id=? AND id=?').get(petId,eventId));
+});
+app.delete('/pets/:id/events/:eventId',(req,res)=>{
+    const petId=lookupEventPet(req,res);if(petId===null)return;
+    const eventId=Number(req.params.eventId);if(!isValidId(eventId))return res.status(400).json({error:'Invalid event ID'});
+    const result=db.prepare('DELETE FROM animal_events WHERE pet_id=? AND id=?').run(petId,eventId);
+    if(!result.changes)return res.status(404).json({error:'Animal event not found'});
+    res.status(204).send();
 });
 
 // --------------------------------------------------
@@ -564,8 +642,9 @@ app.post('/pets/:id/feedings', (req, res) => {
         });
     }
 
-    const { food, feeding_date, notes } = req.body || {};
+    const { food, feeding_date, notes, feeding_outcome = 'recorded' } = req.body || {};
 
+    if (!validOutcome(feeding_outcome)) return res.status(400).json({error:'Invalid feeding outcome'});
     if (!isValidFeeding(food, feeding_date, notes)) {
         return res.status(400).json({
             error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required'
@@ -573,13 +652,14 @@ app.post('/pets/:id/feedings', (req, res) => {
     }
 
     const result = db.prepare(`
-        INSERT INTO feeding_records (pet_id, food, feeding_date, notes)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome)
+        VALUES (?, ?, ?, ?, ?)
     `).run(
         petId,
         food.trim(),
         toDatabaseDate(feeding_date),
-        typeof notes === 'string' ? notes.trim() : null
+        typeof notes === 'string' ? notes.trim() : null,
+        feeding_outcome
     );
 
     const feeding = db.prepare(
@@ -654,8 +734,9 @@ app.put('/pets/:id/feedings/:feedingId', (req, res) => {
         });
     }
 
-    const { food, feeding_date, notes } = req.body || {};
+    const { food, feeding_date, notes, feeding_outcome = 'recorded' } = req.body || {};
 
+    if (!validOutcome(feeding_outcome)) return res.status(400).json({error:'Invalid feeding outcome'});
     if (!isValidFeeding(food, feeding_date, notes)) {
         return res.status(400).json({
             error: 'Valid food, feeding_date (DD/MM/YYYY), and optional notes are required'
@@ -664,12 +745,13 @@ app.put('/pets/:id/feedings/:feedingId', (req, res) => {
 
     db.prepare(`
         UPDATE feeding_records
-        SET food = ?, feeding_date = ?, notes = ?
+        SET food = ?, feeding_date = ?, notes = ?, feeding_outcome = ?
         WHERE id = ? AND pet_id = ?
     `).run(
         food.trim(),
         toDatabaseDate(feeding_date),
         typeof notes === 'string' ? notes.trim() : null,
+        feeding_outcome,
         feedingId,
         petId
     );

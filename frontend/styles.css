@@ -1029,3 +1029,78 @@
 }
 #feedingGroupName[aria-invalid="true"]{border-color:#b75e49;box-shadow:0 0 0 3px rgba(183,94,73,.17);background:#fff9f6}
 #feedingGroupName[aria-invalid="true"]:focus{outline:2px solid #b75e49;outline-offset:2px}
+
+/* Stage 3D.5.3 — animal event timeline; adheres to Pet Details panels. */
+.animal-events-panel{margin-top:20px}
+.animal-events-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.animal-events-heading h3{margin:7px 0 14px}
+.animal-event-entry{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;border-top:1px solid #e8eadf;padding:15px 0}
+.animal-event-entry:first-child{margin-top:12px}
+.animal-event-content{min-width:0;overflow-wrap:anywhere}
+.animal-event-content strong,.animal-event-content small{display:block}
+.animal-event-content strong{font-size:14px;color:#263f2d}
+.animal-event-content small{font-size:12px;color:#718071;margin-top:5px}
+.animal-event-content p{font-size:13px;line-height:1.55;margin:8px 0 0;color:#405444}
+.animal-event-content .animal-event-note{color:#708075}
+.animal-event-weight-fields{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+.animal-event-weight-fields[hidden],#animalEventMoltField[hidden]{display:none}
+.pet-details-page.is-editing .animal-events-panel{display:none}
+.feeding-dialog select{width:100%;min-width:0;background:#fffdf9;border:1px solid #daddd0;border-radius:10px;color:#203428;padding:11px 12px;font:inherit;font-size:13px}
+@media(max-width:600px){.animal-event-entry{flex-direction:column}.animal-event-weight-fields{grid-template-columns:1fr 100px}}
+
+/* Stage 3D.5.3 refinement — align feeding rows with Animal Events. */
+.pet-details-feeding{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:nowrap}
+.pet-details-feeding>div:first-child{flex:1;min-width:0}
+.pet-details-feeding .feeding-entry-actions{flex:none;align-self:flex-start;margin-left:auto}
+.pet-details-feeding .feeding-entry-note{margin:7px 0 0;color:#687569;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.pet-details-feeding small{margin-top:6px}
+/* Reuse approved Add Pet calendar appearance for all date fields. */
+.shared-date-wrap{width:100%;max-width:100%;font-weight:400}
+.shared-date-wrap .add-pet-calendar-trigger{font-weight:400;cursor:pointer}
+.shared-date-wrap .add-pet-calendar{font-weight:400}
+.shared-calendar-icon{flex:none;color:#577353;font-size:23px;line-height:18px}
+.shared-date-source,.shared-time-source{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:0!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important}
+.shared-time-wrap{position:relative;display:flex;align-items:center;gap:8px;width:100%;min-width:0}
+.feeding-dialog .shared-time-wrap select{flex:1;min-width:0;width:auto;padding:11px 10px;min-height:45px;border:1px solid #dfe4d6;border-radius:11px;background:#fffdf9;color:#304833;font-size:13px}
+.shared-time-wrap>span{font-size:16px;color:#71856c;font-weight:700}
+.shared-time-clear{border:1px solid #dfe4d6;border-radius:9px;background:#edf3e5;color:#355b3c;padding:11px;font-size:12px;font-weight:700;cursor:pointer}
+.shared-time-clear:hover{background:#dce9d2}
+@media(max-width:480px){.shared-time-wrap{gap:4px}.shared-time-clear{padding:11px 7px}.shared-date-wrap .add-pet-calendar{left:0;right:auto}}
+
+/* Stage 3D.5.3 follow-up — calendar controls inside modal dialogs. */
+.feeding-dialog .shared-date-wrap .add-pet-calendar{width:min(350px,calc(100vw - 54px));max-width:calc(100vw - 54px);padding:16px;z-index:50}
+.feeding-dialog .shared-date-wrap .add-pet-calendar-navigation{grid-template-columns:30px minmax(0,1fr) 76px 30px;gap:6px}
+.feeding-dialog .shared-date-wrap .add-pet-calendar-navigation select{display:block;width:100%;height:34px;min-width:0;margin:0;padding:0 4px;background:#f1f5ea;color:#35553b;border:1px solid #dce5d4;border-radius:9px;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:12px;line-height:1.2;font-weight:500}
+.shared-date-wrap .add-pet-calendar-select-label{overflow:visible}
+/* The native browser time menu cannot inherit site styling. These styled menus can. */
+.shared-time-wrap{isolation:isolate}
+.shared-time-part{position:relative;flex:1;min-width:0}
+.shared-time-trigger{display:flex;align-items:center;justify-content:space-between;width:100%;height:45px;padding:0 13px;background:#fffdf9;border:1px solid #dfe4d6;border-radius:11px;color:#304833;font-size:13px;font-weight:500}
+.shared-time-trigger[aria-expanded="true"]{border-color:#789e72;box-shadow:0 0 0 3px rgba(120,158,114,.12)}
+.shared-time-trigger span:last-child{font-size:17px;color:#58745a}
+.shared-time-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:60;max-height:196px;overflow-y:auto;overscroll-behavior:contain;padding:5px;background:#fffdf9;border:1px solid #dce5d4;border-radius:11px;box-shadow:0 12px 28px rgba(31,56,38,.17)}
+.shared-time-option{display:block;width:100%;text-align:center;padding:9px;border:0;border-radius:7px;color:#35513a;background:transparent;font-size:13px}
+.shared-time-option:hover,.shared-time-option:focus-visible{background:#e8f0df}
+.shared-time-option[aria-selected="true"]{background:#386d38;color:white;font-weight:700}
+/* A selected participant has an explicit feeding response. */
+.feeding-choice-row{min-width:0;display:flex;flex-direction:column;gap:6px}
+.feeding-choice-row .feeding-pet-choice{width:100%}
+.feeding-response-choice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px 7px 12px;color:#667267;font-size:12px}
+.feeding-response-choice select{width:130px;max-width:65%;min-height:36px;padding:7px 10px;border:1px solid #dce5d4;border-radius:9px;background:#f1f5ea;color:#35553b;font:inherit;font-size:12px;font-weight:650}
+@media(max-width:480px){.feeding-dialog .shared-date-wrap .add-pet-calendar{left:0;right:auto;width:min(340px,calc(100vw - 60px))}.shared-time-trigger{padding:0 9px}}
+/* Protect calendar month/year controls from generic form select rules on every page. */
+.shared-date-wrap .add-pet-calendar-navigation select{display:block;width:100%;height:34px;min-width:0;margin:0;padding:0 4px;background:#f1f5ea;color:#35553b;border:1px solid #dce5d4;border-radius:9px;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:12px;line-height:1.2;font-weight:500}
+
+/* Stage 3D.5.3 final polish: quick-feeding response is a compact two-choice control. */
+.feeding-response-choice{align-items:center;flex-wrap:wrap;gap:8px;padding:1px 3px 9px 4px}
+.feeding-response-label{color:#58745a;font-size:12px;font-weight:700}
+.feeding-response-options{display:inline-flex;align-items:center;gap:3px;margin-left:auto;padding:3px;background:#eff2e8;border:1px solid #dfe6d5;border-radius:11px}
+.feeding-response-option{appearance:none;min-height:33px;padding:7px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#607061;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.feeding-response-option:hover{background:#fffdf9;color:#254a30}
+.feeding-response-option--accepted.is-active{background:#386d38;color:#fff;border-color:#386d38;box-shadow:0 1px 3px #254c2924}
+.feeding-response-option--refused.is-active{background:#f7e5df;color:#963d30;border-color:#ebc7bb;box-shadow:0 1px 3px #713b3020}
+.feeding-response-option:focus-visible{outline:3px solid #93b981;outline-offset:2px}
+/* Date/time menu stays accessible by clicking anywhere in the field; no stray chevron. */
+.shared-time-trigger{justify-content:flex-start;cursor:pointer}
+.shared-time-trigger:hover{border-color:#a7bca0;background:#fbfcf7}
+@media(max-width:480px){.feeding-response-option{padding:7px 9px}.feeding-response-choice{padding-left:2px}}

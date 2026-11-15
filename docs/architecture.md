@@ -444,3 +444,8 @@ scope of this university project.
 
 The mobile-friendly web client remains planned. Automated comparison of
 feeding records with environmental measurements is not yet implemented.
+
+
+### Stage 3D.5.3: animal observation ownership
+
+The Data Management Service persists `animal_events` keyed to individual pets and records feeding outcomes in `feeding_records`. They are separate data types, and feeding refusals must not be independently duplicated as animal events. Enclosure monitoring data remains owned by the Enclosure Service. A pet's `enclosure_id` currently provides only the present assignment: without a dated assignment history, future Records & Insights must not claim that old readings describe an animal's past enclosure. Stage 3D.5.4 will reuse these data models rather than introducing parallel event storage.

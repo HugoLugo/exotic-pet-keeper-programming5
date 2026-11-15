@@ -295,6 +295,13 @@
               <div id="petDetailsFeedingError" hidden><p class="pet-details-empty">Unable to load feeding history. Other profile information is still available.</p><button type="button" class="text-button" id="petDetailsRetryFeedings">Try again</button></div>
             </section>
           </div>
+          <section class="pet-details-panel animal-events-panel" aria-labelledby="animalEventsHeading">
+            <span class="section-kicker">CARE JOURNAL</span>
+            <div class="animal-events-heading"><h3 id="animalEventsHeading">Animal Events</h3><button id="animalEventAdd" class="primary-button" type="button">+ Add Event</button></div>
+            <p class="feeding-hint">Personal observations stay with this animal, even if its enclosure changes.</p>
+            <div id="animalEventList" aria-live="polite"></div>
+            <div id="animalEventLoadError" hidden><p class="pet-details-empty">Unable to load animal events.</p><button id="animalEventRetry" class="text-button" type="button">Try again</button></div>
+          </section>
         </div>
         <div class="pet-details-delete-row"><button type="button" id="petDetailsDelete" class="enclosure-danger-button">Delete Pet</button></div>
       </section>
@@ -362,7 +369,7 @@
         <div class="feeding-layout">
           <section class="panel feeding-workspace" aria-labelledby="quickFeedTitle">
             <div class="section-heading"><div><span class="section-kicker">FEEDING SESSION</span><h2 id="quickFeedTitle">Quick Feeding</h2></div><span id="feedingSelectedCount" class="feeding-counter">0 selected</span></div>
-            <p class="feeding-hint">Select any combination of pets. Groups make selection faster, but you decide who actually ate.</p>
+            <p class="feeding-hint">Select animals for this session. All are marked Accepted by default; choose Refused for any animal that did not eat.</p>
             <div class="feeding-controls"><label>Choose a group <select id="feedingGroupSelect"><option value="">Select a saved group (optional)</option></select></label><label>Filter pets <input id="feedingPetSearch" type="search" placeholder="Search name or species…"></label><label>Species (optional) <select id="feedingSpeciesFilter"><option value="">All species</option></select></label></div>
             <div class="feeding-selection-actions"><button class="text-button" id="feedingSelectVisible" type="button">Select filtered</button><button class="text-button" id="feedingDeselectAll" type="button">Clear selection</button></div>
             <div id="feedingPetChoices" class="feeding-choices" aria-live="polite"></div>
@@ -385,7 +392,22 @@
         <form id="feedingGroupForm" novalidate><span class="section-kicker">ORGANIZE YOUR PETS</span><h2 id="feedingGroupDialogTitle">Create Group</h2><label>Group name <input id="feedingGroupName" maxlength="100" required placeholder="e.g. Saturday Feeders"></label><p class="feeding-hint">Select members; you can change the selection later.</p><div class="feeding-selection-actions"><button class="text-button" id="groupSelectAll" type="button">Select all</button><button class="text-button" id="groupClearAll" type="button">Clear</button></div><div id="feedingGroupMembers" class="feeding-choices"></div><p id="feedingGroupError" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingGroupCancel">Cancel</button><button type="submit" class="primary-button" id="feedingGroupSave">Save Group</button></div></form>
       </dialog>
       <dialog id="feedingRecordDialog" class="feeding-dialog" aria-labelledby="feedingRecordDialogTitle">
-        <form id="feedingRecordForm" novalidate><span class="section-kicker">CARE LOG</span><h2 id="feedingRecordDialogTitle">Add Feeding</h2><label>Food given <input id="feedingRecordFood" maxlength="200" required placeholder="e.g. 1 cricket"></label><label>Feeding date <input id="feedingRecordDate" type="date" required></label><label>Notes (optional) <textarea id="feedingRecordNotes" rows="3"></textarea></label><p id="feedingRecordMessage" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingRecordCancel">Cancel</button><button class="primary-button" id="feedingRecordSave" type="submit">Save Feeding</button></div></form>
+        <form id="feedingRecordForm" novalidate><span class="section-kicker">CARE LOG</span><h2 id="feedingRecordDialogTitle">Add Feeding</h2><label>Food offered <input id="feedingRecordFood" maxlength="200" required placeholder="e.g. 1 cricket"></label><label>Feeding response <select id="feedingRecordOutcome"><option value="accepted">Accepted</option><option value="refused">Refused</option><option value="recorded">Not specified (legacy)</option></select></label><label>Feeding date <input id="feedingRecordDate" type="date" required></label><label>Notes (optional) <textarea id="feedingRecordNotes" rows="3"></textarea></label><p id="feedingRecordMessage" class="feeding-message" role="status"></p><div class="feeding-actions"><button type="button" class="add-pet-cancel" id="feedingRecordCancel">Cancel</button><button class="primary-button" id="feedingRecordSave" type="submit">Save Feeding</button></div></form>
+      </dialog>
+      <dialog id="animalEventDialog" class="feeding-dialog" aria-labelledby="animalEventDialogTitle">
+        <form id="animalEventForm" novalidate>
+          <span class="section-kicker">CARE JOURNAL</span><h2 id="animalEventDialogTitle">Add Animal Event</h2>
+          <label>Event type <select id="animalEventType" required><option value="molting">Molting / Shedding</option><option value="weight">Weight Measurement</option><option value="behavior">Behavior / Activity</option><option value="health">Health Observation</option><option value="husbandry">Husbandry Observation</option><option value="other">Other Observation</option></select></label>
+          <label>Observation date <input id="animalEventDate" type="date" required></label>
+          <label>Observation time (optional) <input id="animalEventTime" type="time"></label>
+          <label id="animalEventMoltField">Shedding outcome <select id="animalEventMolt"><option value="successful">Successful</option><option value="incomplete">Incomplete</option><option value="difficulty_observed">Difficulty observed</option><option value="unknown">Unknown</option></select></label>
+          <div class="animal-event-weight-fields" id="animalEventWeightField" hidden><label>Weight <input id="animalEventWeight" type="number" min="0.001" max="1000000" step="any" inputmode="decimal"></label><label>Unit <select id="animalEventWeightUnit"><option value="g">g</option><option value="kg">kg</option></select></label></div>
+          <label>Description <textarea id="animalEventDescription" rows="3" maxlength="2000" placeholder="Describe what you observed"></textarea></label>
+          <label>Additional notes (optional) <textarea id="animalEventNotes" rows="3" maxlength="2000"></textarea></label>
+          <p class="feeding-hint">Record observations only; this journal does not provide diagnoses.</p>
+          <p id="animalEventMessage" class="feeding-message" role="status"></p>
+          <div class="feeding-actions"><button type="button" class="add-pet-cancel" id="animalEventCancel">Cancel</button><button type="submit" class="primary-button" id="animalEventSave">Save Event</button></div>
+        </form>
       </dialog>
       <dialog id="feedingConfirmDialog" class="feeding-dialog" aria-labelledby="feedingConfirmTitle"><h2 id="feedingConfirmTitle">Confirm action</h2><p id="feedingConfirmText"></p><div class="feeding-actions"><button class="add-pet-cancel" id="feedingConfirmCancel" type="button">Cancel</button><button class="primary-button" id="feedingConfirmProceed" type="button">Confirm</button></div></dialog>
 

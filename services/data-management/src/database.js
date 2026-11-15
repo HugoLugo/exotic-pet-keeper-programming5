@@ -39,6 +39,22 @@ db.exec(`
         FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS animal_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id),
+        event_type TEXT NOT NULL CHECK(event_type IN ('molting','weight','behavior','health','husbandry','other')),
+        event_date TEXT NOT NULL,
+        event_time TEXT,
+        utc_offset_minutes INTEGER,
+        description TEXT,
+        molt_outcome TEXT,
+        weight_g REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_animal_events_pet_date ON animal_events(pet_id,event_date DESC,event_time DESC,id DESC);
+
     CREATE TABLE IF NOT EXISTS feeding_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         pet_id INTEGER NOT NULL,
@@ -72,6 +88,12 @@ for (const [name, definition] of [
         db.exec(`ALTER TABLE pets ADD COLUMN ${name} ${definition}`);
         console.log(`Added ${name} column to pets table`);
     }
+}
+
+// Preserve existing feeding entries without assuming that they were accepted.
+const feedingColumns = db.prepare('PRAGMA table_info(feeding_records)').all();
+if (!feedingColumns.some(column => column.name === 'feeding_outcome')) {
+    db.exec("ALTER TABLE feeding_records ADD COLUMN feeding_outcome TEXT NOT NULL DEFAULT 'recorded'");
 }
 
 module.exports = db;
