@@ -61,5 +61,9 @@ if (!columns.has('enclosure_type')) db.exec('ALTER TABLE enclosures ADD COLUMN e
 if (!columns.has('notes')) db.exec('ALTER TABLE enclosures ADD COLUMN notes TEXT');
 // Only an ID is stored: pets belong to the Data Management database.
 if (!columns.has('featured_pet_id')) db.exec('ALTER TABLE enclosures ADD COLUMN featured_pet_id INTEGER');
+// Existing enclosures remain automatic; switching modes sets a history-row boundary.
+// A monotonically increasing history ID avoids timestamp precision/race problems.
+if (!columns.has('monitoring_mode')) db.exec("ALTER TABLE enclosures ADD COLUMN monitoring_mode TEXT NOT NULL DEFAULT 'automatic' CHECK (monitoring_mode IN ('manual', 'automatic'))");
+if (!columns.has('monitoring_start_history_id')) db.exec('ALTER TABLE enclosures ADD COLUMN monitoring_start_history_id INTEGER NOT NULL DEFAULT 0');
 
 module.exports = db;

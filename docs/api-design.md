@@ -802,3 +802,66 @@ The frontend Enclosures collection obtains occupancy by fetching the real `/api/
 Request body: `{ "featuredPetId": 123 }` for an assigned pet, or `{ "featuredPetId": null }` to clear the preference. Returns the updated enclosure with `featuredPetId` (also included in GET/list responses). The service validates membership against `GET /enclosures/:id/pets` on Data Management; returns 400 for malformed data, 404 for unknown enclosure, 409 when the pet is not assigned, and 503 when Data Management is unavailable. A missing or stale preference is displayed as the first occupant (or none when empty); the frontend attempts to synchronize a stale preference after loading. No animal illustration assets or historical records are changed.
 
 **Pet deletion (implemented behavior):** `DELETE /pets/:id` removes the pet and its related feeding records and feeding-group memberships transactionally (204 on success). It is not blocked by existing feeding history. The frontend requires explicit confirmation.
+
+### Stage 3D.3.3A — Selectable environmental monitoring mode (backend)
+
+An enclosure has a persisted `monitoringMode`: `manual` or `automatic`. Existing
+records automatically migrate to `automatic`, preserving sensor monitoring and
+all previous history. `POST /enclosures` defaults to `manual` when the optional
+`monitoringMode` field is omitted; `PUT /enclosures/:id` preserves the existing
+mode when omitted. Invalid values return HTTP 400. All enclosure list, detail,
+create, and update responses include `monitoringMode`.
+
+The migration adds `enclosures.monitoring_mode` and
+`enclosures.monitoring_start_history_id` only when absent. Switching modes on
+`PUT /enclosures/:id` records the latest history row ID as a boundary. All
+historical measurements remain stored, but **the newly selected mode displays
+`no_reading` until a new measurement of that source arrives**. Submitting
+`PUT` again without changing the mode does not discard the current reading.
+
+`GET /enclosures/:id/readings/current` retrieves the current reading for the
+selected monitoring mode, evaluating the value against current thresholds:
+
+```json
+{
+  "enclosureId": 4,
+  "monitoringMode": "manual",
+  "temperature": 25,
+  "humidity": 68,
+  "recordedAt": "2026-11-15T12:00:00Z",
+  "source": "manual",
+  "isAbnormal": false,
+  "status": "normal"
+}
+```
+
+When no eligible reading exists, `temperature`, `humidity`, `recordedAt`,
+`source`, and `isAbnormal` are `null`; `status` is `no_reading`. The endpoint
+returns HTTP 400 for an invalid enclosure ID and HTTP 404 for a missing one.
+It does not infer sensor connectivity or stale state; the frontend will handle
+staleness in Stage 3D.3.3C. Observation time for manual records is supplied by
+the caller; the most recent observation **by recorded time** is current, while
+backdated records are still retained in history.
+
+`POST /enclosures/:id/readings/manual` retains its existing input and response
+contract. In `manual` mode it now updates the enclosure's `isAbnormal` flag
+based on the most recent active manual observation. In `automatic` mode it
+remains history-only and does not replace sensor status. Manual observations
+do not send notifications in this stage.
+
+`POST /readings` rejects sensor submissions with HTTP 409 when the enclosure
+is in `manual` mode. This prevents a still-running simulator from replacing
+manual monitoring status. The simulator should be stopped or redirected to an
+automatically monitored enclosure before changing modes. In `automatic` mode,
+sensor ingestion and alert behavior are unchanged.
+
+The existing `GET /enclosures/:id/readings/latest` endpoint continues to
+return the last **sensor** measurement regardless of monitoring mode, for
+backward compatibility. Its `isAbnormal` reflects that sensor measurement
+against current thresholds, not the manual status. It may therefore return an
+older sensor observation after a mode change; new clients should use
+`/readings/current`. History remains available through
+`GET /enclosures/:id/readings/history` with original source labels.
+
+Existing frontend forms are not yet mode-aware: mode selection UI and manual
+observation entry are planned for Stages 3D.3.3B and 3D.3.3C.

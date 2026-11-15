@@ -14,6 +14,7 @@ function formatEnclosure(enclosure) {
         enclosureType: enclosure.enclosure_type,
         notes: enclosure.notes,
         featuredPetId: enclosure.featured_pet_id,
+        monitoringMode: enclosure.monitoring_mode,
         minTemperature: enclosure.min_temperature,
         maxTemperature: enclosure.max_temperature,
         minHumidity: enclosure.min_humidity,
@@ -71,6 +72,9 @@ function validateEnclosure(data) {
         (typeof data.notes !== 'string' || data.notes.length > 2000)) {
         return 'Notes must be text containing at most 2000 characters';
     }
+    if (data.monitoringMode !== undefined && !['manual', 'automatic'].includes(data.monitoringMode)) {
+        return 'Monitoring mode must be manual or automatic';
+    }
     if (name.trim().length > 120) return 'Enclosure name must be at most 120 characters';
 
     return null;
@@ -83,6 +87,40 @@ function isValidId(id) {
     return /^\d+$/.test(id) &&
         Number.isSafeInteger(number) &&
         number > 0;
+}
+
+// Select the newest observation for the selected mode, after the last mode switch.
+function currentObservation(enclosure) {
+    return db.prepare(`
+        SELECT id, temperature, humidity, recorded_at, source
+        FROM reading_history
+        WHERE enclosure_id = ? AND source = ? AND id > ?
+        ORDER BY recorded_at DESC, id DESC LIMIT 1
+    `).get(enclosure.id, enclosure.monitoring_mode === 'automatic' ? 'sensor' : 'manual', enclosure.monitoring_start_history_id);
+}
+
+function evaluateAbnormal(observation, thresholds) {
+    return observation.temperature < thresholds.min_temperature ||
+        observation.temperature > thresholds.max_temperature ||
+        observation.humidity < thresholds.min_humidity ||
+        observation.humidity > thresholds.max_humidity;
+}
+
+function formatCurrentReading(enclosure) {
+    const reading = currentObservation(enclosure);
+    if (!reading) return {
+        enclosureId: enclosure.id, monitoringMode: enclosure.monitoring_mode,
+        temperature: null, humidity: null, recordedAt: null,
+        source: null, isAbnormal: null, status: 'no_reading'
+    };
+    const abnormal = evaluateAbnormal(reading, enclosure);
+    return {
+        enclosureId: enclosure.id, monitoringMode: enclosure.monitoring_mode,
+        temperature: reading.temperature, humidity: reading.humidity,
+        recordedAt: reading.recorded_at.replace(' ', 'T') + 'Z',
+        source: reading.source, isAbnormal: abnormal,
+        status: abnormal ? 'abnormal' : 'normal'
+    };
 }
 
 // Health check
@@ -128,6 +166,14 @@ app.get('/enclosures/:id', (req, res) => {
     res.status(200).json(formatEnclosure(enclosure));
 });
 
+// Mode-aware reading for the monitoring interface; no readings from before a mode switch.
+app.get('/enclosures/:id/readings/current', (req, res) => {
+    if (!isValidId(req.params.id)) return res.status(400).json({ error: 'Invalid enclosure ID' });
+    const enclosure = db.prepare('SELECT * FROM enclosures WHERE id = ?').get(Number(req.params.id));
+    if (!enclosure) return res.status(404).json({ error: 'Enclosure not found' });
+    return res.status(200).json(formatCurrentReading(enclosure));
+});
+
 // GET the latest automatic sensor reading (manual history does not alter live status).
 app.get('/enclosures/:id/readings/latest', (req, res) => {
     const { id } = req.params;
@@ -161,7 +207,9 @@ app.get('/enclosures/:id/readings/latest', (req, res) => {
         });
     }
 
-    const isAbnormal = enclosure.is_abnormal === 1;
+    // Legacy sensor-only endpoint never reports a manual observation's status.
+    const thresholds = db.prepare('SELECT * FROM enclosures WHERE id = ?').get(enclosure.id);
+    const isAbnormal = evaluateAbnormal(reading, thresholds);
 
     res.status(200).json({
         enclosureId: enclosure.id,
@@ -220,7 +268,8 @@ app.post('/enclosures', (req, res) => {
         minHumidity,
         maxHumidity,
         enclosureType = null,
-        notes = null
+        notes = null,
+        monitoringMode = 'manual'
     } = req.body;
 
     const result = db.prepare(`
@@ -231,9 +280,10 @@ app.post('/enclosures', (req, res) => {
             min_humidity,
             max_humidity,
             enclosure_type,
-            notes
+            notes,
+            monitoring_mode
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         name.trim(),
         minTemperature,
@@ -241,7 +291,8 @@ app.post('/enclosures', (req, res) => {
         minHumidity,
         maxHumidity,
         enclosureType,
-        notes == null ? null : notes.trim()
+        notes == null ? null : notes.trim(),
+        monitoringMode
     );
 
     const enclosure = db.prepare(`
@@ -284,48 +335,34 @@ app.put('/enclosures/:id', (req, res) => {
         minHumidity,
         maxHumidity,
         enclosureType = existing.enclosure_type,
-        notes = existing.notes
+        notes = existing.notes,
+        monitoringMode = existing.monitoring_mode
     } = req.body;
 
-    // Recalculate the state using the latest reading
-    const reading = db.prepare(`
-        SELECT * FROM readings WHERE enclosure_id = ?
-    `).get(Number(id));
-
-    let isAbnormal = 0;
-
-    if (reading) {
-        const abnormal =
-            reading.temperature < minTemperature ||
-            reading.temperature > maxTemperature ||
-            reading.humidity < minHumidity ||
-            reading.humidity > maxHumidity;
-
-        isAbnormal = abnormal ? 1 : 0;
-    }
+    // A mode switch invalidates the previous current reading, never its history.
+    // Threshold edits evaluate only the active mode's current observation.
+    const switching = monitoringMode !== existing.monitoring_mode;
+    const newestHistoryId = db.prepare(`
+        SELECT COALESCE(MAX(id), 0) AS id FROM reading_history WHERE enclosure_id = ?
+    `).get(Number(id)).id;
+    const boundary = switching ? newestHistoryId : existing.monitoring_start_history_id;
+    const active = switching ? null : currentObservation(existing);
+    const revisedThresholds = {
+        min_temperature: minTemperature, max_temperature: maxTemperature,
+        min_humidity: minHumidity, max_humidity: maxHumidity
+    };
+    const isAbnormal = active && evaluateAbnormal(active, revisedThresholds) ? 1 : 0;
 
     db.prepare(`
         UPDATE enclosures
-        SET name = ?,
-            min_temperature = ?,
-            max_temperature = ?,
-            min_humidity = ?,
-            max_humidity = ?,
-            enclosure_type = ?,
-            notes = ?,
+        SET name = ?, min_temperature = ?, max_temperature = ?,
+            min_humidity = ?, max_humidity = ?, enclosure_type = ?,
+            notes = ?, monitoring_mode = ?, monitoring_start_history_id = ?,
             is_abnormal = ?
         WHERE id = ?
-    `).run(
-        name.trim(),
-        minTemperature,
-        maxTemperature,
-        minHumidity,
-        maxHumidity,
-        enclosureType,
-        notes == null ? null : notes.trim(),
-        isAbnormal,
-        Number(id)
-    );
+    `).run(name.trim(), minTemperature, maxTemperature, minHumidity,
+        maxHumidity, enclosureType, notes == null ? null : notes.trim(),
+        monitoringMode, boundary, isAbnormal, Number(id));
 
     const updated = db.prepare(`
         SELECT * FROM enclosures WHERE id = ?
@@ -422,6 +459,10 @@ app.post('/readings', async (req, res) => {
         return res.status(404).json({
             error: 'Enclosure not found'
         });
+    }
+
+    if (enclosure.monitoring_mode !== 'automatic') {
+        return res.status(409).json({ error: 'Enclosure is configured for manual monitoring' });
     }
 
     // Check environmental thresholds
@@ -603,54 +644,31 @@ app.post('/enclosures/:id/readings/manual', (req, res) => {
         });
     }
 
-    // Check that the enclosure exists
-    const enclosure = db.prepare(`
-        SELECT id FROM enclosures WHERE id = ?
-    `).get(Number(id));
+    const enclosure = db.prepare('SELECT * FROM enclosures WHERE id = ?').get(Number(id));
+    if (!enclosure) return res.status(404).json({ error: 'Enclosure not found' });
 
-    if (!enclosure) {
-        return res.status(404).json({
-            error: 'Enclosure not found'
-        });
-    }
-
-    // Store the observation time in SQLite UTC format
-    const databaseDate = recordedAt
-        .replace('T', ' ')
-        .replace('Z', '');
-
+    const databaseDate = recordedAt.replace('T', ' ').replace('Z', '');
     try {
+        db.exec('BEGIN TRANSACTION');
         const result = db.prepare(`
-            INSERT INTO reading_history (
-                enclosure_id,
-                temperature,
-                humidity,
-                recorded_at,
-                source
-            )
+            INSERT INTO reading_history (enclosure_id, temperature, humidity, recorded_at, source)
             VALUES (?, ?, ?, ?, 'manual')
-        `).run(
-            Number(id),
-            temperature,
-            humidity,
-            databaseDate
-        );
+        `).run(Number(id), temperature, humidity, databaseDate);
 
+        if (enclosure.monitoring_mode === 'manual') {
+            const current = currentObservation(enclosure);
+            db.prepare('UPDATE enclosures SET is_abnormal = ? WHERE id = ?')
+                .run(current && evaluateAbnormal(current, enclosure) ? 1 : 0, Number(id));
+        }
+        db.exec('COMMIT');
         res.status(201).json({
-            id: Number(result.lastInsertRowid),
-            enclosureId: Number(id),
-            temperature,
-            humidity,
-            recordedAt,
-            source: 'manual'
+            id: Number(result.lastInsertRowid), enclosureId: Number(id),
+            temperature, humidity, recordedAt, source: 'manual'
         });
-
     } catch (error) {
+        db.exec('ROLLBACK');
         console.error('Failed to save manual reading:', error);
-
-        res.status(500).json({
-            error: 'Failed to save manual reading'
-        });
+        return res.status(500).json({ error: 'Failed to save manual reading' });
     }
 });
 
