@@ -13,6 +13,7 @@ function formatEnclosure(enclosure) {
         name: enclosure.name,
         enclosureType: enclosure.enclosure_type,
         notes: enclosure.notes,
+        featuredPetId: enclosure.featured_pet_id,
         minTemperature: enclosure.min_temperature,
         maxTemperature: enclosure.max_temperature,
         minHumidity: enclosure.min_humidity,
@@ -125,6 +126,38 @@ app.get('/enclosures/:id', (req, res) => {
     }
 
     res.status(200).json(formatEnclosure(enclosure));
+});
+
+// Choose the single illustrated occupant without changing enclosure settings.
+// Fail closed if the Data Management Service cannot validate the assignment.
+app.patch('/enclosures/:id/featured-pet', async (req, res) => {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ error: 'Invalid enclosure ID' });
+    const enclosure = db.prepare('SELECT id FROM enclosures WHERE id = ?').get(Number(id));
+    if (!enclosure) return res.status(404).json({ error: 'Enclosure not found' });
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        !Object.hasOwn(body, 'featuredPetId') ||
+        (body.featuredPetId !== null && (!Number.isSafeInteger(body.featuredPetId) || body.featuredPetId <= 0))) {
+        return res.status(400).json({ error: 'featuredPetId must be a positive integer or null' });
+    }
+    try {
+        // Validate even for null, so the service can distinguish empty occupancy from unavailable data.
+        const response = await fetch(`http://localhost:3001/enclosures/${id}/pets`,
+            { signal: AbortSignal.timeout(3000) });
+        if (!response.ok) return res.status(503).json({ error: 'Could not verify assigned pets' });
+        const pets = await response.json();
+        if (!Array.isArray(pets)) return res.status(503).json({ error: 'Invalid pets response' });
+        if (body.featuredPetId !== null && !pets.some(p => p.id === body.featuredPetId)) {
+            return res.status(409).json({ error: 'The selected pet is no longer assigned to this enclosure' });
+        }
+        db.prepare('UPDATE enclosures SET featured_pet_id = ? WHERE id = ?')
+            .run(body.featuredPetId, Number(id));
+        return res.status(200).json(formatEnclosure(db.prepare('SELECT * FROM enclosures WHERE id = ?').get(Number(id))));
+    } catch (error) {
+        console.error('Featured pet assignment verification failed:', error.message);
+        return res.status(503).json({ error: 'Data Management Service unavailable' });
+    }
 });
 
 // POST create enclosure

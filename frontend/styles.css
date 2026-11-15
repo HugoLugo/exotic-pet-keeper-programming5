@@ -591,7 +591,7 @@
 /* Stage 3D.2 functional details + approved tropical artwork. */
 .enclosure-habitat-placeholder.is-tropical{background:#e8ebdc url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center center/contain no-repeat;}
 .enclosure-habitat-placeholder.is-tropical:after{display:none}
-.enclosure-habitat-head{max-width:65%;padding:12px 16px;border-radius:13px;background:#f8f8eed9;backdrop-filter:blur(2px)}
+.enclosure-habitat-head{width:fit-content;max-width:min(65%, 520px);padding:12px 16px;border-radius:13px;background:#f8f8eed9;backdrop-filter:blur(2px);overflow-wrap:anywhere}
 .enclosure-habitat-slot{bottom:9%;height:41%;width:21%;}
 .enclosure-habitat-slot--center{left:50%;height:47%;width:24%}
 .enclosure-habitat-slot--left{left:18%}
@@ -836,3 +836,36 @@
         --habitat-name-lift: -10px;
     }
 }
+
+/* Stage 3D.2 final refinements — no changes to approved habitat animal transforms. */
+.pets-collection-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.pets-collection-actions .enclosure-danger-button{margin:0}
+/* Match the existing Add Pet button's geometry and typography; retain
+   the muted danger treatment so this remains a deliberate action. */
+.pets-collection-actions .enclosure-danger-button,
+.pet-details-delete-row .enclosure-danger-button{
+  border:2px solid #d39a90;
+  border-radius:10px;
+  padding:9px 14px;
+  background:#fff3ef;
+  color:#994438;
+  font-size:13px;
+  font-weight:750;
+  line-height:normal;
+  white-space:nowrap;
+}
+.pets-collection-grid.is-deleting .collection-pet-card{outline:2px solid #c9877c;outline-offset:-1px}
+.pets-collection-grid.is-deleting .collection-card-action:focus-visible{outline:3px solid #9b5046;outline-offset:3px}
+.pet-details-delete-row{display:flex;justify-content:flex-end;margin-top:20px}
+.pet-details-delete-row .enclosure-danger-button{margin:0}
+.pet-details-page.is-editing .pet-details-delete-row{display:none}
+.enclosure-habitat-head h2{overflow-wrap:anywhere}
+.habitat-featured-control{position:absolute;z-index:5;bottom:13px;right:15px;max-width:min(55%,240px)}
+.habitat-featured-control[hidden],.habitat-featured-options[hidden]{display:none!important}
+.habitat-featured-trigger{font:inherit;font-size:11px;font-weight:700;background:#f6f8edec;color:#35543a;border:1px solid #b9c9b2;border-radius:12px;padding:8px 11px;cursor:pointer;box-shadow:0 2px 8px #29473118}
+.habitat-featured-trigger:focus-visible,.habitat-featured-option:focus-visible{outline:3px solid #638a5a;outline-offset:2px}
+.habitat-featured-options{position:absolute;bottom:calc(100% + 5px);right:0;width:max-content;max-width:min(240px,80vw);max-height:190px;overflow:auto;display:grid;gap:3px;padding:6px;background:#fafbf4;border:1px solid #c9d8c1;border-radius:12px;box-shadow:0 9px 25px #22392929}
+.habitat-featured-option{font:inherit;font-size:12px;font-weight:650;text-align:left;overflow-wrap:anywhere;color:#34533b;background:transparent;border:0;border-radius:7px;padding:8px 11px;cursor:pointer}
+.habitat-featured-option:hover,.habitat-featured-option:focus-visible{background:#e8efdf}
+.habitat-featured-option:disabled{opacity:.62;cursor:default}
+@media(max-width:680px){.pets-collection-actions{gap:7px}.habitat-featured-control{bottom:7px;right:8px;max-width:65%}.habitat-featured-trigger{font-size:10px;padding:6px 8px}.enclosure-habitat-head{max-width:85%}}

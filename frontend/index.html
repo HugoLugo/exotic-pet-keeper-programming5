@@ -79,7 +79,10 @@
               
             </div>
             <div class="enclosure-habitat-slots" id="enclosureHabitatSlots" aria-label="Featured animal illustration"></div>
-            <p class="enclosure-habitat-caption" id="enclosureHabitatCaption"></p>
+            <div class="habitat-featured-control" id="habitatFeaturedControl" hidden>
+              <button type="button" id="habitatFeaturedTrigger" class="habitat-featured-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="habitatFeaturedOptions">Change featured pet ▾</button>
+              <div class="habitat-featured-options" id="habitatFeaturedOptions" hidden></div>
+            </div>
           </section>
           <div class="enclosure-details-panels">
             <section class="panel enclosure-occupants-panel" aria-labelledby="enclosureOccupantsTitle">
@@ -128,7 +131,7 @@
       <section class="pets-management" id="petsPage" aria-labelledby="petsCollectionTitle" hidden>
         <div class="pets-management-heading">
           <div><span class="section-kicker" id="petsCollectionTitle">YOUR ANIMAL COLLECTION</span><p>Manage your companions in one place.</p></div>
-          <button class="primary-button" id="petsPageAddPet" type="button">+ Add Pet</button>
+          <div class="pets-collection-actions"><button class="enclosure-danger-button" id="petsDeleteToggle" type="button">Delete Pet</button><button class="primary-button" id="petsPageAddPet" type="button">+ Add Pet</button></div>
         </div>
         <div class="pets-management-toolbar">
           <label class="pets-management-search"><span class="pets-search-symbol" aria-hidden="true">⌕</span><input id="petsPageSearch" type="search" placeholder="Search by name or species..." aria-label="Search registered pets by name or species" /></label>
@@ -178,6 +181,7 @@
             </section>
           </div>
         </div>
+        <div class="pet-details-delete-row"><button type="button" id="petDetailsDelete" class="enclosure-danger-button">Delete Pet</button></div>
       </section>
       <section class="add-pet-page" id="addPetPage" aria-label="Add New Pet form" hidden>
         <div class="add-pet-intro">
@@ -233,6 +237,7 @@
           <div class="add-pet-actions"><p class="add-pet-save-info" id="addPetSaveMessage" role="status" aria-live="polite">Name and species are required. All other fields are optional.</p><button type="button" class="add-pet-cancel" id="cancelAddPet">Cancel</button><button type="submit" class="primary-button" id="createPetButton">Create Pet</button></div>
         </form>
       </section>
+      <dialog id="petDeleteConfirm" class="pet-edit-dialog" aria-labelledby="petDeleteTitle"><h2 id="petDeleteTitle">Delete pet permanently?</h2><p id="petDeleteText"></p><p class="feeding-message" id="petDeleteError" role="alert" hidden></p><div class="pet-edit-dialog-actions"><button type="button" class="add-pet-cancel" id="petDeleteCancel">Cancel</button><button type="button" class="enclosure-danger-button" id="petDeleteProceed">Delete Pet Permanently</button></div></dialog>
       <dialog id="petEditConfirm" class="pet-edit-dialog" aria-labelledby="petEditConfirmTitle"><h2 id="petEditConfirmTitle">Discard unsaved changes?</h2><p>Your edits will be lost. You can keep editing instead.</p><div class="pet-edit-dialog-actions"><button type="button" class="add-pet-cancel" id="petEditKeep">Keep Editing</button><button type="button" class="primary-button" id="petEditDiscard">Discard Changes</button></div></dialog>
       <dialog id="illustrationDialog" class="illustration-dialog" aria-labelledby="illustrationDialogTitle">
         <div class="illustration-dialog-header"><div><span class="section-kicker">PERSONALIZE YOUR PET</span><h2 id="illustrationDialogTitle">Choose an illustration</h2><p>Choose any artwork you like, independent of species.</p></div><button id="illustrationDialogClose" class="illustration-dialog-close" type="button" aria-label="Close illustration picker">×</button></div>

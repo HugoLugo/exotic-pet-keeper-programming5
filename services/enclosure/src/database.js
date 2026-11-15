@@ -59,5 +59,7 @@ db.exec(`
 const columns = new Set(db.prepare('PRAGMA table_info(enclosures)').all().map(column => column.name));
 if (!columns.has('enclosure_type')) db.exec('ALTER TABLE enclosures ADD COLUMN enclosure_type TEXT');
 if (!columns.has('notes')) db.exec('ALTER TABLE enclosures ADD COLUMN notes TEXT');
+// Only an ID is stored: pets belong to the Data Management database.
+if (!columns.has('featured_pet_id')) db.exec('ALTER TABLE enclosures ADD COLUMN featured_pet_id INTEGER');
 
 module.exports = db;

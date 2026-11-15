@@ -157,7 +157,7 @@ function navigate(page) {
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
   // Navigation is a new view: never carry scroll position from the previous page.
   window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  if (page === 'pets') { loadPetsCollection(); }
+  if (page === 'pets') { setPetDeleteMode(false); loadPetsCollection(); }
   if (page === 'feeding') { loadFeedingWorkspace(); }
   if (page === 'enclosures') { loadEnclosuresCollection(); }
   if (page === 'dashboard') { loadDashboardData(); }
@@ -287,14 +287,14 @@ function renderPetsCollection() {
       : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
     content.append(elem('p', 'collection-pet-enclosure', `⌂  ${enclosure}`));
     const footer = elem('div', 'collection-pet-footer');
-    footer.append(elem('span', 'collection-details-button', 'View profile →'));
+    footer.append(elem('span', 'collection-details-button', petDeleteMode ? 'Select to delete' : 'View profile →'));
     content.append(footer);
     card.append(imageBox, content);
     // One full-card button is easier to discover and keyboard-accessible.
     const openCard = elem('button', 'collection-card-action');
     openCard.type = 'button';
-    openCard.setAttribute('aria-label', `View profile for ${pet.name || 'unnamed pet'}`);
-    openCard.addEventListener('click', () => openPetDetails(pet.id));
+    openCard.setAttribute('aria-label', `${petDeleteMode ? 'Select to delete' : 'View profile for'} ${pet.name || 'unnamed pet'}`);
+    openCard.addEventListener('click', () => petDeleteMode ? requestPetDeletion(pet) : openPetDetails(pet.id));
     card.append(openCard);
     fragment.append(card);
   });
@@ -309,6 +309,49 @@ $('#petsPageAddPet').addEventListener('click', openAddPetForm);
 // Stage 3A — read-only pet details. Each profile is loaded by pet ID,
 // rather than relying on potentially stale collection data.
 let petDetailsRequest = 0;
+let petDeleteMode = false;
+let petDeleteTarget = null;
+let petDeleteBusy = false;
+function setPetDeleteMode(enabled) {
+  petDeleteMode = enabled;
+  $('#petsDeleteToggle').textContent = enabled ? 'Cancel' : 'Delete Pet';
+  $('#petsCollectionGrid').classList.toggle('is-deleting', enabled);
+  if (collectionState === 'ready' || collectionState === 'partial') renderPetsCollection();
+}
+$('#petsDeleteToggle').addEventListener('click', () => setPetDeleteMode(!petDeleteMode));
+function requestPetDeletion(pet) {
+  if (!pet || petDeleteBusy) return;
+  petDeleteTarget = { id: Number(pet.id), name: pet.name || 'Unnamed pet' };
+  $('#petDeleteText').textContent = `Permanently delete ${petDeleteTarget.name}? This will also permanently remove this pet’s feeding records and feeding group memberships. This cannot be undone.`;
+  $('#petDeleteError').hidden = true;
+  $('#petDeleteProceed').disabled = false;
+  $('#petDeleteConfirm').showModal();
+}
+$('#petDeleteCancel').addEventListener('click', () => { if (!petDeleteBusy) $('#petDeleteConfirm').close(); });
+$('#petDeleteConfirm').addEventListener('close', () => { if (!petDeleteBusy) petDeleteTarget = null; });
+$('#petDeleteConfirm').addEventListener('cancel', event => { if (petDeleteBusy) event.preventDefault(); });
+$('#petDeleteProceed').addEventListener('click', async () => {
+  if (!petDeleteTarget || petDeleteBusy) return;
+  petDeleteBusy = true;
+  $('#petDeleteProceed').disabled = true;
+  const target = petDeleteTarget;
+  try {
+    await enclosureApiRequest(`/api/pets/${target.id}`, 'DELETE');
+    $('#petDeleteConfirm').close();
+    petDeleteTarget = null;
+    const inDetails = !$('#petDetailsPage').hidden && Number($('#petDetailsPage').dataset.petId) === target.id;
+    if (inDetails) { activePet = null; petReturnEnclosureId = null; navigate('pets'); }
+    else { setPetDeleteMode(false); await loadPetsCollection(); }
+    toast(`${target.name} was permanently deleted.`);
+  } catch (error) {
+    $('#petDeleteError').hidden = false;
+    $('#petDeleteError').textContent = error.message || 'Unable to delete pet. Please try again.';
+  } finally { petDeleteBusy = false; $('#petDeleteProceed').disabled = false; }
+});
+$('#petDetailsDelete').addEventListener('click', () => {
+  if (petEditing || petSaving || !activePet) return;
+  requestPetDeletion(activePet);
+});
 
 function detailText(value, fallback = 'Not provided') {
   return value === null || value === undefined || String(value).trim() === ''
@@ -413,6 +456,7 @@ async function openPetDetails(id) {
   $('#pageDescription').textContent = 'Your companion’s profile and feeding history.';
   $('#petDetailsContent').hidden = true;
   $('#petDetailsEdit').disabled = true;
+  $('#petDetailsDelete').disabled = true;
   detailStatus('Loading pet profile…');
   document.querySelectorAll('.nav-link').forEach(link => {
     const active = link.dataset.page === 'pets';
@@ -438,6 +482,7 @@ async function openPetDetails(id) {
     }
     activePet = petResult.value;
     $('#petDetailsEdit').disabled = false;
+    $('#petDetailsDelete').disabled = false;
     renderDetailsProfile(petResult.value);
     if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
       renderDetailsFeedings(feedingResult.value);
@@ -1313,6 +1358,59 @@ function enclosureDetailStatus(message, retryId = null) {
   }
   host.hidden = false;
 }
+const featuredPetSyncPending = new Set();
+let featuredPetBusy = false;
+function renderFeaturedPetControl(enclosure, pets, featuredPet, petsError) {
+  const wrapper = $('#habitatFeaturedControl');
+  const trigger = $('#habitatFeaturedTrigger');
+  const options = $('#habitatFeaturedOptions');
+  options.replaceChildren();
+  wrapper.hidden = petsError || pets.length < 2;
+  options.hidden = true;
+  trigger.setAttribute('aria-expanded', 'false');
+  if (wrapper.hidden) return;
+  for (const pet of pets) {
+    const choice = elem('button', 'habitat-featured-option', `${pet.name || 'Unnamed pet'}${Number(pet.id) === Number(featuredPet?.id) ? ' ✓' : ''}`);
+    choice.type = 'button';
+    choice.disabled = featuredPetBusy || Number(pet.id) === Number(featuredPet?.id);
+    choice.addEventListener('click', async () => {
+      if (featuredPetBusy) return;
+      featuredPetBusy = true;
+      trigger.disabled = true;
+      options.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+      try {
+        await enclosureApiRequest(`/api/enclosures/${enclosure.id}/featured-pet`, 'PATCH', {featuredPetId: Number(pet.id)});
+        // Clear the busy state before rebuilding the selector: otherwise the
+        // newly rendered options inherit disabled=true until a full refresh.
+        featuredPetBusy = false;
+        await openEnclosureDetails(Number(enclosure.id));
+        toast(`${pet.name || 'Pet'} is now featured.`);
+      } catch (error) { toast(error.message || 'Unable to change featured pet.'); }
+      finally { featuredPetBusy = false; trigger.disabled = false; }
+    });
+    options.append(choice);
+  }
+}
+$('#habitatFeaturedTrigger').addEventListener('click', () => {
+  const options = $('#habitatFeaturedOptions');
+  options.hidden = !options.hidden;
+  $('#habitatFeaturedTrigger').setAttribute('aria-expanded', String(!options.hidden));
+});
+document.addEventListener('click', event => {
+  const control = $('#habitatFeaturedControl');
+  if (!control.contains(event.target)) {
+    $('#habitatFeaturedOptions').hidden = true;
+    $('#habitatFeaturedTrigger').setAttribute('aria-expanded', 'false');
+  }
+});
+$('#habitatFeaturedControl').addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    $('#habitatFeaturedOptions').hidden = true;
+    $('#habitatFeaturedTrigger').setAttribute('aria-expanded', 'false');
+    $('#habitatFeaturedTrigger').focus();
+  }
+});
 function renderEnclosureDetails(enclosure, pets, petsError) {
   currentEnclosureDetail = enclosure;
   $('#enclosureDetailsName').textContent = enclosure.name || `Enclosure #${enclosure.id}`;
@@ -1332,13 +1430,20 @@ function renderEnclosureDetails(enclosure, pets, petsError) {
   $('#enclosureDetailsPetCount').textContent = petsError ? 'Unavailable' : `${count} ${count===1?'pet':'pets'}`;
   const warning = $('#enclosureDetailsPetsWarning'); warning.hidden = !petsError;
   if (petsError) warning.textContent = 'Assigned pets could not be loaded. Check the Data Management Service (port 3001) and reopen this enclosure.';
-  // One representative animal in the habitat, regardless of the number of occupants.
-  // Featured Pet selection is intentionally deferred; use the first assigned pet for now.
-  const featuredPet = petsError ? null : pets[0];
-  $('#enclosureHabitatCaption').textContent = petsError ? 'Pet illustration unavailable until occupants load.' :
-    count === 0 ? 'No pets assigned yet' :
-    count === 1 ? 'Featured pet · 1 pet assigned' :
-    `Featuring ${featuredPet.name || 'one pet'} · ${count} pets assigned (see all below)`;
+  // Display exactly one occupant; stale stored IDs fall back gracefully.
+  const featuredPet = petsError ? null : (pets.find(p => Number(p.id) === Number(enclosure.featuredPetId)) || pets[0]);
+  renderFeaturedPetControl(enclosure, pets, featuredPet, petsError);
+  if (!petsError && (enclosure.featuredPetId != null) &&
+      Number(enclosure.featuredPetId) !== Number(featuredPet?.id) &&
+      !featuredPetSyncPending.has(Number(enclosure.id))) {
+    // A pet might have been moved or deleted since the last visit.
+    const enclosureId = Number(enclosure.id);
+    featuredPetSyncPending.add(enclosureId);
+    enclosureApiRequest(`/api/enclosures/${enclosureId}/featured-pet`, 'PATCH',
+      { featuredPetId: featuredPet ? Number(featuredPet.id) : null })
+      .catch(error => console.warn('Could not synchronize featured pet fallback:', error.message))
+      .finally(() => featuredPetSyncPending.delete(enclosureId));
+  }
   if (featuredPet) {
     const slot = elem('div','enclosure-habitat-slot enclosure-habitat-slot--center');
     slot.append(enclosurePetPicture(featuredPet,'enclosure-habitat-art'),elem('span','enclosure-habitat-pet-name',featuredPet.name || 'Unnamed pet'));

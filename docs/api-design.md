@@ -50,7 +50,7 @@ This service manages pet information and feeding records.
 | POST | `/pets` | Create a new pet |
 | GET | `/pets/:id` | Retrieve a specific pet |
 | PUT | `/pets/:id` | Replace editable pet fields (name and species required; optional enclosure assignment) |
-| DELETE | `/pets/:id` | Delete a pet if it has no feeding records |
+| DELETE | `/pets/:id` | Delete a pet and its feeding history and group memberships atomically |
 | GET | `/enclosures/:id/pets` | List pets assigned to an enclosure ID |
 | GET | `/pets/:id/feedings` | Retrieve a pet's feeding history (newest first) |
 | POST | `/pets/:id/feedings` | Record a feeding event for a pet |
@@ -151,9 +151,8 @@ Both `PUT` endpoints expect all required editable fields, not
 partial updates. IDs must be positive safe integers.
 
 A feeding record can only be read, updated, or deleted through
-the correct pet ID. Deleting a pet with feeding records returns
-`409 Conflict` to protect feeding history. A successful deletion
-returns `204 No Content`.
+the correct pet ID. Pet deletion transactionally removes the pet, its feeding records,
+and feeding-group memberships. A successful deletion returns `204 No Content`.
 
 Malformed JSON and invalid required input return `400 Bad Request`.
 
@@ -620,7 +619,7 @@ The REST APIs use standard HTTP status codes.
 | 204 No Content | Successful request without response body |
 | 400 Bad Request | Invalid request data |
 | 404 Not Found | Requested resource does not exist |
-| 409 Conflict | Pet deletion blocked by feeding records, or enclosure deletion blocked by assigned pets |
+| 409 Conflict | Enclosure deletion blocked by assigned pets, or featured pet does not belong to enclosure |
 | 500 Internal Server Error | Unexpected server error |
 | 503 Service Unavailable | Required service is unavailable |
 
@@ -739,3 +738,12 @@ data persistence, and real-time WebSocket alerts.
 Allowed non-null enclosure types: `Tropical`, `Desert`, `Temperate`, `Aquatic`, `Paludarium`, `Other`. Name is trimmed and limited to 120 characters; notes are limited to 2000 characters and trimmed before storage. All existing threshold rules remain unchanged. The database startup migration adds nullable `enclosure_type` and `notes` columns only if absent, preserving old records and reading history.
 
 The frontend Enclosures collection obtains occupancy by fetching the real `/api/pets` collection and counting `enclosure_id` references. A failed Pets request leaves occupancy explicitly unavailable; it does not prevent listing enclosures. Environmental badges and sensor readings are deferred to Stage 3D.3.
+
+
+### Stage 3D.2 — Featured pet selection
+
+`PATCH /enclosures/:id/featured-pet` (Enclosure Service, port 3002)
+
+Request body: `{ "featuredPetId": 123 }` for an assigned pet, or `{ "featuredPetId": null }` to clear the preference. Returns the updated enclosure with `featuredPetId` (also included in GET/list responses). The service validates membership against `GET /enclosures/:id/pets` on Data Management; returns 400 for malformed data, 404 for unknown enclosure, 409 when the pet is not assigned, and 503 when Data Management is unavailable. A missing or stale preference is displayed as the first occupant (or none when empty); the frontend attempts to synchronize a stale preference after loading. No animal illustration assets or historical records are changed.
+
+**Pet deletion (implemented behavior):** `DELETE /pets/:id` removes the pet and its related feeding records and feeding-group memberships transactionally (204 on success). It is not blocked by existing feeding history. The frontend requires explicit confirmation.
