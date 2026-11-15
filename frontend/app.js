@@ -1,32 +1,144 @@
-// Environmental readings, alerts and recent feedings below remain demo examples.
-// Dashboard pet cards and pet/enclosure counts use the real APIs.
+// Stage 3D.5.1: dashboard conditions come from the authoritative current-reading API.
+// WebSocket notification events remain separate and transient (Stage 3D.4).
 const assets = './public/assets/illustrations/animals/';
-const enclosures = [
-  { name: 'Enclosure 1', pet: 'Nox', temperature: 28.4, humidity: 45, status: 'Normal', time: '14 Nov, 14:32' },
-  { name: 'Enclosure 2', pet: 'Kukulcán', temperature: 32.7, humidity: 58, status: 'Abnormal', time: '14 Nov, 14:30' },
-  { name: 'Enclosure 3', pet: 'Unassigned', temperature: 26.1, humidity: 62, status: 'Normal', time: '14 Nov, 14:28' }
-];
-const alerts = [
-  { title: 'Enclosure 2: Temperature too high', details: '32.7 °C · configured maximum 30.0 °C', time: '14 Nov · 14:30' },
-  { title: 'Enclosure 2: Humidity below minimum', details: '58% · configured minimum 60%', time: '14 Nov · 14:30' }
-];
-const feedings = []; // Real feedings load asynchronously from the Data Management API.
+const feedings = []; // Recent feeding records load from Data Management.
 const $ = (selector) => document.querySelector(selector);
 function elem(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
+let dashboardConditions = [];
+let dashboardConditionsStatus = 'loading';
+let dashboardConditionsFailed = 0;
+// Stage 3D.5.1 follow-up: poll current conditions and refresh on WebSocket events.
+// Keep notification events transient and REST readings authoritative.
+const DASHBOARD_REFRESH_MS = 5000;
+let dashboardConditionsRequest = 0;
+let dashboardConditionEnclosures = null;
+let dashboardRefreshTimer = null;
+let dashboardEventRefreshTimer = null;
+
+function stopDashboardRefresh() {
+  if (dashboardRefreshTimer !== null) clearInterval(dashboardRefreshTimer);
+  if (dashboardEventRefreshTimer !== null) clearTimeout(dashboardEventRefreshTimer);
+  dashboardRefreshTimer = null;
+  dashboardEventRefreshTimer = null;
+  ++dashboardConditionsRequest; // Ignore responses from an older dashboard view.
+}
+function startDashboardRefresh() {
+  if (dashboardRefreshTimer !== null) return;
+  dashboardRefreshTimer = setInterval(() => {
+    if (currentPage === 'dashboard' && !document.hidden) void refreshDashboardConditions();
+  }, DASHBOARD_REFRESH_MS);
+}
+function refreshDashboardConditions() {
+  if (currentPage !== 'dashboard' || document.hidden || !dashboardConditionEnclosures) return;
+  return loadDashboardConditions(dashboardConditionEnclosures,dashboardRequest,true);
+}
+function scheduleDashboardEventRefresh() {
+  if (currentPage !== 'dashboard' || document.hidden || !dashboardConditionEnclosures) return;
+  if (dashboardEventRefreshTimer !== null) clearTimeout(dashboardEventRefreshTimer);
+  dashboardEventRefreshTimer = setTimeout(() => {
+    dashboardEventRefreshTimer = null;
+    void refreshDashboardConditions();
+  }, 150);
+}
+
+function dashboardReadingState(entry) {
+  if (entry.error) return 'unavailable';
+  const {enclosure,reading} = entry;
+  if (!reading || reading.status === 'no_reading') return 'no_reading';
+  if (!['normal','abnormal'].includes(reading.status) ||
+      !Number.isFinite(reading.temperature) || !Number.isFinite(reading.humidity) ||
+      Number(reading.enclosureId) !== Number(enclosure.id) ||
+      reading.monitoringMode !== enclosure.monitoringMode ||
+      reading.source !== (enclosure.monitoringMode === 'manual' ? 'manual' : 'sensor')) return 'unavailable';
+  const recorded = enclosureMonitorDate(reading.recordedAt);
+  if (!recorded) return 'unavailable';
+  if (enclosure.monitoringMode === 'automatic' && Math.abs(Date.now() - recorded.getTime()) > MONITOR_STALE_MS) return 'stale';
+  return reading.status;
+}
+function dashboardReadingTime(reading) {
+  const date = enclosureMonitorDate(reading?.recordedAt);
+  return date ? date.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}) : '—';
+}
+function dashboardMeasurement(value,unit) {
+  return Number.isFinite(value) ? `${enclosureMonitorFormat(value)}${unit}` : '—';
+}
+function dashboardMessageCell(message) {
+  const tr = elem('tr'); const td = elem('td','dashboard-reading-message',message); td.colSpan=5; tr.append(td); return tr;
+}
 function renderReadings() {
-  const body = $('#readingsRows'); body.replaceChildren();
-  for (const row of enclosures) {
-    const tr = elem('tr');
-    const name = elem('td'); name.append(elem('strong', null, row.name), elem('small', null, row.pet));
-    const temp = elem('td', 'value-cell', `${row.temperature.toFixed(1)} °C`);
-    const humidity = elem('td', 'value-cell', `${row.humidity}%`);
-    const status = elem('td'); status.append(elem('span', `status ${row.status.toLowerCase()}`, row.status === 'Normal' ? '✓ Normal' : '⚠ Abnormal'));
-    tr.append(name, temp, humidity, status, elem('td', 'muted-cell', row.time)); body.append(tr);
+  const body=$('#readingsRows'); body.replaceChildren();
+  if (dashboardConditionsStatus === 'loading') {body.append(dashboardMessageCell('Loading environmental readings…'));return;}
+  if (dashboardConditionsStatus === 'error') {body.append(dashboardMessageCell('Unable to load enclosures. Check the Enclosure Service and reopen the Dashboard.'));return;}
+  if (!dashboardConditions.length) {body.append(dashboardMessageCell('No enclosures yet. Add an enclosure to start monitoring.'));return;}
+  const ordered=[...dashboardConditions].sort((a,b) => {
+    const time = entry => enclosureMonitorDate(entry.reading?.recordedAt)?.getTime() ?? -Infinity;
+    return time(b)-time(a) || Number(a.enclosure.id)-Number(b.enclosure.id);
+  });
+  for (const entry of ordered) {
+    const {enclosure,reading}=entry;
+    const state=dashboardReadingState(entry);
+    const valid=['normal','abnormal','stale'].includes(state);
+    const tr=elem('tr');
+    const name=elem('td');
+    name.append(elem('strong',null,enclosure.name || `Enclosure #${enclosure.id}`),
+      elem('small',null,enclosure.monitoringMode === 'manual' ? 'Manual monitoring' : 'Automatic monitoring'));
+    const temp=elem('td','value-cell',valid ? dashboardMeasurement(reading.temperature,' °C') : '—');
+    const humidity=elem('td','value-cell',valid ? dashboardMeasurement(reading.humidity,'%') : '—');
+    const labels={normal:'✓ Normal',abnormal:'⚠ Abnormal',stale:reading?.status === 'abnormal' ? '⚠ Stale · abnormal' : '◷ Stale',no_reading:'No reading',unavailable:'Unavailable'};
+    const status=elem('td'); status.append(elem('span',`status ${state}`,labels[state]));
+    tr.append(name,temp,humidity,status,elem('td','muted-cell',valid ? dashboardReadingTime(reading) : '—'));
+    body.append(tr);
   }
 }
+function dashboardThresholdProblems(enclosure,reading) {
+  const problems=[];
+  const rules=[
+    ['Temperature',reading.temperature,enclosure.minTemperature,enclosure.maxTemperature,' °C'],
+    ['Humidity',reading.humidity,enclosure.minHumidity,enclosure.maxHumidity,'%']
+  ];
+  for (const [name,value,min,max,unit] of rules) {
+    if (Number.isFinite(min) && value < min) problems.push(`${name} too low: ${dashboardMeasurement(value,unit)} · minimum ${dashboardMeasurement(min,unit)}`);
+    if (Number.isFinite(max) && value > max) problems.push(`${name} too high: ${dashboardMeasurement(value,unit)} · maximum ${dashboardMeasurement(max,unit)}`);
+  }
+  return problems;
+}
 function renderAlerts() {
-  const host = $('#alertItems'); host.replaceChildren();
-  alerts.forEach((alert) => { const row = elem('div','alert-item'); row.append(elem('span','alert-icon','!')); const text = elem('div'); text.append(elem('strong',null,alert.title),elem('p',null,alert.details),elem('small',null,alert.time)); row.append(text); host.append(row); });
+  const host=$('#alertItems'); host.replaceChildren();
+  const count=$('#alertCount');
+  if (dashboardConditionsStatus === 'loading') {count.textContent='—';host.append(elem('p','dashboard-alert-message','Checking enclosure conditions…'));return;}
+  if (dashboardConditionsStatus === 'error') {count.textContent='—';host.append(elem('p','dashboard-alert-message','Unable to verify enclosure conditions. Check the Enclosure Service.'));return;}
+  const abnormal=dashboardConditions.filter(entry => !entry.error && entry.reading?.status === 'abnormal' &&
+    ['abnormal','stale'].includes(dashboardReadingState(entry)));
+  // Count affected enclosures, not individual temperature/humidity violations.
+  count.textContent=dashboardConditionsFailed ? `${abnormal.length}+` : String(abnormal.length);
+  for (const {enclosure,reading} of abnormal) {
+    const stale=dashboardReadingState({enclosure,reading}) === 'stale';
+    const title=`${enclosure.name || `Enclosure #${enclosure.id}`} — ${stale ? 'Last sensor reading abnormal (stale)' :
+      enclosure.monitoringMode === 'manual' ? 'Last manual observation abnormal' : 'Abnormal conditions'}`;
+    const details=dashboardThresholdProblems(enclosure,reading);
+    const row=elem('div','alert-item');row.append(elem('span','alert-icon','!'));
+    const message=elem('div');message.append(elem('strong',null,title),elem('p',null,details.join(' · ') || 'Reading outside configured limits'),
+      elem('small',null,dashboardReadingTime(reading)));row.append(message);host.append(row);
+  }
+  if (dashboardConditionsFailed) host.append(elem('p','dashboard-alert-message',`${dashboardConditionsFailed} enclosure ${dashboardConditionsFailed === 1 ? 'status' : 'statuses'} could not be checked. Alert count is a minimum.`));
+  if (!abnormal.length && !dashboardConditionsFailed) host.append(elem('p','dashboard-alert-message',
+    dashboardConditions.length ? 'No abnormal current or last-known readings. Stale normal readings do not confirm safe conditions.' : 'No enclosures to monitor yet.'));
+}
+async function loadDashboardConditions(enclosures,request,quiet=false) {
+  const conditionsRequest = ++dashboardConditionsRequest;
+  if (!quiet) {
+    dashboardConditionsStatus='loading'; dashboardConditionsFailed=0;
+    renderReadings(); renderAlerts();
+  }
+  const responses=await Promise.all(enclosures.map(async enclosure => {
+    try {return {enclosure,reading:await getCollectionJson(`/api/enclosures/${encodeURIComponent(enclosure.id)}/readings/current`)};}
+    catch(error) {console.warn(`Dashboard reading unavailable for enclosure ${enclosure.id}`,error);return {enclosure,error};}
+  }));
+  if (request !== dashboardRequest || conditionsRequest !== dashboardConditionsRequest || currentPage !== 'dashboard') return;
+  dashboardConditions=responses;
+  dashboardConditionsFailed=responses.filter(entry => dashboardReadingState(entry) === 'unavailable').length;
+  dashboardConditionsStatus='ready';
+  renderReadings();renderAlerts();
 }
 let dashboardPets = [];
 let dashboardEnclosures = new Map();
@@ -78,8 +190,12 @@ function renderDashboardPets() {
 
 async function loadDashboardData() {
   const request = ++dashboardRequest;
+  ++dashboardConditionsRequest;
+  dashboardConditionEnclosures = null;
   dashboardPetsStatus = 'loading';
   dashboardEnclosuresStatus = 'loading';
+  dashboardConditionsStatus = 'loading';
+  renderReadings(); renderAlerts();
   $('#petCount').textContent = '—';
   $('#enclosureCount').textContent = '—';
   renderDashboardPets();
@@ -106,6 +222,16 @@ async function loadDashboardData() {
     console.error('Dashboard enclosure API unavailable',enclosureResult.reason);
   }
   renderDashboardPets();
+  if (request !== dashboardRequest || currentPage !== 'dashboard') return;
+  if (enclosureResult.status === 'fulfilled' && Array.isArray(enclosureResult.value)) {
+    dashboardConditionEnclosures = enclosureResult.value;
+    void loadDashboardConditions(dashboardConditionEnclosures,request);
+  } else {
+    dashboardConditions=[];
+    dashboardConditionsFailed=0;
+    dashboardConditionsStatus='error';
+    renderReadings();renderAlerts();
+  }
 }
 function renderFeedings() {
   const host = $('#feedingRows'); host.replaceChildren();
@@ -135,6 +261,7 @@ function navigate(page) {
   if (!pages[page]) return;
   ++editStartRequest;
   currentPage = page;
+  if (page !== 'dashboard') stopDashboardRefresh();
   petReturnEnclosureId = null;
   $('#main').classList.toggle('pets-active', page === 'pets');
   $('#main').classList.toggle('feeding-active', page === 'feeding');
@@ -151,7 +278,7 @@ function navigate(page) {
   $('#petDetailsPage').hidden = true;
   ++petDetailsRequest;
   $('#otherPage').hidden = page === 'dashboard' || page === 'pets' || page === 'feeding' || page === 'enclosures';
-  $('#dashboardDemoBanner').hidden = page !== 'dashboard';
+  $('#dashboardDemoBanner').hidden = true;
   $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : page === 'feeding' ? 'CARE MANAGEMENT' : page === 'enclosures' ? 'HABITAT MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
   $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1]; $('#otherTitle').textContent = `${pages[page][0]} page coming next`;
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
@@ -161,9 +288,8 @@ function navigate(page) {
   if (page === 'pets') { setPetDeleteMode(false); loadPetsCollection(); }
   if (page === 'feeding') { loadFeedingWorkspace(); }
   if (page === 'enclosures') { loadEnclosuresCollection(); }
-  if (page === 'dashboard') { loadDashboardData(); }
+  if (page === 'dashboard') { loadDashboardData(); startDashboardRefresh(); }
 }
-$('#alertCount').textContent = alerts.length; // Demo only, explicitly labeled in UI.
 renderReadings(); renderAlerts(); renderFeedings();
 document.querySelectorAll('[data-page]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.page)));
 document.querySelectorAll('[data-go]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.go)));
@@ -242,6 +368,7 @@ function receiveNotification(raw) {
   const timestamp = Date.parse(event.emittedAt);
   if (timestamp < notificationConnectedAt - 2000 || timestamp > Date.now() + 30000) return;
   addNotification(event);
+  scheduleDashboardEventRefresh();
 }
 // A REST snapshot is not replayed WebSocket history: show only verified abnormal states.
 // In particular, a long-stale sensor reading is called 'last reported', not live.
@@ -295,6 +422,7 @@ function connectNotifications() {
     notificationConnectedAt = Date.now();
     setNotificationConnection('Connected · Live events');
     updateNotificationBell();
+    scheduleDashboardEventRefresh();
     if (recoveredConnection) {
       addNotificationSystem('service_restored','Live notifications connected again','Checking current enclosure readings now.');
       void reconcileNotificationStates(socket);
@@ -338,9 +466,10 @@ document.addEventListener('click', event => {
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && !$('#notificationPanel').hidden) { setNotificationPanelOpen(false); $('#bell').focus(); }
 });
-window.addEventListener('pagehide', stopNotifications);
+window.addEventListener('pagehide', () => {stopDashboardRefresh(); stopNotifications();});
 window.addEventListener('pageshow', () => {
   if (notificationStopped) { notificationStopped = false; connectNotifications(); }
+  if (currentPage === 'dashboard') {startDashboardRefresh(); scheduleDashboardEventRefresh();}
 });
 renderNotificationItems();
 updateNotificationBell();
@@ -1345,8 +1474,9 @@ editForm.addEventListener('submit',async event => {
   }
 });
 
-// Initial dashboard load: live pet/enclosure summary, demo monitoring and feeding.
+// Initial dashboard load: live pet/enclosure summary and environmental conditions.
 loadDashboardData();
+startDashboardRefresh();
 
 // Stage 3C — Feeding Management. This uses existing individual feeding APIs
 // and additive feeding-group/bulk endpoints in Data Management.
@@ -1502,7 +1632,6 @@ async function loadRecentFeedings(){
    const row=elem('div','feeding-item');const left=elem('div');left.append(elem('strong',null,record.pet_name),elem('small',null,record.feeding_date));
    row.append(left,elem('span','feeding-food',record.food));host.append(row);
   }
-  $('#dashboardDemoBanner').replaceChildren(elem('span','demo-tag','LIVE + PREVIEW'),document.createTextNode(' Pets, enclosures and feeding are live · Readings and alerts are demo examples'));
  }catch(err){console.warn('Recent feedings unavailable',err);$('#feedingRows').replaceChildren(elem('p','feeding-hint','Recent feeding records are unavailable. Check the Data Management Service.'));}
 }
 loadRecentFeedings();
@@ -1852,6 +1981,10 @@ $('#enclosureMonitoringManualForm').addEventListener('submit',async event=>{
   }
 });
 document.addEventListener('visibilitychange',()=>{
+  if (!document.hidden && currentPage === 'dashboard') {
+    startDashboardRefresh();
+    void refreshDashboardConditions();
+  }
   const enclosure=enclosureMonitorActive;
   if (!document.hidden && enclosure && enclosure.monitoringMode==='automatic') {
     renderEnclosureMonitoring();

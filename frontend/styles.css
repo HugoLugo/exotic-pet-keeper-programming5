@@ -963,3 +963,9 @@
 .notification-panel-heading .notification-clear { font-size:11px; font-weight:750; color:#476a42; border:0; border-radius:6px; background:#edf1e3; padding:6px 8px; }
 .notification-panel-heading .notification-clear:not(:disabled):hover { background:#e1e9d4; }
 .notification-panel-heading .notification-clear:disabled { color:#9ba59a; background:#f2f3ed; cursor:default; }
+
+/* Stage 3D.5.1: additional states within approved dashboard components. */
+.status.stale{background:#f8ead6;color:#88551e}
+.status.no_reading,.status.unavailable{background:#efeee8;color:#697269}
+.dashboard-reading-message{color:var(--sub);font-size:12px;padding:20px 10px}
+.dashboard-alert-message{color:var(--sub);font-size:12px;line-height:1.6;margin:7px 0 11px}
