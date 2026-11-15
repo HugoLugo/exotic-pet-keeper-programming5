@@ -439,15 +439,29 @@ The Enclosure Service is responsible for storing the latest reading, detecting a
 The Sensor Service uses a repeatable sequence of environmental conditions:
 
 1. Normal temperature and humidity.
-2. Temperature above the configured maximum.
-3. Repeated high temperature.
+2. Temperature above the configured maximum (`hot`).
+3. Repeated high temperature (`hot`) to test duplicate-alert prevention.
 4. Return to normal conditions.
-5. Humidity below the configured minimum.
-6. Repeated low humidity.
+5. Temperature below the configured minimum (`cold`).
+6. Return to normal conditions.
+7. Humidity below the configured minimum (`dry`).
+8. Return to normal conditions.
+9. Humidity above the configured maximum (`humid`).
+10. Return to normal conditions.
 
-This sequence allows testing of abnormal-condition detection, recovery, and duplicate-alert prevention.
+Normal values use the midpoint of the configured thresholds. High and low
+values use an offset of 2 degrees Celsius or 5 percentage points of humidity,
+respectively. Humidity is always within 0–100%. If the minimum humidity is 0%,
+the dry scenario is skipped; if the maximum humidity is 100%, the humid scenario
+is skipped. Skipped scenarios do not submit readings or change the enclosure's
+status. All other successful readings are persisted by the Enclosure Service.
 
-The simulation repeats continuously.
+Each successful simulated reading logs the scenario number, temperature,
+humidity, resulting status, new-alert flag, and alert-delivery flag. The
+Enclosure Service emits a new alert only when conditions transition from normal
+to abnormal; recovery is recorded but does not generate a recovery notification.
+The ten-step simulation repeats continuously (approximately 50 seconds per
+round at the default five-second interval, plus request processing time).
 
 ### 5.4 Configuration
 
@@ -466,7 +480,8 @@ If the Enclosure Service is unavailable, the Sensor Service logs the connection 
 
 It automatically attempts communication again during the next cycle without requiring a restart.
 
-Failed measurements are not stored or queued for later delivery.
+Failed measurements are not stored or queued for later delivery. The current
+scenario is retried after a failure rather than advancing to the next step.
 
 The Sensor Service does not directly generate notifications or store environmental history. These responsibilities belong to the Enclosure Service.
 

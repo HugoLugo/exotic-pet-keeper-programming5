@@ -21,8 +21,12 @@ const scenarios = [
     'hot',
     'hot',
     'normal',
+    'cold',
+    'normal',
     'dry',
-    'dry'
+    'normal',
+    'humid',
+    'normal'
 ];
 
 let scenarioIndex = 0;
@@ -45,11 +49,33 @@ function generateReading(enclosure, scenario) {
         };
     }
 
+    if (scenario === 'cold') {
+        return {
+            enclosureId,
+            temperature: enclosure.minTemperature - 2,
+            humidity
+        };
+    }
+
     if (scenario === 'dry') {
+        // No valid humidity below 0%; skip rather than mislabel a normal value.
+        if (enclosure.minHumidity <= 0) return null;
+
         return {
             enclosureId,
             temperature,
             humidity: Math.max(0, enclosure.minHumidity - 5)
+        };
+    }
+
+    if (scenario === 'humid') {
+        // No valid humidity above 100%.
+        if (enclosure.maxHumidity >= 100) return null;
+
+        return {
+            enclosureId,
+            temperature,
+            humidity: Math.min(100, enclosure.maxHumidity + 5)
         };
     }
 
@@ -80,6 +106,17 @@ async function runCycle() {
         const scenario = scenarios[scenarioIndex];
         const reading = generateReading(enclosure, scenario);
 
+        if (reading === null) {
+            console.log(
+                `[${scenarioIndex + 1}/${scenarios.length} ${scenario.toUpperCase()}] ` +
+                `Skipped: enclosure ${enclosureId} humidity threshold is at ` +
+                `${scenario === 'dry' ? '0%' : '100%'}; ` +
+                'an out-of-range humidity reading is impossible.'
+            );
+            scenarioIndex = (scenarioIndex + 1) % scenarios.length;
+            return;
+        }
+
         // Send simulated measurement
         const response = await fetch(
             `${ENCLOSURE_URL}/readings`,
@@ -102,11 +139,11 @@ async function runCycle() {
         const result = await response.json();
 
         console.log(
-            `[${scenario.toUpperCase()}] ` +
+            `[${scenarioIndex + 1}/${scenarios.length} ${scenario.toUpperCase()}] ` +
             `Enclosure ${enclosureId} | ` +
             `${reading.temperature.toFixed(1)}°C | ` +
             `${reading.humidity.toFixed(1)}% | ` +
-            `Abnormal: ${result.isAbnormal} | ` +
+            `Status: ${result.isAbnormal ? 'ABNORMAL' : 'NORMAL'} | ` +
             `New alert: ${result.newAlert} | ` +
             `Alert sent: ${result.alertSent}`
         );
