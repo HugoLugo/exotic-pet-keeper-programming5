@@ -1520,8 +1520,16 @@ let enclosureEditInitial = '';
 let enclosureEditBusy = false;
 let enclosureConfirmCallback = null;
 let enclosurePendingCancel = null;
+// Both enclosure forms use radio controls; the saved mode stays independent of the latest readings.
+function enclosureSelectedMode(groupName) {
+  return document.querySelector(`input[name="${groupName}"]:checked`)?.value || 'manual';
+}
+function enclosureSetMode(groupName, value) {
+  const radio = document.querySelector(`input[name="${groupName}"][value="${value === 'manual' ? 'manual' : 'automatic'}"]`);
+  if (radio) radio.checked = true;
+}
 const enclosureEditFields = ['enclosureEditName','enclosureEditType','enclosureEditMinTemp','enclosureEditMaxTemp','enclosureEditMinHum','enclosureEditMaxHum','enclosureEditNotes'];
-function enclosureEditSnapshot() {return JSON.stringify(enclosureEditFields.map(id=>$('#'+id).value));}
+function enclosureEditSnapshot() {return JSON.stringify([...enclosureEditFields.map(id=>$('#'+id).value),enclosureSelectedMode('enclosureEditMonitoringMode')]);}
 async function enclosureApiRequest(url,method,payload) {
   const response = await fetch(url,{method,headers:{'Content-Type':'application/json',Accept:'application/json'},body:payload==null?undefined:JSON.stringify(payload)});
   let body = null;
@@ -1535,6 +1543,7 @@ function showEnclosureEdit() {
   const e=currentEnclosureDetail;
   const values=[e.name,e.enclosureType||'',e.minTemperature,e.maxTemperature,e.minHumidity,e.maxHumidity,e.notes||''];
   enclosureEditFields.forEach((id,i)=>{$('#'+id).value=values[i]??'';$('#'+id).classList.remove('enclosure-input-invalid');});
+  enclosureSetMode('enclosureEditMonitoringMode', e.monitoringMode || 'automatic');
   enclosureEditInitial=enclosureEditSnapshot(); enclosureEditError('');
   $('#enclosureEditDialog').showModal();
 }
@@ -1562,7 +1571,7 @@ $('#enclosureEditForm').addEventListener('submit',async e=>{
   else if(numbers[2]<0||numbers[3]>100||numbers[2]>=numbers[3]){error='Humidity must be between 0% and 100%, with minimum lower than maximum.';bad=numericIds.slice(2);}
   if(error){bad.forEach(id=>$('#'+id).classList.add('enclosure-input-invalid'));enclosureEditError(error);return;}
   const [minTemperature,maxTemperature,minHumidity,maxHumidity]=numbers;
-  const payload={name,enclosureType:$('#enclosureEditType').value||null,notes:$('#enclosureEditNotes').value.trim()||null,minTemperature,maxTemperature,minHumidity,maxHumidity};
+  const payload={name,enclosureType:$('#enclosureEditType').value||null,notes:$('#enclosureEditNotes').value.trim()||null,minTemperature,maxTemperature,minHumidity,maxHumidity,monitoringMode:enclosureSelectedMode('enclosureEditMonitoringMode')};
   enclosureEditBusy=true;$('#enclosureEditSave').disabled=true;enclosureEditError('');
   try{
     const id=Number(currentEnclosureDetail.id);
@@ -1643,7 +1652,7 @@ let pendingEnclosureNavigation = null;
 let enclosureFormInitial = '';
 const enclosureFormFieldIds = ['enclosureNewName', 'enclosureNewType', 'enclosureMinTemperature',
   'enclosureMaxTemperature', 'enclosureMinHumidity', 'enclosureMaxHumidity', 'enclosureNewNotes'];
-function enclosureFormSnapshot() { return JSON.stringify(enclosureFormFieldIds.map(id => $(`#${id}`).value)); }
+function enclosureFormSnapshot() { return JSON.stringify([...enclosureFormFieldIds.map(id => $(`#${id}`).value),enclosureSelectedMode('enclosureCreateMonitoringMode')]); }
 function enclosureFormDirty() { return enclosureFormSnapshot() !== enclosureFormInitial; }
 function enclosureMessage(message, retry = false) {
   const host = $('#enclosuresMessage'); host.replaceChildren(elem('p', null, message));
@@ -1732,6 +1741,7 @@ async function loadEnclosuresCollection() {
 }
 function openEnclosureCreate() {
   $('#enclosureCreateForm').reset();
+  enclosureSetMode('enclosureCreateMonitoringMode', 'manual');
   clearEnclosureValidation();
   enclosureFormInitial = enclosureFormSnapshot();
   $('#enclosureCreateStatus').textContent = '';
@@ -1835,7 +1845,8 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
   }
   const body = {name,minTemperature,maxTemperature,minHumidity,maxHumidity,
     enclosureType: $('#enclosureNewType').value || null,
-    notes: $('#enclosureNewNotes').value.trim() || null};
+    notes: $('#enclosureNewNotes').value.trim() || null,
+    monitoringMode: enclosureSelectedMode('enclosureCreateMonitoringMode')};
   enclosureCreateSaving = true;
   $('#enclosureCreateSave').disabled = true; status.hidden = false; status.textContent = 'Saving enclosure…';
   try {

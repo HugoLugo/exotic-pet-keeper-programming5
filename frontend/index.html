@@ -121,6 +121,15 @@
               <label class="add-pet-field">Minimum humidity (%) <span aria-hidden="true">*</span><input id="enclosureMinHumidity" type="number" step="any" min="0" max="100" placeholder="e.g. 65" required></label>
               <label class="add-pet-field">Maximum humidity (%) <span aria-hidden="true">*</span><input id="enclosureMaxHumidity" type="number" step="any" min="0" max="100" placeholder="e.g. 80" required></label>
               <p class="enclosure-field-error enclosure-field-wide" id="enclosureHumidityError" role="alert" hidden></p>
+              <fieldset class="enclosure-mode-fieldset enclosure-field-wide" id="enclosureCreateMonitoringMode">
+                <legend>Monitoring method</legend>
+                <p class="enclosure-mode-description">How will environmental measurements be recorded?</p>
+                <div class="enclosure-mode-choices">
+                  <label class="enclosure-mode-choice"><input type="radio" name="enclosureCreateMonitoringMode" value="manual" checked><span class="enclosure-mode-copy"><strong>Manual monitoring</strong><small>Enter temperature and humidity yourself.</small></span></label>
+                  <label class="enclosure-mode-choice"><input type="radio" name="enclosureCreateMonitoringMode" value="automatic"><span class="enclosure-mode-copy"><strong>Automatic monitoring</strong><small>Receive readings from a sensor or simulator.</small></span></label>
+                </div>
+                <p class="enclosure-mode-note">You can change this later without losing your measurement history.</p>
+              </fieldset>
               <label class="add-pet-field enclosure-field-wide">Notes <span class="add-pet-optional">(optional)</span><textarea id="enclosureNewNotes" maxlength="2000" rows="5" placeholder="Substrate, lighting, heating, maintenance notes..."></textarea></label>
             </div>
           </div>
@@ -284,6 +293,15 @@
             <label>Maximum temperature (°C) <input id="enclosureEditMaxTemp" type="number" step="any" required></label>
             <label>Minimum humidity (%) <input id="enclosureEditMinHum" type="number" min="0" max="100" step="any" required></label>
             <label>Maximum humidity (%) <input id="enclosureEditMaxHum" type="number" min="0" max="100" step="any" required></label>
+            <fieldset class="enclosure-mode-fieldset enclosure-edit-full" id="enclosureEditMonitoringMode">
+              <legend>Monitoring method</legend>
+              <p class="enclosure-mode-description">Choose how to record environmental conditions.</p>
+              <div class="enclosure-mode-choices">
+                <label class="enclosure-mode-choice"><input type="radio" name="enclosureEditMonitoringMode" value="manual"><span class="enclosure-mode-copy"><strong>Manual monitoring</strong><small>Enter observations yourself.</small></span></label>
+                <label class="enclosure-mode-choice"><input type="radio" name="enclosureEditMonitoringMode" value="automatic"><span class="enclosure-mode-copy"><strong>Automatic monitoring</strong><small>Receive sensor or simulator readings.</small></span></label>
+              </div>
+              <p class="enclosure-mode-note">Switching methods keeps your history, but requires a new reading from the selected method.</p>
+            </fieldset>
             <label class="enclosure-edit-full">Notes <textarea id="enclosureEditNotes" maxlength="2000" rows="3"></textarea></label>
           </div>
           <p id="enclosureEditFeedback" class="feeding-message" role="alert" hidden></p>

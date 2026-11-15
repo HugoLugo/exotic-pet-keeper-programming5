@@ -492,6 +492,8 @@
 
 /* Stage 3D.1 — Enclosure collection and creation; scoped to new views. */
 .enclosure-management,.enclosure-create-page{position:relative;max-width:1120px;padding-bottom:45px}
+/* Align Add Enclosure with the centered Add New Pet form. */
+.enclosure-create-page{width:100%;margin-inline:auto}
 .enclosure-heading{margin-bottom:18px}
 .enclosure-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:0 0 23px}
 .enclosure-overview-card{background:#f8f7ec;border:1px solid #e7e8dc;border-radius:16px;padding:20px 23px;display:grid;gap:7px}
@@ -869,3 +871,18 @@
 .habitat-featured-option:hover,.habitat-featured-option:focus-visible{background:#e8efdf}
 .habitat-featured-option:disabled{opacity:.62;cursor:default}
 @media(max-width:680px){.pets-collection-actions{gap:7px}.habitat-featured-control{bottom:7px;right:8px;max-width:65%}.habitat-featured-trigger{font-size:10px;padding:6px 8px}.enclosure-habitat-head{max-width:85%}}
+
+/* Stage 3D.3.3B — monitoring method selection (existing habitat transforms untouched). */
+.enclosure-mode-fieldset{min-width:0;margin:3px 0 2px;padding:0;border:0}
+.enclosure-mode-fieldset legend{padding:0;color:#31513a;font-size:13px;font-weight:750}
+.enclosure-mode-description{margin:6px 0 12px;color:#627665;font-size:12px;font-weight:400}
+.enclosure-mode-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.enclosure-mode-choice{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;padding:14px!important;background:#fffefa;border:1px solid #dce5d6;border-radius:13px;cursor:pointer;transition:border-color .15s,background-color .15s,box-shadow .15s;color:#31513a}
+.enclosure-mode-choice:has(input:checked){border:2px solid #789e7e;background:#f1f6ed;padding:13px!important;box-shadow:0 2px 8px #456b4c12}
+.enclosure-mode-choice:focus-within{outline:2px solid #54765a;outline-offset:3px}
+.enclosure-mode-choice input[type="radio"],.enclosure-management-dialog .enclosure-mode-choice input[type="radio"]{width:17px!important;height:17px;min-width:17px;padding:0;margin:0;accent-color:#527a59;cursor:pointer}
+.enclosure-mode-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.enclosure-mode-copy strong{font-size:13px;font-weight:750;color:#2c4c36}
+.enclosure-mode-copy small{font-size:12px;font-weight:400;line-height:1.4;color:#647669}
+.enclosure-mode-note{font-size:11px;line-height:1.5;color:#748273;margin:11px 0 0}
+@media(max-width:680px){.enclosure-mode-choices{grid-template-columns:1fr}}
