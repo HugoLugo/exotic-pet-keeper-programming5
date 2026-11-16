@@ -104,13 +104,13 @@ function dashboardThresholdProblems(enclosure,reading) {
 }
 function renderAlerts() {
   const host=$('#alertItems'); host.replaceChildren();
-  const count=$('#alertCount');
-  if (dashboardConditionsStatus === 'loading') {count.textContent='—';host.append(elem('p','dashboard-alert-message','Checking enclosure conditions…'));return;}
-  if (dashboardConditionsStatus === 'error') {count.textContent='—';host.append(elem('p','dashboard-alert-message','Unable to verify enclosure conditions. Check the Enclosure Service.'));return;}
+
+  if (dashboardConditionsStatus === 'loading') {host.append(elem('p','dashboard-alert-message','Checking enclosure conditions…'));return;}
+  if (dashboardConditionsStatus === 'error') {host.append(elem('p','dashboard-alert-message','Unable to verify enclosure conditions. Check the Enclosure Service.'));return;}
   const abnormal=dashboardConditions.filter(entry => !entry.error && entry.reading?.status === 'abnormal' &&
     ['abnormal','stale'].includes(dashboardReadingState(entry)));
   // Count affected enclosures, not individual temperature/humidity violations.
-  count.textContent=dashboardConditionsFailed ? `${abnormal.length}+` : String(abnormal.length);
+
   for (const {enclosure,reading} of abnormal) {
     const stale=dashboardReadingState({enclosure,reading}) === 'stale';
     const title=`${enclosure.name || `Enclosure #${enclosure.id}`} — ${stale ? 'Last sensor reading abnormal (stale)' :
@@ -257,7 +257,7 @@ function navigate(page) {
     }
     stopPetEdit();
   }
-  const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],alerts:['Alerts','Environmental conditions requiring attention.'],feeding:['Feeding','Log meals, build groups, and manage care records.']};
+  const pages = {dashboard:['Dashboard','Overview of your pets, enclosures, and recent activity.'],pets:['Pets','Your animals and their care records.'],enclosures:['Enclosures','Habitats and environmental monitoring.'],records:['Records & Insights','A unified view of each animal’s care history.'],feeding:['Feeding','Log meals, build groups, and manage care records.']};
   if (!pages[page]) return;
   ++editStartRequest;
   currentPage = page;
@@ -275,12 +275,13 @@ function navigate(page) {
   stopEnclosureHistory();
   ++enclosureDetailsRequest;
   $('#feedingPage').hidden = page !== 'feeding';
+  $('#recordsPage').hidden = page !== 'records';
   $('#addPetPage').hidden = true;
   $('#petDetailsPage').hidden = true;
   ++petDetailsRequest;
-  $('#otherPage').hidden = page === 'dashboard' || page === 'pets' || page === 'feeding' || page === 'enclosures';
+  $('#otherPage').hidden = page === 'dashboard' || page === 'pets' || page === 'feeding' || page === 'enclosures' || page === 'records';
   $('#dashboardDemoBanner').hidden = true;
-  $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : page === 'feeding' ? 'CARE MANAGEMENT' : page === 'enclosures' ? 'HABITAT MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
+  $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : page === 'records' ? 'CARE HISTORY' : page === 'feeding' ? 'CARE MANAGEMENT' : page === 'enclosures' ? 'HABITAT MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
   $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1]; $('#otherTitle').textContent = `${pages[page][0]} page coming next`;
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
@@ -288,6 +289,7 @@ function navigate(page) {
   window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   if (page === 'pets') { setPetDeleteMode(false); loadPetsCollection(); }
   if (page === 'feeding') { loadFeedingWorkspace(); }
+  if (page === 'records') { loadRecordsWorkspace(); }
   if (page === 'enclosures') { loadEnclosuresCollection(); }
   if (page === 'dashboard') { loadDashboardData(); startDashboardRefresh(); }
 }
@@ -589,7 +591,7 @@ function renderPetsCollection() {
     }
     const content = elem('div', 'collection-pet-info');
     content.append(elem('h3', null, pet.name || 'Unnamed pet'));
-    content.append(elem('p', 'collection-pet-species', pet.species || 'Species not specified'));
+    const speciesText=elem('p','collection-pet-species');speciesText.append(elem('i',null,pet.species || 'Species not specified'));content.append(speciesText);
     const enclosure = pet.enclosure_id == null ? 'Unassigned'
       : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
     content.append(elem('p', 'collection-pet-enclosure', `⌂  ${enclosure}`));
@@ -715,7 +717,13 @@ function renderDetailsProfile(pet) {
   );
   $('#petDetailsNotes').textContent = detailText(pet.notes, 'No notes added yet.');
 }
-function renderDetailsFeedings(rows) {
+// Show one fixed-size page of feedings so Pet Information and Care Log stay aligned.
+const PET_FEEDINGS_PAGE_SIZE = 4;
+let petFeedingPage = 0;
+function renderDetailsFeedings(rows, preservePage = false) {
+  if (!preservePage) petFeedingPage = 0;
+  const totalPages = Math.max(1, Math.ceil(rows.length / PET_FEEDINGS_PAGE_SIZE));
+  petFeedingPage = Math.min(petFeedingPage, totalPages - 1);
   const host = $('#petDetailsFeedings');
   host.replaceChildren();
   $('#petDetailsFeedingCount').textContent = `${rows.length} record${rows.length === 1 ? '' : 's'}`;
@@ -723,11 +731,13 @@ function renderDetailsFeedings(rows) {
     host.append(elem('p', 'pet-details-empty', 'No feeding records yet. Use Add Feeding to log the first meal.'));
     return;
   }
-  for (const feeding of rows) {
+  const start = petFeedingPage * PET_FEEDINGS_PAGE_SIZE;
+  for (const feeding of rows.slice(start, start + PET_FEEDINGS_PAGE_SIZE)) {
     const item = elem('article', 'pet-details-feeding');
     const left = elem('div');
     left.append(elem('strong', null, detailText(feeding.food, 'Feeding')),
       elem('small', null, `Response: ${{accepted:'Accepted',refused:'Refused',recorded:'Not specified'}[feeding.feeding_outcome]||'Not specified'}`));
+    if (feeding.feeding_time) left.append(elem('small',null,`Time: ${feeding.feeding_time}`));
     if (feeding.notes) left.append(elem('p', 'feeding-entry-note', feeding.notes));
     left.append(elem('small', null, detailText(feeding.feeding_date, 'Date not provided')));
     const actions = elem('div','feeding-entry-actions');
@@ -737,6 +747,19 @@ function renderDetailsFeedings(rows) {
     item.append(left,actions);
     host.append(item);
   }
+  if (totalPages > 1) {
+    const actions = elem('nav', 'pet-feeding-pagination');
+    actions.setAttribute('aria-label', 'Feeding history pages');
+    const previous = elem('button', 'text-button', 'Previous');
+    previous.type = 'button'; previous.disabled = petFeedingPage === 0;
+    previous.addEventListener('click', () => { petFeedingPage--; renderDetailsFeedings(rows, true); });
+    const label = elem('span','pet-feeding-page-label',`Page ${petFeedingPage + 1} of ${totalPages}`);
+    const next = elem('button', 'text-button', 'Next');
+    next.type = 'button'; next.disabled = petFeedingPage >= totalPages - 1;
+    next.addEventListener('click', () => { petFeedingPage++; renderDetailsFeedings(rows, true); });
+    actions.append(previous,label,next);
+    host.append(actions);
+  }
 }
 let petReturnEnclosureId = null;
 async function openPetDetails(id) {
@@ -744,6 +767,7 @@ async function openPetDetails(id) {
   if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) return;
   const request = ++petDetailsRequest;
   ++editStartRequest;
+  if (Number($('#petDetailsPage').dataset.petId)!==Number(id)) petFeedingPage=0;
   $('#petDetailsPage').dataset.petId = String(id);
   currentPage = 'pets';
   $('#main').classList.add('pets-active');
@@ -1715,7 +1739,7 @@ $('#quickFeedingForm').addEventListener('submit',async e=>{
  const pet_ids=[...feedState.selected];const food=$('#quickFood').value.trim();const feeding_date=apiDate($('#quickDate').value);const notes=$('#quickNotes').value.trim();
  if(!pet_ids.length||!food||!feeding_date){feedingFeedback('#quickFeedingMessage','Select at least one animal, enter food and choose a valid date.',true);return;}
  feedState.busy=true;$('#quickFeedingSave').disabled=true;feedingFeedback('#quickFeedingMessage','Saving feedings…');
- try{const data=await feedingRequest('/api/feedings/bulk','POST',{pet_ids,refused_pet_ids:pet_ids.filter(id=>feedState.refused.has(id)),food,feeding_date,notes});
+ try{const data=await feedingRequest('/api/feedings/bulk','POST',{pet_ids,refused_pet_ids:pet_ids.filter(id=>feedState.refused.has(id)),food,feeding_date,notes,feeding_time:feedingChosenTime('#quickDate','#quickTime')});
   feedingFeedback('#quickFeedingMessage',`Saved ${data.count} individual feeding record${data.count===1?'':'s'} successfully.`);
   toast(`${data.count} feeding record${data.count===1?'':'s'} saved.`);feedState.selected.clear();feedState.refused.clear();renderFeedingChoices();$('#quickFood').value='';$('#quickNotes').value='';loadRecentFeedings();
  }catch(err){feedingFeedback('#quickFeedingMessage',`Could not save feedings: ${err.message}. Selection and fields were preserved.`,true);}
@@ -1755,13 +1779,20 @@ $('#feedingConfirmProceed').addEventListener('click',async()=>{
 });
 // Individual feeding is kept independent of pet-profile editing.
 let recordMode='add',recordBeingEdited=null,recordPetId=null,recordInitial='',recordBusy=false;
-function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),feeding_outcome:$('#feedingRecordOutcome').value,notes:$('#feedingRecordNotes').value.trim()};}
+function feedingLocalNowTime(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+function feedingChosenTime(dateField, timeField){
+ const chosen=$(timeField).value;
+ if(chosen)return chosen;
+ return $(dateField).value===isoToday()?feedingLocalNowTime():null;
+}
+function feedingOptionalNumber(id){const value=$(id).value.trim();return value===''?null:Number(value);}
+function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),feeding_time:$('#feedingRecordTime').value||null,feeding_outcome:$('#feedingRecordOutcome').value,notes:$('#feedingRecordNotes').value.trim(),temperature_c:feedingOptionalNumber('#feedingRecordTemperature'),humidity_pct:feedingOptionalNumber('#feedingRecordHumidity')};}
 function recordIsDirty(){return JSON.stringify(recordFields())!==recordInitial;}
 function openFeedingRecord(mode,record=null){
  if(!activePet||petEditing)return toast('Finish pet profile editing first.');
  recordMode=mode;recordBeingEdited=record;recordPetId=Number(activePet.id);
  $('#feedingRecordDialogTitle').textContent=mode==='edit'?'Edit Feeding Record':'Add Feeding';
- $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordOutcome').value=record?.feeding_outcome||'accepted';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';refreshSharedDateControls();
+ $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordOutcome').value=record?.feeding_outcome||'accepted';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';$('#feedingRecordTime').value=record?.feeding_time||'';$('#feedingRecordTemperature').value=record?.temperature_c??'';$('#feedingRecordHumidity').value=record?.humidity_pct??'';$('#feedingRecordTemperature').removeAttribute('aria-invalid');$('#feedingRecordHumidity').removeAttribute('aria-invalid');refreshSharedDateControls();
  $('#feedingRecordSave').textContent=mode==='edit'?'Save Changes':'Save Feeding';feedingFeedback('#feedingRecordMessage','');
  recordInitial=JSON.stringify(recordFields());$('#feedingRecordDialog').showModal();
 }
@@ -1772,6 +1803,9 @@ $('#feedingRecordDialog').addEventListener('cancel',e=>{if(recordIsDirty()){e.pr
 $('#feedingRecordForm').addEventListener('submit',async e=>{
  e.preventDefault();if(recordBusy)return;const payload=recordFields();
  if(!payload.food||!payload.feeding_date){feedingFeedback('#feedingRecordMessage','Food and feeding date are required.',true);return;}
+ const invalid=['feedingRecordTemperature','feedingRecordHumidity'].filter(id=>!$('#'+id).validity.valid);
+ if(invalid.length){invalid.forEach(id=>$('#'+id).setAttribute('aria-invalid','true'));feedingFeedback('#feedingRecordMessage','Check the highlighted environmental measurements.',true);$('#'+invalid[0]).focus();return;}
+ payload.feeding_time=payload.feeding_time||(recordMode==='edit'?null:feedingChosenTime('#feedingRecordDate','#feedingRecordTime'));
  recordBusy=true;$('#feedingRecordSave').disabled=true;
  try{const path=`/api/pets/${recordPetId}/feedings${recordMode==='edit'?`/${recordBeingEdited.id}`:''}`;
   await feedingRequest(path,recordMode==='edit'?'PUT':'POST',payload);$('#feedingRecordDialog').close();
@@ -1779,16 +1813,16 @@ $('#feedingRecordForm').addEventListener('submit',async e=>{
  }catch(err){feedingFeedback('#feedingRecordMessage',`Could not save: ${err.message}`,true);}
  finally{recordBusy=false;$('#feedingRecordSave').disabled=false;}
 });
-async function refreshPetFeedings(petId){if(Number($('#petDetailsPage').dataset.petId)!==petId)return;
+async function refreshPetFeedings(petId, preservePage = true){if(Number($('#petDetailsPage').dataset.petId)!==petId)return;
  try{const records=await feedingRequest(`/api/pets/${petId}/feedings`);
   if(Number($('#petDetailsPage').dataset.petId)!==petId)return;
-  renderDetailsFeedings(records);$('#petDetailsFeedingError').hidden=true;
+  renderDetailsFeedings(records, preservePage);$('#petDetailsFeedingError').hidden=true;
  }catch(err){toast(`Could not refresh feeding history: ${err.message}`);}
 }
 function deleteFeedingRecord(record){if(!activePet||petEditing)return;const petId=Number(activePet.id);
  confirmFeeding(`Permanently delete “${record.food}” from ${record.feeding_date}? This cannot be undone.`,async()=>{
   await feedingRequest(`/api/pets/${petId}/feedings/${record.id}`,'DELETE');
-  await refreshPetFeedings(petId);loadRecentFeedings();toast('Feeding record deleted.');
+  await refreshPetFeedings(petId, true);loadRecentFeedings();toast('Feeding record deleted.');
  });
 }
 async function loadRecentFeedings(){
@@ -2813,30 +2847,61 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
 });
 
 // Stage 3D.5.3 — individual animal observations. No enclosure ownership assumed.
-const animalEventNames={molting:'Molting / Shedding',weight:'Weight Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
+const animalEventNames={molting:'Molting / Shedding',weight:'Weight Measurement',length:'Length Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
 const moltLabels={successful:'Successful',incomplete:'Incomplete',difficulty_observed:'Difficulty observed',unknown:'Unknown'};
+const moltStageLabels={pre_molt:'Pre-molt / Pre-shed observed',molt_observed:'Molt / Shed observed'};
 let animalEventEditing=null,animalEventPetId=null,animalEventInitial='',animalEventBusy=false;
 function animalEventFields(){
   const type=$('#animalEventType').value,unit=$('#animalEventWeightUnit').value,weight=Number($('#animalEventWeight').value);
   const date=$('#animalEventDate').value,time=$('#animalEventTime').value||null;
+  const stage=type==='molting'?$('#animalEventMoltStage').value:null;
+  const temperature=$('#animalEventTemperature').value.trim(),humidity=$('#animalEventHumidity').value.trim();
+  const lengthText=$('#animalEventLength').value.trim(),lengthUnit=$('#animalEventLengthUnit').value;
   return {event_type:type,event_date:date,event_time:time,utc_offset_minutes:null,description:$('#animalEventDescription').value.trim()||null,
-    molt_outcome:type==='molting'?$('#animalEventMolt').value:null,weight_g:type==='weight'?(unit==='kg'?weight*1000:weight):null,notes:$('#animalEventNotes').value.trim()||null};
+    molt_stage:stage,molt_outcome:type==='molting'&&stage!=='pre_molt'?$('#animalEventMolt').value:null,
+    weight_g:type==='weight'?(unit==='kg'?weight*1000:weight):null,notes:$('#animalEventNotes').value.trim()||null,
+    temperature_c:temperature===''?null:Number(temperature),humidity_pct:humidity===''?null:Number(humidity),
+    length_cm:type==='length'?(lengthText===''?null:Number(lengthText)*(lengthUnit==='mm'?0.1:1)):null,
+    length_method:type==='length'?$('#animalEventLengthMethod').value:null};
+}
+const animalEventValidatedFields=['animalEventDate','animalEventWeight','animalEventLength','animalEventDescription','animalEventTemperature','animalEventHumidity'];
+function animalEventClearErrors(){
+  for(const id of animalEventValidatedFields){
+    const input=$(`#${id}`);input.classList.remove('animal-event-invalid');input.removeAttribute('aria-invalid');
+  }
+}
+function animalEventMarkInvalid(ids){
+  animalEventClearErrors();
+  for(const id of ids){const input=$(`#${id}`);input.classList.add('animal-event-invalid');input.setAttribute('aria-invalid','true');}
+  const first=$(`#${ids[0]}`);if(first)first.focus();
+}
+for(const id of animalEventValidatedFields){
+  $(`#${id}`).addEventListener('input',()=>{const field=$(`#${id}`);field.classList.remove('animal-event-invalid');field.removeAttribute('aria-invalid');});
 }
 function animalEventFieldsDirty(){return JSON.stringify(animalEventFields())!==animalEventInitial;}
 function updateAnimalEventFields(){
-  const type=$('#animalEventType').value;$('#animalEventMoltField').hidden=type!=='molting';$('#animalEventWeightField').hidden=type!=='weight';
-  $('#animalEventDescription').required=!['molting','weight'].includes(type);
+  const type=$('#animalEventType').value;
+  $('#animalEventMoltStageField').hidden=type!=='molting';
+  $('#animalEventMoltField').hidden=type!=='molting'||$('#animalEventMoltStage').value==='pre_molt';
+  $('#animalEventWeightField').hidden=type!=='weight';
+  $('#animalEventLengthField').hidden=type!=='length';
+  $('#animalEventDescription').required=!['molting','weight','length'].includes(type);
 }
 $('#animalEventType').addEventListener('change',updateAnimalEventFields);
+$('#animalEventMoltStage').addEventListener('change',updateAnimalEventFields);
 function openAnimalEvent(mode,record=null){
   if(!activePet||petEditing)return toast('Finish pet profile editing first.');
   animalEventPetId=Number(activePet.id);animalEventEditing=mode==='edit'?record:null;
   $('#animalEventDialogTitle').textContent=record?'Edit Animal Event':'Add Animal Event';
   $('#animalEventType').value=record?.event_type||'molting';$('#animalEventDate').value=record?.event_date||isoToday();
   $('#animalEventDate').max=isoToday();$('#animalEventTime').value=record?.event_time||'';refreshSharedDateControls();
+  $('#animalEventMoltStage').value=record?.molt_stage||'molt_observed';
+  if(!record)$('#animalEventMoltStage').value='pre_molt';
   $('#animalEventMolt').value=record?.molt_outcome||'successful';$('#animalEventWeight').value=record?.weight_g??'';$('#animalEventWeightUnit').value='g';
+  $('#animalEventLength').value=record?.length_cm??'';$('#animalEventLengthUnit').value='cm';$('#animalEventLengthMethod').value=record?.length_method||'total';
+  $('#animalEventTemperature').value=record?.temperature_c??'';$('#animalEventHumidity').value=record?.humidity_pct??'';
   $('#animalEventDescription').value=record?.description||'';$('#animalEventNotes').value=record?.notes||'';
-  updateAnimalEventFields();feedingFeedback('#animalEventMessage','');$('#animalEventSave').textContent=record?'Save Changes':'Save Event';
+  updateAnimalEventFields();animalEventClearErrors();feedingFeedback('#animalEventMessage','');$('#animalEventSave').textContent=record?'Save Changes':'Save Event';
   animalEventInitial=JSON.stringify(animalEventFields());$('#animalEventDialog').showModal();
 }
 function cancelAnimalEvent(){
@@ -2853,7 +2918,11 @@ function renderAnimalEvents(records){
     const article=elem('article','animal-event-entry');const copy=elem('div','animal-event-content');
     copy.append(elem('strong',null,animalEventNames[record.event_type]||'Observation'));
     const time=record.event_time?` at ${record.event_time}`:'';copy.append(elem('small',null,`${apiDate(record.event_date)}${time}`));
+    if(record.event_type==='molting')copy.append(elem('p',null,`Stage: ${moltStageLabels[record.molt_stage]||'Molt / Shed observed (legacy)'}`));
     if(record.molt_outcome)copy.append(elem('p',null,`Outcome: ${moltLabels[record.molt_outcome]||record.molt_outcome}`));
+    if(record.temperature_c!==null&&record.temperature_c!==undefined)copy.append(elem('p',null,`Keeper-entered temperature: ${record.temperature_c} °C`));
+    if(record.humidity_pct!==null&&record.humidity_pct!==undefined)copy.append(elem('p',null,`Keeper-entered humidity: ${record.humidity_pct}%`));
+    if(record.event_type==='length'&&record.length_cm!=null)copy.append(elem('p',null,`Length: ${Number(record.length_cm).toLocaleString(undefined,{maximumFractionDigits:3})} cm · ${({total:'Total length',body:'Body length',diagonal:'Diagonal leg span',shed:'Shed skin length',other:'Other / Not specified'})[record.length_method]||'Unspecified method'}`));
     if(record.weight_g!==null)copy.append(elem('p',null,`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`));
     if(record.description)copy.append(elem('p',null,record.description));
     if(record.notes)copy.append(elem('p','animal-event-note',record.notes));
@@ -2874,12 +2943,341 @@ async function refreshAnimalEvents(petId){
 }
 $('#animalEventRetry').addEventListener('click',()=>{const id=Number($('#petDetailsPage').dataset.petId);if(id>0)void refreshAnimalEvents(id);});
 $('#animalEventForm').addEventListener('submit',async e=>{
-  e.preventDefault();if(animalEventBusy)return;const body=animalEventFields();
-  if(!body.event_date||body.event_date>isoToday()){feedingFeedback('#animalEventMessage','Select a valid observation date that is not in the future.',true);return;}
-  if(body.event_type==='weight'&&!(Number.isFinite(body.weight_g)&&body.weight_g>0&&body.weight_g<=1000000)){feedingFeedback('#animalEventMessage','Enter a valid positive weight.',true);return;}
-  if(!['molting','weight'].includes(body.event_type)&&!body.description){feedingFeedback('#animalEventMessage','Please describe your observation.',true);return;}
+  e.preventDefault();if(animalEventBusy)return;animalEventClearErrors();const body=animalEventFields();
+  if(!body.event_date||body.event_date>isoToday()){feedingFeedback('#animalEventMessage','Select a valid observation date that is not in the future.',true);animalEventMarkInvalid(['animalEventDate']);return;}
+  if(body.event_type==='weight'&&!(Number.isFinite(body.weight_g)&&body.weight_g>0&&body.weight_g<=1000000)){feedingFeedback('#animalEventMessage','Enter a valid positive weight.',true);animalEventMarkInvalid(['animalEventWeight']);return;}
+  if(body.event_type==='length'&&(!Number.isFinite(body.length_cm)||body.length_cm<=0||body.length_cm>10000)){feedingFeedback('#animalEventMessage','Enter a valid positive length.',true);animalEventMarkInvalid(['animalEventLength']);return;}
+  if(!['molting','weight','length'].includes(body.event_type)&&!body.description){feedingFeedback('#animalEventMessage','Please describe your observation.',true);animalEventMarkInvalid(['animalEventDescription']);return;}
+  const invalidNumberFields=['animalEventTemperature','animalEventHumidity'].filter(id=>!$(`#${id}`).validity.valid);
+  if(invalidNumberFields.length){feedingFeedback('#animalEventMessage','Check the highlighted environmental measurements.',true);animalEventMarkInvalid(invalidNumberFields);return;}
+  if((body.temperature_c!==null&&(!Number.isFinite(body.temperature_c)||body.temperature_c< -50||body.temperature_c>100))||(body.humidity_pct!==null&&(!Number.isFinite(body.humidity_pct)||body.humidity_pct<0||body.humidity_pct>100))){feedingFeedback('#animalEventMessage','Enter a temperature between -50 and 100 °C and humidity between 0 and 100%, or leave them blank.',true);
+    const bad=[];
+    if(body.temperature_c!==null&&(!Number.isFinite(body.temperature_c)||body.temperature_c< -50||body.temperature_c>100))bad.push('animalEventTemperature');
+    if(body.humidity_pct!==null&&(!Number.isFinite(body.humidity_pct)||body.humidity_pct<0||body.humidity_pct>100))bad.push('animalEventHumidity');
+    animalEventMarkInvalid(bad);return;}
   animalEventBusy=true;$('#animalEventSave').disabled=true;const petId=animalEventPetId;
   try{const route=`/api/pets/${petId}/events${animalEventEditing?`/${animalEventEditing.id}`:''}`;await feedingRequest(route,animalEventEditing?'PUT':'POST',body);
     $('#animalEventDialog').close();await refreshAnimalEvents(petId);toast(animalEventEditing?'Animal event updated.':'Animal event added.');
   }catch(error){feedingFeedback('#animalEventMessage',`Could not save: ${error.message}`,true);}finally{animalEventBusy=false;$('#animalEventSave').disabled=false;}
 });
+
+
+// Stage 3D.5.4A — read-only Records & Insights. No new persistence or attribution.
+let recordsPets = [];
+let recordsSelectedPetId = null;
+let recordsRequest = 0;
+let recordsActiveFilter = 'all';
+let recordsSpecialType = 'weight';
+let recordsDisplayMode = 'list';
+let recordsRange = 'all';
+let recordsZoom = 1;
+let recordsCurrentFeedings = [];
+let recordsCurrentEvents = [];
+const recordsDemoPet = {id:-3544,name:'Demo · Luna',species:'Python regius'};
+const recordsDemoFeedings = [
+ {id:90001,feeding_date:'2026-11-05',feeding_time:'18:10',food:'1 appropriately sized prey item',feeding_outcome:'accepted',entry_source:'individual',temperature_c:28,humidity_pct:65},
+ {id:90002,feeding_date:'2026-10-20',feeding_time:'19:20',food:'Prey offered',feeding_outcome:'refused',entry_source:'individual'},
+ {id:90003,feeding_date:'2026-09-19',feeding_time:'18:40',food:'1 prey item',feeding_outcome:'accepted',entry_source:'quick'}
+];
+const recordsDemoEvents = [
+ {id:90101,event_type:'molting',event_date:'2026-08-03',event_time:'09:15',molt_stage:'pre_molt',description:'Cloudy eyes observed',humidity_pct:70},
+ {id:90102,event_type:'molting',event_date:'2026-08-12',event_time:'12:20',molt_stage:'molt_observed',molt_outcome:'successful',description:'Shed observed',humidity_pct:73},
+ {id:90103,event_type:'weight',event_date:'2026-08-15',event_time:'10:00',weight_g:540,description:'Routine weighing'},
+ {id:90104,event_type:'weight',event_date:'2026-09-15',event_time:'10:00',weight_g:565},
+ {id:90105,event_type:'molting',event_date:'2026-10-01',event_time:'09:20',molt_stage:'pre_molt',description:'Duller skin observed',humidity_pct:69},
+ {id:90106,event_type:'molting',event_date:'2026-10-09',event_time:'08:00',molt_stage:'molt_observed',molt_outcome:'successful',description:'Shed observed',humidity_pct:71},
+ {id:90107,event_type:'weight',event_date:'2026-11-02',event_time:'11:10',weight_g:583},
+ {id:90108,event_type:'behavior',event_date:'2026-11-09',event_time:'16:30',description:'Exploring enclosure in the evening'}
+];
+function recordsSetMessage(message) { $('#recordsPageMessage').textContent = message; }
+function recordsObservationDate(value) {
+  if (typeof value !== 'string') return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+}
+// Treat absent or malformed values as missing; never turn null into 0 or show undefined.
+function recordsOptionalMeasurement(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+function recordsNormalize(feedings, events) {
+  const result = [];
+  for (const record of feedings) {
+    const date = recordsObservationDate(record.feeding_date);
+    if (!date) continue;
+    const response = record.feeding_outcome === 'accepted' ? 'Accepted' : record.feeding_outcome === 'refused' ? 'Refused' : 'Not specified';
+    result.push({key:`feeding-${record.id}`,type:'feeding',source:'Feeding',date,time:record.feeding_time||null,title:`Feeding · ${response}`,details:[record.food,record.notes].filter(Boolean),temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),entrySource:record.entry_source==='quick'?'quick':null,id:Number(record.id)||0});
+  }
+  for (const record of events) {
+    const date = recordsObservationDate(record.event_date);
+    if (!date) continue;
+    const names={molting:'Molting / Shedding',weight:'Weight Measurement',length:'Length Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
+    const outcomes={successful:'Successful',incomplete:'Incomplete',difficulty_observed:'Difficulty observed',unknown:'Unknown'};
+    const details=[];
+    if (record.event_type==='molting') details.push(`Stage: ${moltStageLabels[record.molt_stage]||'Molt / Shed observed (legacy)'}`);
+    if (record.molt_outcome) details.push(`Outcome: ${outcomes[record.molt_outcome]||'Unknown'}`);
+    if (record.event_type==='length' && recordsOptionalMeasurement(record.length_cm)!==null) details.push(`Length: ${record.length_cm} cm · ${({total:'Total length',body:'Body length',diagonal:'Diagonal leg span',shed:'Shed skin length',other:'Other / Not specified'})[record.length_method]||'Unspecified method'}`);
+    if (record.event_type==='weight' && Number.isFinite(Number(record.weight_g)) && Number(record.weight_g)>0) details.push(`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`);
+    if (record.description) details.push(record.description);
+    if (record.notes) details.push(record.notes);
+    result.push({key:`event-${record.id}`,type:record.event_type,source:'Animal event',date,time:record.event_time||null,title:names[record.event_type]||'Observation',details,temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),id:Number(record.id)||0});
+  }
+  // Only date precision is common to both sources. Within a date, timed events
+  // come first; date-only feedings are not assigned fictional clock times.
+  result.sort((x,y)=>y.date.localeCompare(x.date)||Number(!!y.time)-Number(!!x.time)||(y.time||'').localeCompare(x.time||'')||x.source.localeCompare(y.source)||y.id-x.id);
+  return result;
+}
+function recordsConditionIcon(kind){
+ const namespace='http://www.w3.org/2000/svg';
+ const svg=document.createElementNS(namespace,'svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','17');svg.setAttribute('height','17');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
+ const paths=kind==='temperature'?['M14 14.76V5a3 3 0 0 0-6 0v9.76a5 5 0 1 0 6 0Z','M11 10v8']:['M12 22a8 8 0 0 0 8-8c0-5-8-12-8-12S4 9 4 14a8 8 0 0 0 8 8Z'];
+ for(const d of paths){const path=document.createElementNS(namespace,'path');path.setAttribute('d',d);svg.append(path);}return svg;
+}
+function recordsSvgNode(tag,attrs={}) {
+ const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
+ for(const [key,value] of Object.entries(attrs))node.setAttribute(key,String(value));
+ return node;
+}
+// Observation time is local to the keeper's device unless a source offset is available.
+// A date-only entry cannot be assigned an artificial clock time in a 24-hour view.
+function recordsRecordTime(item) {
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(item.date))return null;
+ if(typeof item.time!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time))return null;
+ const time=new Date(`${item.date}T${item.time}:00`).getTime();
+ return Number.isFinite(time)?time:null;
+}
+function recordsDayTime(item){return new Date(`${item.date}T12:00:00`).getTime();}
+function recordsRangeItems(items) {
+ if(recordsRange==='all')return items;
+ const now=new Date();
+ if(recordsRange==='24h'){
+  const start=now.getTime()-86400000;
+  return items.filter(item=>{const time=recordsRecordTime(item);return time!==null&&time>=start&&time<=now.getTime();});
+ }
+ const days=recordsRange==='7d'?7:30;
+ const first=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(days-1));
+ const start=`${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,'0')}-${String(first.getDate()).padStart(2,'0')}`;
+ const end=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+ return items.filter(item=>item.date>=start&&item.date<=end);
+}
+function recordsRenderGraph(feedings,events) {
+ const host=$('#recordsGraphContent');host.replaceChildren();
+ const normalized=recordsNormalize(feedings,events);
+ const matching=item=>recordsActiveFilter==='all'||(recordsActiveFilter==='feeding'&&item.type==='feeding')||(recordsActiveFilter==='events'&&item.type!=='feeding')||(recordsActiveFilter==='special'&&item.type===recordsSpecialType);
+ const relevant=normalized.filter(matching);
+ const items=recordsRangeItems(relevant);
+ const hint24=recordsRange==='24h'&&relevant.some(item=>recordsRecordTime(item)===null);
+ if(!items.length){
+  host.append(elem('p','records-graph-empty',recordsRange==='24h'?'No precisely timed observations in the last 24 hours. Date-only records are not placed at an invented hour; choose 7 days or All to see them.':'No observations in this category and period. Try a longer range or Show all records.'));
+  $('#recordsGraphCaption').textContent='No observations in selected period';return;
+ }
+ const timeOf=item=>recordsRecordTime(item)??recordsDayTime(item);
+ const timestamps=items.map(timeOf).filter(Number.isFinite);
+ const minTime=Math.min(...timestamps),maxTime=Math.max(...timestamps);
+ const oneHour=3600000,oneDay=86400000;
+ let start,end;
+ if(recordsRange==='24h'){
+  end=Date.now();start=end-oneDay;
+ }else{
+  const padding=Math.max((maxTime-minTime)*.07,oneHour*2);
+  start=minTime-padding;end=maxTime+padding;
+  if(end-start<oneDay){const middle=(start+end)/2;start=middle-oneDay/2;end=middle+oneDay/2;}
+ }
+ // Zoom toward the latest observation while keeping a minimum 30-minute window.
+ if(recordsZoom>1){const span=Math.max((end-start)/recordsZoom,30*60000);start=end-span;}
+ const visible=items.filter(item=>timeOf(item)>=start&&timeOf(item)<=end);
+ if(!visible.length){host.append(elem('p','records-graph-empty','No observations are visible at this zoom level. Select Reset zoom to see the complete period.'));$('#recordsGraphCaption').textContent='No observations visible at current zoom';return;}
+ const byDate=new Map();
+ for(const item of visible){const stamp=timeOf(item);const key=recordsRange==='24h'?String(stamp):item.date;if(!byDate.has(key))byDate.set(key,stamp);}
+ const marks=[...byDate.values()].sort((a,b)=>a-b);
+ const L=160,R=963,T=48,B=268,W=R-L;
+ const svg=recordsSvgNode('svg',{viewBox:'0 0 1000 326',role:'img','aria-label':recordsRange==='24h'?'History plotted by actual recorded clock times':'History chart with observation dates marked on the horizontal axis'});
+ const xFor=value=>L+(value-start)/(end-start)*W;
+ const fmtDate=value=>{const d=new Date(value);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;};
+ const fmtClock=value=>{const d=new Date(value);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+ // Show actual observation dates, rather than arbitrary dates at equal intervals.
+ // When dates are dense, keep all plotted records and omit only overlapping axis labels.
+ const labelSpacing=86;
+ let labels=[];
+ if(recordsRange==='24h'){
+  // Hourly time axis for the genuine rolling 24-hour window.
+  const step=3*oneHour;
+  const first=Math.ceil(start/step)*step;
+  for(let t=first;t<=end;t+=step)labels.push({time:t,clock:true});
+  // Exact recorded observation times also appear next to markers below.
+ }else{
+  let previous=-Infinity;
+  for(const timestamp of marks){const x=xFor(timestamp);if(x-previous>=labelSpacing){labels.push({time:timestamp,clock:false});previous=x;}}
+  // For a single observation, explicitly retain that observation's date label.
+ }
+ for(const item of labels){const x=xFor(item.time);if(x<L-1||x>R+1)continue;
+  svg.append(recordsSvgNode('line',{x1:x,y1:T,x2:x,y2:B,stroke:'#e0e7db','stroke-width':1}));
+  const label=recordsSvgNode('text',{x,y:294,'text-anchor':'middle','font-size':13,fill:'#586b58'});label.textContent=item.clock?fmtClock(item.time):fmtDate(item.time);svg.append(label);
+ }
+ if(recordsActiveFilter==='special'&&['weight','length'].includes(recordsSpecialType)){
+  const isLength=recordsSpecialType==='length';
+  const measurements=visible.filter(x=>x.type===recordsSpecialType).map(x=>{const record=events.find(e=>'event-'+e.id===x.key);return {item:x,time:timeOf(x),weight:Number(isLength?record?.length_cm:record?.weight_g),method:isLength?record?.length_method:null};}).filter(x=>Number.isFinite(x.weight)&&x.weight>0).sort((a,b)=>a.time-b.time);
+  if(!measurements.length){host.append(elem('p','records-graph-empty',isLength?'No length measurements in the selected period.':'No weight measurements in the selected period.'));return;}
+  const vals=measurements.map(x=>x.weight),low=Math.min(...vals),high=Math.max(...vals),padding=Math.max((high-low)*.15,high*.04,1);
+  const y=value=>B-((value-(low-padding))/(high-low+2*padding))*(B-T);
+  for(let i=0;i<4;i++){const v=low-padding+(high-low+2*padding)*i/3;const t=recordsSvgNode('text',{x:143,y:y(v)+5,'font-size':13,'text-anchor':'end',fill:'#657a67'});t.textContent=`${v.toFixed(1)} ${isLength?'cm':'g'}`;svg.append(t);}
+  const methods=[...new Set(measurements.map(x=>x.method))];
+  const palette=['#507d91','#9171aa','#aa7846','#4e8360','#907656'];
+  for(let index=0;index<methods.length;index++){
+    const method=methods[index],group=measurements.filter(x=>x.method===method),color=palette[index%palette.length];
+    if(group.length>1)svg.append(recordsSvgNode('polyline',{points:group.map(w=>`${xFor(w.time)},${y(w.weight)}`).join(' '),fill:'none',stroke:color,'stroke-width':3,'stroke-linejoin':'round'}));
+    for(const item of group){const px=xFor(item.time),py=y(item.weight);const dot=recordsSvgNode('circle',{cx:px,cy:py,r:6,fill:color,stroke:'#fff','stroke-width':2});const tip=recordsSvgNode('title');tip.textContent=`${item.weight} ${isLength?'cm':'g'} · ${isLength?method+' · ':''}${apiDate(item.item.date)}${item.item.time?' '+item.item.time:' (time not recorded)'}`;dot.append(tip);svg.append(dot);const label=recordsSvgNode('text',{x:px,y:py-13,'text-anchor':'middle','font-size':12,fill:color});label.textContent=`${item.weight} ${isLength?'cm':'g'}`;svg.append(label);}
+  }
+  $('#recordsGraphCaption').textContent=`${isLength?'Length':'Weight'} history · ${measurements.length} measurement(s)${isLength&&methods.length>1?' · separate lines by measurement method':''}`;
+ }else{
+  const lanes=[['feeding','Feeding',75,'#527b59'],['molting','Molting / Shedding',120,'#ae844e'],['weight','Weight',165,'#548696'],['length','Length',210,'#7a68a7'],['other','Other events',250,'#88958a']];
+  for(const [type,name,y,color] of lanes){const lab=recordsSvgNode('text',{x:146,y:y+5,'text-anchor':'end','font-size':13,fill:'#536a56'});lab.textContent=name;svg.append(lab);svg.append(recordsSvgNode('line',{x1:L,y1:y,x2:R,y2:y,stroke:'#e3e8df','stroke-width':1.5}));}
+  const stacked=new Map();
+  for(const item of visible){const lane=item.type==='feeding'?'feeding':item.type==='molting'?'molting':item.type==='weight'?'weight':item.type==='length'?'length':'other';const found=lanes.find(l=>l[0]===lane);const grouping=lane+item.date+(item.time||'');const count=stacked.get(grouping)||0;stacked.set(grouping,count+1);const px=xFor(timeOf(item))+Math.min(count,3)*5;const py=found[2]-(count%3)*10;
+   const dot=recordsSvgNode('circle',{cx:px,cy:py,r:7,fill:found[3],stroke:'#fffdf9','stroke-width':2});const tip=recordsSvgNode('title');tip.textContent=`${item.title} — ${apiDate(item.date)}${item.time?' · '+item.time:' · time not recorded'}`;dot.append(tip);svg.append(dot);
+   if(recordsRange==='24h'&&visible.length<=7&&item.time){const label=recordsSvgNode('text',{x:px,y:py-13,'text-anchor':'middle','font-size':12,fill:'#41634c'});label.textContent=item.time;svg.append(label);}
+  }
+  $('#recordsGraphCaption').textContent=`${visible.length} displayed observation(s) · actual observation ${recordsRange==='24h'?'times':'dates'} on axis`;
+ }
+ const axis=recordsSvgNode('text',{x:550,y:322,'text-anchor':'middle','font-size':13,fill:'#657a67'});axis.textContent=recordsRange==='24h'?'Recorded time (device local time)':'Observation date';svg.append(axis);
+ host.append(svg);
+ const note=elem('p','records-graph-weight-note',`${recordsRange==='24h'?fmtClock(start)+' – '+fmtClock(end):fmtDate(start)+' – '+fmtDate(end)} · Zoom ${recordsZoom}× · ${visible.length} record(s) visible${hint24?' · Untimed records excluded from 24h view':''}`);host.append(note);
+}
+function recordsRenderTimeline(feedings,events) {
+  recordsCurrentFeedings=feedings;recordsCurrentEvents=events;
+  $('#recordsOverview').hidden=false;
+  $('#recordsFeedingCount').textContent=String(feedings.length);
+  $('#recordsEventCount').textContent=String(events.length);
+  const specialLabels={weight:'Weight measurements',length:'Length measurements',molting:'Molting / Shedding',behavior:'Behavior / Activity',health:'Health observations'};
+  $('#recordsSpecialTitle').textContent=specialLabels[recordsSpecialType]||'Weight measurements';
+  $('#recordsWeightCount').textContent=String(events.filter(e=>e.event_type===recordsSpecialType).length);
+  for(const button of document.querySelectorAll('[data-record-filter]')){
+    const active=button.dataset.recordFilter===recordsActiveFilter;
+    button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);
+  }
+  const labels={all:'Showing all records.',feeding:'Showing feeding records.',events:'Showing all animal events.',special:`Showing ${specialLabels[recordsSpecialType]||'selected observations'}.`};
+  $('#recordsFilterDescription').textContent=labels[recordsActiveFilter]+' Select a summary card to filter.';
+  $('#recordsClearFilter').hidden=recordsActiveFilter==='all';
+  if(recordsDisplayMode==='chart')recordsRenderGraph(feedings,events);
+  const host=$('#recordsTimeline');host.replaceChildren();
+  const items=recordsNormalize(feedings,events).filter(item=>recordsActiveFilter==='all'||(recordsActiveFilter==='feeding'&&item.type==='feeding')||(recordsActiveFilter==='events'&&item.type!=='feeding')||(recordsActiveFilter==='special'&&item.type===recordsSpecialType));
+  if (!items.length) {host.append(elem('p','records-empty','No records in this category for this animal. Choose another category or show all records.'));return;}
+  for (const item of items) {
+    const article=elem('article','records-entry');
+    const date=elem('div','records-entry-date');
+    date.append(elem('strong',null,apiDate(item.date)),elem('span',null,item.time?`${item.time} (recorded time)`:'Time not recorded'));
+    const content=elem('div','records-entry-body');
+    const category=elem('div','records-entry-category-row');
+    category.append(elem('span','records-entry-category',item.source));
+    if (item.entrySource==='quick') category.append(elem('span','records-entry-source-tag','Quick Feeding'));
+    content.append(category,elem('strong','records-entry-title',item.title));
+    for (const detail of item.details) content.append(elem('p',null,detail));
+    if (item.temperature !== null || item.humidity !== null) {
+      const conditions = elem('aside', 'records-entry-conditions');
+      conditions.append(elem('span', 'records-entry-conditions-label', 'RECORDED CONDITIONS'));
+      if (item.temperature !== null) {
+        const temp = elem('div','records-entry-measurement');
+        const icon=elem('span','records-entry-measurement-icon');icon.setAttribute('aria-label','Temperature');icon.append(recordsConditionIcon('temperature'));temp.append(icon,elem('strong',null,`${item.temperature} °C`));
+        conditions.append(temp);
+      }
+      if (item.humidity !== null) {
+        const humid = elem('div','records-entry-measurement');
+        const icon=elem('span','records-entry-measurement-icon');icon.setAttribute('aria-label','Humidity');icon.append(recordsConditionIcon('humidity'));humid.append(icon,elem('strong',null,`${item.humidity}%`));
+        conditions.append(humid);
+      }
+      conditions.append(elem('small',null,'Keeper-entered'));
+      article.append(date,content,conditions);
+    } else article.append(date,content);
+    host.append(article);
+  }
+}
+async function recordsLoadSelected() {
+  const id=recordsSelectedPetId;
+  const request=++recordsRequest;
+  $('#recordsOverview').hidden=true;$('#recordsTimeline').replaceChildren();$('#recordsGraphContent').replaceChildren();
+  const pet=recordsPets.find(p=>Number(p.id)===id);
+  const description=$('#recordsAnimalDescription');description.replaceChildren();
+  if(pet){description.append(document.createTextNode(`${pet.name||'Unnamed animal'} · `));const species=elem('i',null,pet.species||'Species unknown');description.append(species,document.createTextNode(' · Records are read-only; edits remain in Pets and Feeding.'));}
+  if (!pet) {recordsSetMessage('Select an animal to view its records.');return;}
+  recordsSetMessage('Loading care history…');
+  try {
+    const [feedings,events]=id===recordsDemoPet.id?[recordsDemoFeedings,recordsDemoEvents]:await Promise.all([
+      feedingRequest(`/api/pets/${id}/feedings`),feedingRequest(`/api/pets/${id}/events`)
+    ]);
+    if(request!==recordsRequest||currentPage!=='records'||recordsSelectedPetId!==id)return;
+    if(!Array.isArray(feedings)||!Array.isArray(events))throw new Error('Unexpected historical records response');
+    recordsRenderTimeline(feedings,events);recordsSetMessage('');
+  } catch(error) {
+    if(request!==recordsRequest||currentPage!=='records')return;
+    console.warn('Records & Insights loading failed',error);
+    recordsSetMessage(`Unable to load this animal’s history: ${error.message}`);
+  }
+}
+async function loadRecordsWorkspace() {
+  const request=++recordsRequest;
+  $('#recordsOverview').hidden=true;$('#recordsTimeline').replaceChildren();$('#recordsGraphContent').replaceChildren();
+  recordsSetMessage('Loading animals…');
+  try {
+    const pets=await feedingRequest('/api/pets');
+    if(request!==recordsRequest||currentPage!=='records')return;
+    if(!Array.isArray(pets))throw new Error('Unexpected animal list response');
+    recordsPets=[...pets,recordsDemoPet];
+    const select=$('#recordsAnimalSelect');select.replaceChildren();
+    select.disabled=false;
+    for(const pet of recordsPets) {const opt=elem('option',null,pet.id===recordsDemoPet.id?'Demo · Luna (sample records, not saved)':`${pet.name||'Unnamed animal'} · ${pet.species||'Species unknown'}`);opt.value=String(pet.id);select.append(opt);}
+    if(!recordsPets.some(p=>Number(p.id)===recordsSelectedPetId))recordsSelectedPetId=Number(pets.length?pets[0].id:recordsDemoPet.id);
+    select.value=String(recordsSelectedPetId);
+    recordsLoadSelected();
+  } catch(error) {
+    if(request!==recordsRequest||currentPage!=='records')return;
+    console.warn('Records animal list unavailable',error);
+    recordsSetMessage(`Unable to load animals: ${error.message}`);
+  }
+}
+$('#recordsAnimalSelect').addEventListener('change',event=>{
+  recordsSelectedPetId=Number(event.target.value);
+  recordsLoadSelected();
+});
+
+// Records & Insights filters are presentation-only; they do not modify saved data.
+for(const button of document.querySelectorAll('[data-record-filter]'))button.addEventListener('click',()=>{
+ recordsActiveFilter=recordsActiveFilter===button.dataset.recordFilter?'all':button.dataset.recordFilter;
+ recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
+});
+$('#recordsClearFilter').addEventListener('click',()=>{recordsActiveFilter='all';recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);});
+const recordsSpecialToggle=$('#recordsSpecialToggle');
+const recordsSpecialMenu=$('#recordsSpecialMenu');
+function recordsCloseSpecialMenu(){recordsSpecialMenu.hidden=true;recordsSpecialToggle.setAttribute('aria-expanded','false');}
+recordsSpecialToggle.addEventListener('click',event=>{
+ event.stopPropagation();const show=recordsSpecialMenu.hidden;
+ recordsSpecialMenu.hidden=!show;recordsSpecialToggle.setAttribute('aria-expanded',String(show));
+});
+for(const button of recordsSpecialMenu.querySelectorAll('[data-record-special]'))button.addEventListener('click',event=>{
+ event.stopPropagation();recordsSpecialType=['weight','length','molting','behavior','health'].includes(button.dataset.recordSpecial)?button.dataset.recordSpecial:'weight';
+ recordsActiveFilter='special';recordsCloseSpecialMenu();recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
+ recordsSpecialToggle.focus();
+});
+document.addEventListener('click',event=>{if(!event.target.closest('.records-count-wrap'))recordsCloseSpecialMenu();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!recordsSpecialMenu.hidden){recordsCloseSpecialMenu();recordsSpecialToggle.focus();}});
+
+// Stage 3D.5.4C visual-history presentation controls (read-only).
+function recordsUpdateDisplay(){
+ const chart=recordsDisplayMode==='chart';
+ $('#recordsChartPanel').hidden=!chart;
+ $('#recordsTimeline').hidden=chart;
+ $('#recordsListHint').hidden=chart;
+ $('#recordsChartView').classList.toggle('is-active',chart);
+ $('#recordsListView').classList.toggle('is-active',!chart);
+ $('#recordsChartView').setAttribute('aria-pressed',String(chart));
+ $('#recordsListView').setAttribute('aria-pressed',String(!chart));
+ for(const b of document.querySelectorAll('[data-record-range]'))b.classList.toggle('is-active',b.dataset.recordRange===recordsRange);
+ if(chart)recordsRenderGraph(recordsCurrentFeedings,recordsCurrentEvents);
+}
+$('#recordsChartView').addEventListener('click',()=>{recordsDisplayMode='chart';recordsUpdateDisplay();});
+$('#recordsListView').addEventListener('click',()=>{recordsDisplayMode='list';recordsUpdateDisplay();});
+for(const b of document.querySelectorAll('[data-record-range]'))b.addEventListener('click',()=>{recordsRange=b.dataset.recordRange;recordsZoom=1;recordsUpdateDisplay();});
+$('#recordsZoomIn').addEventListener('click',()=>{recordsZoom=Math.min(16,recordsZoom*2);recordsUpdateDisplay();});
+$('#recordsZoomOut').addEventListener('click',()=>{recordsZoom=Math.max(1,recordsZoom/2);recordsUpdateDisplay();});
+$('#recordsZoomReset').addEventListener('click',()=>{recordsZoom=1;recordsUpdateDisplay();});

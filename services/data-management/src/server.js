@@ -133,13 +133,22 @@ function isValidFeeding(food, feeding_date, notes) {
     );
 }
 
-const EVENT_TYPES = new Set(['molting','weight','behavior','health','husbandry','other']);
+const EVENT_TYPES = new Set(['molting','weight','length','behavior','health','husbandry','other']);
 const MOLT_OUTCOMES = new Set(['successful','incomplete','difficulty_observed','unknown']);
+const MOLT_STAGES = new Set(['pre_molt','molt_observed']);
+const LENGTH_METHODS = new Set(['body','total','diagonal','shed','other']);
 const FEEDING_OUTCOMES = new Set(['recorded','accepted','refused']);
+function validateFeedingObservations(input) {
+    const {feeding_time=null,temperature_c=null,humidity_pct=null} = input || {};
+    if (feeding_time !== null && (typeof feeding_time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(feeding_time))) return 'Feeding time must be HH:MM or omitted';
+    if (temperature_c !== null && (typeof temperature_c !== 'number' || !Number.isFinite(temperature_c) || temperature_c < -50 || temperature_c > 100)) return 'Temperature must be between -50 and 100 °C';
+    if (humidity_pct !== null && (typeof humidity_pct !== 'number' || !Number.isFinite(humidity_pct) || humidity_pct < 0 || humidity_pct > 100)) return 'Humidity must be between 0 and 100%';
+    return null;
+}
 function validOutcome(value) { return FEEDING_OUTCOMES.has(value); }
 function validateAnimalEvent(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Invalid event data';
-    const {event_type,event_date,event_time=null,utc_offset_minutes=null,description=null,molt_outcome=null,weight_g=null,notes=null} = input;
+    const {event_type,event_date,event_time=null,utc_offset_minutes=null,description=null,molt_outcome=null,weight_g=null,notes=null,molt_stage=null,temperature_c=null,humidity_pct=null,length_cm=null,length_method=null} = input;
     if (!EVENT_TYPES.has(event_type)) return 'Select a valid event type';
     if (typeof event_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(event_date) ||
         !isValidDate(`${event_date.slice(8,10)}/${event_date.slice(5,7)}/${event_date.slice(0,4)}`) ||
@@ -149,17 +158,27 @@ function validateAnimalEvent(input) {
     if (description !== null && (typeof description !== 'string' || description.length>2000)) return 'Description must be at most 2000 characters';
     if (notes !== null && (typeof notes !== 'string' || notes.length>2000)) return 'Notes must be at most 2000 characters';
     if (event_type==='molting') {
-        if (!MOLT_OUTCOMES.has(molt_outcome)) return 'Select an observed shedding outcome';
-    } else if (molt_outcome!==null) return 'Shedding outcome is only for molting events';
+        if (molt_stage!==null && !MOLT_STAGES.has(molt_stage)) return 'Select a valid shedding stage';
+        if (molt_stage==='pre_molt') {
+            if (molt_outcome!==null) return 'Pre-molt observations cannot have a completed shedding outcome';
+        } else if (!MOLT_OUTCOMES.has(molt_outcome)) return 'Select an observed shedding outcome';
+    } else if (molt_outcome!==null || molt_stage!==null) return 'Shedding fields are only for molting events';
+    if (temperature_c!==null && (typeof temperature_c!=='number' || !Number.isFinite(temperature_c) || temperature_c< -50 || temperature_c>100)) return 'Temperature must be between -50 and 100 °C or omitted';
+    if (humidity_pct!==null && (typeof humidity_pct!=='number' || !Number.isFinite(humidity_pct) || humidity_pct<0 || humidity_pct>100)) return 'Humidity must be between 0 and 100% or omitted';
     if (event_type==='weight') {
         if (typeof weight_g!=='number' || !Number.isFinite(weight_g) || weight_g<=0 || weight_g>1000000) return 'Enter a positive, valid weight in grams';
     } else if (weight_g!==null) return 'Weight is only for weight events';
-    if (!['molting','weight'].includes(event_type) && (!description || !description.trim())) return 'An observation description is required';
+    if (event_type==='length') {
+        if (typeof length_cm!=='number' || !Number.isFinite(length_cm) || length_cm<=0 || length_cm>10000) return 'Enter a positive length up to 10,000 cm';
+        if (!LENGTH_METHODS.has(length_method)) return 'Select a length measurement method';
+    } else if (length_cm!==null || length_method!==null) return 'Length fields are only for length events';
+    if (!['molting','weight','length'].includes(event_type) && (!description || !description.trim())) return 'An observation description is required';
     return null;
 }
 function eventValues(input) {
     return [input.event_type,input.event_date,input.event_time||null,input.utc_offset_minutes??null,
-        input.description?.trim()||null,input.molt_outcome||null,input.weight_g??null,input.notes?.trim()||null];
+        input.description?.trim()||null,input.molt_outcome||null,input.weight_g??null,input.notes?.trim()||null,
+        input.molt_stage??null,input.temperature_c??null,input.humidity_pct??null,input.length_cm??null,input.length_method??null];
 }
 function lookupEventPet(req,res) {
     const petId=Number(req.params.id);
@@ -509,7 +528,9 @@ app.delete('/feeding-groups/:id', (req, res) => {
 });
 
 app.post('/feedings/bulk', (req, res) => {
-    const { pet_ids, food, feeding_date, notes, refused_pet_ids = [] } = req.body || {};
+    const { pet_ids, food, feeding_date, notes, refused_pet_ids = [], feeding_time = null } = req.body || {};
+    const observationError = validateFeedingObservations({feeding_time});
+    if (observationError) return res.status(400).json({error:observationError});
     if (!Array.isArray(pet_ids) || !pet_ids.length || pet_ids.length > 500 ||
         !pet_ids.every(isValidId) || new Set(pet_ids).size !== pet_ids.length) {
         return res.status(400).json({ error: 'Select 1–500 unique, valid pet IDs' });
@@ -528,9 +549,9 @@ app.post('/feedings/bulk', (req, res) => {
     const createdIds = [];
     try {
         db.exec('BEGIN IMMEDIATE');
-        const insert = db.prepare('INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome) VALUES (?, ?, ?, ?, ?)');
+        const insert = db.prepare("INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome, feeding_time, entry_source) VALUES (?, ?, ?, ?, ?, ?, 'quick')");
         for (const petId of pet_ids) {
-            const result = insert.run(petId, food.trim(), toDatabaseDate(feeding_date), typeof notes === 'string' ? notes.trim() : null, refused_pet_ids.includes(petId) ? 'refused' : 'accepted');
+            const result = insert.run(petId, food.trim(), toDatabaseDate(feeding_date), typeof notes === 'string' ? notes.trim() : null, refused_pet_ids.includes(petId) ? 'refused' : 'accepted', feeding_time);
             createdIds.push(Number(result.lastInsertRowid));
         }
         db.exec('COMMIT');
@@ -561,8 +582,8 @@ app.get('/pets/:id/events', (req,res) => {
 app.post('/pets/:id/events', (req,res) => {
     const petId=lookupEventPet(req,res); if (petId===null) return;
     const error=validateAnimalEvent(req.body);if(error)return res.status(400).json({error});
-    const result=db.prepare(`INSERT INTO animal_events (pet_id,event_type,event_date,event_time,utc_offset_minutes,description,molt_outcome,weight_g,notes)
-        VALUES (?,?,?,?,?,?,?,?,?)`).run(petId,...eventValues(req.body));
+    const result=db.prepare(`INSERT INTO animal_events (pet_id,event_type,event_date,event_time,utc_offset_minutes,description,molt_outcome,weight_g,notes,molt_stage,temperature_c,humidity_pct,length_cm,length_method)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(petId,...eventValues(req.body));
     res.status(201).json(db.prepare('SELECT * FROM animal_events WHERE id=?').get(result.lastInsertRowid));
 });
 app.get('/pets/:id/events/:eventId',(req,res)=>{
@@ -577,7 +598,7 @@ app.put('/pets/:id/events/:eventId',(req,res)=>{
     const eventId=Number(req.params.eventId);if(!isValidId(eventId))return res.status(400).json({error:'Invalid event ID'});
     if(!db.prepare('SELECT id FROM animal_events WHERE pet_id=? AND id=?').get(petId,eventId))return res.status(404).json({error:'Animal event not found'});
     const error=validateAnimalEvent(req.body);if(error)return res.status(400).json({error});
-    db.prepare(`UPDATE animal_events SET event_type=?,event_date=?,event_time=?,utc_offset_minutes=?,description=?,molt_outcome=?,weight_g=?,notes=?,updated_at=CURRENT_TIMESTAMP
+    db.prepare(`UPDATE animal_events SET event_type=?,event_date=?,event_time=?,utc_offset_minutes=?,description=?,molt_outcome=?,weight_g=?,notes=?,molt_stage=?,temperature_c=?,humidity_pct=?,length_cm=?,length_method=?,updated_at=CURRENT_TIMESTAMP
         WHERE pet_id=? AND id=?`).run(...eventValues(req.body),petId,eventId);
     res.json(db.prepare('SELECT * FROM animal_events WHERE pet_id=? AND id=?').get(petId,eventId));
 });
@@ -642,7 +663,10 @@ app.post('/pets/:id/feedings', (req, res) => {
         });
     }
 
-    const { food, feeding_date, notes, feeding_outcome = 'recorded' } = req.body || {};
+    const { food, feeding_date, notes, feeding_outcome = 'recorded', feeding_time = null, temperature_c = null, humidity_pct = null } = req.body || {};
+
+    const observationError = validateFeedingObservations({feeding_time,temperature_c,humidity_pct});
+    if (observationError) return res.status(400).json({error:observationError});
 
     if (!validOutcome(feeding_outcome)) return res.status(400).json({error:'Invalid feeding outcome'});
     if (!isValidFeeding(food, feeding_date, notes)) {
@@ -652,14 +676,15 @@ app.post('/pets/:id/feedings', (req, res) => {
     }
 
     const result = db.prepare(`
-        INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO feeding_records (pet_id, food, feeding_date, notes, feeding_outcome, feeding_time, temperature_c, humidity_pct, entry_source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'individual')
     `).run(
         petId,
         food.trim(),
         toDatabaseDate(feeding_date),
         typeof notes === 'string' ? notes.trim() : null,
-        feeding_outcome
+        feeding_outcome,
+        feeding_time, temperature_c, humidity_pct
     );
 
     const feeding = db.prepare(
@@ -734,7 +759,10 @@ app.put('/pets/:id/feedings/:feedingId', (req, res) => {
         });
     }
 
-    const { food, feeding_date, notes, feeding_outcome = 'recorded' } = req.body || {};
+    const { food, feeding_date, notes, feeding_outcome = 'recorded', feeding_time = null, temperature_c = null, humidity_pct = null } = req.body || {};
+
+    const observationError = validateFeedingObservations({feeding_time,temperature_c,humidity_pct});
+    if (observationError) return res.status(400).json({error:observationError});
 
     if (!validOutcome(feeding_outcome)) return res.status(400).json({error:'Invalid feeding outcome'});
     if (!isValidFeeding(food, feeding_date, notes)) {
@@ -745,13 +773,14 @@ app.put('/pets/:id/feedings/:feedingId', (req, res) => {
 
     db.prepare(`
         UPDATE feeding_records
-        SET food = ?, feeding_date = ?, notes = ?, feeding_outcome = ?
+        SET food = ?, feeding_date = ?, notes = ?, feeding_outcome = ?, feeding_time = ?, temperature_c = ?, humidity_pct = ?
         WHERE id = ? AND pet_id = ?
     `).run(
         food.trim(),
         toDatabaseDate(feeding_date),
         typeof notes === 'string' ? notes.trim() : null,
         feeding_outcome,
+        feeding_time, temperature_c, humidity_pct,
         feedingId,
         petId
     );
