@@ -88,7 +88,7 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 
 - **Original (preserve unchanged):** `design/illustrations/originals/leopard-gecko-concept-01.png` (transparent PNG, 1774 × 887 px).
 - **Frontend export:** `frontend/public/assets/illustrations/animals/leopard-gecko.webp` (transparent, optimized WebP, 1400 × 700 px).
-- **Card-size test:** `design/previews/leopard-gecko-card-test.html` and `design/previews/leopard-gecko-card-test.png`.
+- **Card-size test (historical):** The old `design/previews/` files were intentionally removed during repository cleanup; use the current frontend asset for inspection.
 - **Dashboard style reference:** `design/references/dashboard-soft-illustrative-cards.png`.
 
 **Approved visual language:** Moderately detailed soft digital illustration with a flat-vector-inspired visual construction, clean anatomy, carefully shaped tonal shading, clear features and natural species coloration. The illustrated gecko uses golden/cream skin with irregular brown spots and a proportionate thick tail, natural eye proportions, visible toes, and a calm three-quarter side view. The overall figure has a crisp, legible silhouette without thick black outlines or an exaggerated cartoon face. Use soft shading, restrained highlights, and a transparent asset background (plants, substrate, and card backdrops belong in separate layers).
@@ -103,7 +103,7 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 
 - **Original:** `design/illustrations/originals/ball-python-approved.png` (transparent PNG).
 - **Frontend export:** `frontend/public/assets/illustrations/animals/ball-python.webp` (optimized transparent WebP).
-- **Card-size test:** `design/previews/ball-python-card-test.html` and `.png`.
+- **Card-size test (historical):** The old `design/previews/` files were intentionally removed during repository cleanup; use the current frontend asset for inspection.
 - **Anatomical criterion:** The head, body and tail must read as one continuous snake. Do not add a coil simply to make the composition symmetrical; verify a sensible tail taper.
 - **Asset separation:** Keep the snake isolated from rocks, foliage, background gradients, and shadows.
 
@@ -113,7 +113,7 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 
 - **Original (preserve unchanged):** `design/illustrations/originals/tarantula-approved.png` (transparent PNG, 1536 × 1024 px).
 - **Frontend export:** `frontend/public/assets/illustrations/animals/tarantula.webp` (transparent optimized WebP).
-- **Card-size test:** `design/previews/tarantula-card-test.html` and `design/previews/tarantula-card-test.png`.
+- **Card-size test (historical):** The old `design/previews/` files were intentionally removed during repository cleanup; use the current frontend asset for inspection.
 - **Anatomical target:** eight walking legs (four per side), two short front pedipalps, separate cephalothorax and abdomen, realistic joint connections. Pedipalps occur in both sexes; adult males of many tarantula species possess specialized palpal bulbs.
 - **Reference policy:** when generating complex animals such as spiders or snakes, use a trustworthy photograph to guide pose and anatomy if free generation repeatedly produces errors. Do not claim exact tracing, professional veterinary validation, or species identification unless independently established.
 - **Scope of approval:** standalone artwork only; the card test is a visual check, not finalized UI dimensions, fonts, or CSS tokens. Preserve the photo reference separately if rights permit, not as part of the distributable illustration asset.
@@ -124,7 +124,7 @@ The illustration **Leopard Gecko — Concept 01** was approved after comparing t
 
 - **Original (preserve unchanged):** `design/illustrations/originals/scorpion-approved.png` (transparent PNG, 1254 × 1254 px).
 - **Frontend export:** `frontend/public/assets/illustrations/animals/scorpion.webp` (transparent, optimized WebP).
-- **Card-size test:** `design/previews/scorpion-card-test.html` and `design/previews/scorpion-card-test.png`.
+- **Card-size test (historical):** The old `design/previews/` files were intentionally removed during repository cleanup; use the current frontend asset for inspection.
 - **Anatomical target:** Four pairs of walking legs, two large pincer-bearing pedipalps, a five-segment metasoma and a terminal telson/stinger, with small median eyes centrally positioned above the mouth region. In artwork, the scorpion's heavy pincers can partly hide a leg from this angle.
 - **Art direction:** Dark bronze / charcoal body with warm amber highlights, distinct tail segments and leg joints, detailed but not photographic, no extra decorations embedded in the production asset.
 - **Scope of approval:** Standalone illustration and its suitability at card sizes; exact UI fonts, colors, dimensions, and layouts are still open.
@@ -234,3 +234,21 @@ Suggested opening message:
 ---
 
 **Maintenance rule:** When a new decision is made, update the relevant section, add an entry to the decision log, and increment the version number if the change is substantive. This makes the file useful both to a future assistant and to the developer working in Git.
+
+
+---
+
+## 11. Implemented-frontend snapshot (16 November 2026)
+
+This section supersedes *implementation-status claims* in historical proposals and handoff notes above. Earlier design directions and the approved visual decision log are retained for provenance, not as a current development checklist.
+
+- Active application files: `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`, `frontend/dev-server.js`.
+- Main sections implemented: Dashboard, Pets, Enclosures, Feeding, Records & Insights, and notification bell. PDF and CSV ZIP exports are available from Records & Insights.
+- Approved species assets: `frontend/public/assets/illustrations/animals/` (`ball-python.webp`, `leopard-gecko.webp`, `scorpion.webp`, `tarantula.webp`). Botanical, enclosure and dashboard illustration assets are in the adjacent folders.
+- Navigation SVGs in `frontend/public/assets/icons/`: `icon-dashboard.svg`, `icon-pets.svg`, `icon-enclosures.svg`, `icon-feeding.svg`, `icon-alerts.svg`, `icon-notifications.svg`. Records & Insights currently uses a styled glyph/inline graphics rather than a dedicated navigation SVG.
+- The original artwork in `design/illustrations/originals/` and its provenance documentation remain approved. **Do not regenerate or replace them** during the documentation stage.
+- Some illustrations, prototype fallback text and the labeled hardcoded Luna record still need a separate cleanup/polish stage.
+- The active palette/layout should be read from the implemented CSS; the earlier heading “Proposed palette direction — not yet approved” is a historical proposal, not an instruction to change today's design.
+- `design/previews/` was deleted intentionally. References to its files above are historical only; they are not shipped assets.
+
+Refer to [frontend README](../frontend/README.md) for the actual runtime rather than historical prototype setup.

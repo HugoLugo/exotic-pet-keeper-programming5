@@ -1,41 +1,46 @@
-# Frontend dashboard preview (Phase 1)
+# Exotic Pet Keeper — Web Frontend
 
-This is a **dependency-free, static design prototype** for the Programming 5 Exotic Pet Keeper project.
+The implemented web client is built with vanilla HTML, CSS and JavaScript. It is **not** a standalone static mockup: its pages call the running Data Management and Enclosure APIs and connect to the Notification Service WebSocket.
 
-## Run locally
+## Start the frontend
 
-From the repository root, run:
+From the repository root:
 
 ```powershell
 cd frontend
-npx --yes http-server . -p 5500 -c-1
+node dev-server.js
 ```
 
-Then visit `http://localhost:5500`. If Python is available, `python -m http.server 5500` also works. Alternatively open `frontend/index.html` directly; a local server is recommended.
+Open `http://localhost:5500`. No frontend `npm install` or `npm start` is available: there is **no frontend package.json**.
 
-## Current scope
+**Do not** open `index.html` directly with `file://` or replace the development server with an arbitrary static server: `dev-server.js` performs routing for `/api/*` requests. Start the backend services first; details are in [the root README](../README.md).
 
-- Responsive dashboard layout following the approved Soft Illustrative Cards direction.
-- Reuses the four approved WebP illustrations from `frontend/public/assets/illustrations/animals`.
-- Example statistics, environmental readings, pet cards, alerts, and feeding history.
-- Pet search filters example cards. Navigation displays placeholder content for unimplemented pages.
-- "Add Pet" and "View History" intentionally do not save or retrieve data; they display explanatory messages.
+## Pages and workflows
 
-**Important:** Displayed sample values are not fetched from the backend. No authentication, persistence, API fetches, or WebSocket integration are implemented in this phase.
+- Dashboard: summary cards, environmental condition checks and notification bell.
+- Pets: registration, editing, detail views, individual observations and assignments.
+- Enclosures: create/edit, select featured animal, set monitoring mode, inspect readings and enter manual observations.
+- Feeding: quick/bulk feeding, groups, individual records and outcomes.
+- Records & Insights: animal selection, filters, timelines, charts and exports.
 
-## Next steps
+The frontend also contains an old hidden fallback page and a labeled hardcoded Luna example. These are **known cleanup items**, not incomplete application sections, and will be reviewed separately in Stage 6B. The active fictional SQLite demo dataset must be preserved.
 
-1. Review and approve visual layout, responsive behavior, and design tokens.
-2. Implement Pets and Enclosures screens and reusable data components.
-3. Connect the real endpoints from `docs/api-design.md` (Data Management at :3001, Enclosure at :3002, Notification WebSocket at :3004); confirm CORS/or use a same-origin development proxy.
-4. Implement loading, empty, error, and live-update states, and test with running services.
+## API routing and real-time data
 
-## Dashboard visual revision (14 November 2026)
+- `http://localhost:5500/api/pets*`, `/api/feedings*`, `/api/feeding-groups*`, and `/api/enclosures/:id/pets` → Data Management on 3001.
+- Other `http://localhost:5500/api/enclosures*` routes → Enclosure on 3002.
+- Live notification WebSocket connects directly to `ws://localhost:3004` based on the browser hostname. It is **not** proxied through port 5500.
+- The frontend server is loopback-only (`127.0.0.1`) and is intended for local development, **not** secure public access or phone access across Wi-Fi.
 
-- Retained the existing temporary star-shaped brand mark, without introducing a new logo asset.
-- Removed the demo profile initial, since the current Programming 5 scope does **not** include authentication or per-user accounts. Do not infer account support from the UI.
-- Adjusted gecko positioning in the Registered Pets tile to avoid cutting off its head.
-- Replaced placeholder enclosure and alert glyphs with modest inline SVG illustrations.
-- Adjusted the scorpion's presentation independently inside the pet card without editing the approved WebP.
-- All values and interactions remain a design preview and are not connected to services.
-- Using `npx http-server` is a local development choice; it does not change the backend architecture.
+If a service is unavailable, the frontend may show an error or lack current data; the proxy returns HTTP 502 for unavailable upstream HTTP services. Requests currently have a five-second upstream timeout.
+
+## Assets and styling
+
+`index.html`, `styles.css`, and `app.js` are the active frontend. Artwork lives in `public/assets/illustrations/` and navigation icons in `public/assets/icons/`. See [visual design system](../docs/frontend-visual-design-system.md). Do not replace approved illustration assets during documentation work.
+
+## Known limitations
+
+- No login or private per-user accounts.
+- No offline/PWA installation or remotely hosted backend.
+- WebSocket alerts are best-effort; on reconnection the client may recheck current enclosure conditions.
+- Browser responsiveness and accessibility require final manual verification.

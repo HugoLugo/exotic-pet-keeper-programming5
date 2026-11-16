@@ -1,131 +1,37 @@
 # Exotic Pet Keeper — Project Description
 
-## 1. Project Overview
+**Programming 5 · University of Pécs · implemented system, November 2026**
 
-Exotic Pet Keeper is a university backend project designed to support the
-management of exotic pets, feeding records, enclosure configurations, and
-simulated environmental conditions. It is intended for animals such as
-reptiles, tarantulas, scorpions, and other exotic pets.
+## Purpose
 
-The project is developed for the Programming 5 course at the University of
-Pécs. Its main objective is to demonstrate independent services communicating
-through REST APIs and delivering real-time alerts through WebSocket.
+Exotic Pet Keeper is an educational distributed application for keepers of exotic animals. The system records individual animals, their husbandry and feeding history, and enclosure environmental observations. Its dashboard and Records & Insights pages provide factual, animal-centered views of recorded data. It is not intended to diagnose health problems or establish cause and effect from observations.
 
-**Current status:** All four backend services are implemented. A
-mobile-friendly web client is planned but has not been implemented, pending
-confirmation of course requirements.
+## Confirmed academic requirements
 
-## 2. Project Objectives
+The professor communicated a **minimum of four microservices/components**, **real-time WebSocket communication**, and **communication between services**. No official rubric specifying authentication, Docker, hosting, or an exact service taxonomy has been provided. The Sensor Simulator is an independently running producer, but unlike the other three backend components it is not an HTTP API server; whether the professor counts it as a fourth microservice should be confirmed.
 
-The implemented backend demonstrates:
+## Implemented components
 
-- Four independently running backend services with distinct responsibilities.
-- REST communication between services.
-- Real-time alert broadcasting using WebSocket.
-- Persistent pet records and feeding history.
-- Optional pet-to-enclosure assignment with REST validation.
-- Enclosure configuration, automated measurement history, and manual
-  historical observations.
-- Simulated temperature and humidity readings, abnormal-condition detection,
-  and alerts on transitions from normal to abnormal.
-- Prevention of enclosure deletion while pets are assigned, including safe
-  rejection when the occupancy check cannot be completed.
+1. **Data Management (3001):** pets, feeding records/groups, animal events, enclosure-change records, PDF and CSV ZIP history exports, persisted in its own SQLite database.
+2. **Enclosure (3002):** enclosure CRUD, optional habitat information, monitoring mode, manual/simulated automatic measurements, thresholds, current status and historical readings; its own SQLite database.
+3. **Notification (3004):** REST intake of environmental events and WebSocket broadcast to connected browser clients; no persistent message history.
+4. **Sensor Simulator (no port):** reads enclosure configuration from Enclosure and sends measurements in repeatable scenarios; uses an independent Node process.
+5. **Web frontend (5500):** vanilla HTML/CSS/JavaScript, development server with a local REST proxy; not counted as a microservice.
 
-A mobile-friendly interface is a **planned**, not implemented, part of the
-original application concept.
+## Main workflows
 
-## 3. System Components
+- Create an enclosure with target temperature/humidity ranges; optionally assign animals.
+- Record an individual animal, feeding response, molting/shedding, weights, lengths or husbandry/behavior observations.
+- Switch an enclosure between **manual** and **automatic** monitoring; view environmental history and current condition.
+- Run the Sensor Simulator to publish normal and out-of-range readings; the Enclosure Service evaluates conditions and sends events to Notification; Notification broadcasts over WebSocket.
+- Review Records & Insights for each animal; filter categories and time ranges; export documented observations in PDF or CSV ZIP.
 
-### 3.1 Data Management Service — Port 3001
+## Design boundaries
 
-Owns its own SQLite database and provides APIs to:
+- Each SQLite database belongs to its service. Cross-service IDs are validated using HTTP, not cross-database foreign keys.
+- Recorded enclosure-assignment changes are facts about specific changes, **not proof of uninterrupted occupancy**. Sensor histories are not automatically attached to animals in exports.
+- Automatic environmental readings are simulated; hardware integration is not claimed.
+- Authentication/multiple keeper accounts, internet access, mobile installation, hosting and synchronization are future ideas, not Version 1.0 features.
+- A local fictional dataset has been used for presentations but is not tracked in Git; reproducible demo seeding is a separate future task.
 
-- Create, retrieve, update, and delete pets.
-- Record, retrieve, edit, and delete feeding records.
-- Retrieve feeding history for each pet.
-- Store a nullable `enclosure_id` for each pet.
-- Verify an assigned enclosure through the Enclosure Service and list pets
-  assigned to a particular enclosure.
-
-### 3.2 Enclosure Service — Port 3002
-
-Owns a separate SQLite database and provides APIs to:
-
-- Create, retrieve, update, and delete enclosure configurations.
-- Store the latest received sensor reading and a timestamped history.
-- Accept manual historical observations without changing the live state.
-- Retrieve environmental history, optionally filtered by UTC date range.
-- Compare live readings against temperature and humidity thresholds.
-- Trigger an alert only when the state changes from normal to abnormal.
-- Check for assigned pets through Data Management before deleting an
-  enclosure. Occupied enclosures are rejected; unavailable occupancy checks
-  prevent deletion.
-
-The latest sensor reading is stored internally, but there is **no dedicated
-GET endpoint** for returning the latest temperature and humidity. The
-existing `GET /enclosures/:id` returns configuration and abnormal-state
-information; the history endpoint returns recorded observations.
-
-### 3.3 Sensor Service — No HTTP Port
-
-Runs independently as a Node.js process. It retrieves an enclosure's
-configured thresholds, simulates normal and abnormal temperature/humidity
-readings, and periodically submits them to the Enclosure Service through
-REST. No physical sensor hardware or database is required.
-
-### 3.4 Notification Service — Port 3004
-
-Receives abnormal-condition alerts over REST and broadcasts them to
-currently connected WebSocket clients. It does not persist notifications.
-A successful alert HTTP response does not guarantee that a user received it.
-
-## 4. Planned Client Application
-
-The original design includes a mobile-friendly HTML/CSS/JavaScript web client
-for pet management, feeding records, enclosure information, historical
-measurements, and real-time alerts. **This client is not implemented.**
-
-The backend endpoints and WebSocket server can be tested without a custom
-frontend. Displaying exact current measurements would require either an
-appropriate API extension or a deliberate client-side approach using the
-existing sensor history; the latter is not a dedicated latest-reading API.
-
-## 5. Communication
-
-- **REST:** Pet and feeding operations; enclosure operations; Sensor to
-  Enclosure readings; Data Management to Enclosure assignment validation;
-  Enclosure to Data Management occupancy checks; and Enclosure to
-  Notification alert events.
-- **WebSocket:** Notification broadcasts alert events to currently connected
-  clients. Normal readings do not generate alerts, and continued abnormal
-  readings do not repeatedly send the same transition alert.
-
-## 6. Data Persistence
-
-Data Management stores pets, feeding records, and optional pet-to-enclosure
-references in its SQLite database. Enclosure stores configurations, latest
-readings, and reading history in its separate SQLite database.
-
-No service directly accesses the other service's database. Cross-service
-assignments rely on REST checks rather than cross-database foreign keys.
-
-## 7. Technologies
-
-Implemented: JavaScript, Node.js, Express.js, SQLite, WebSocket (`ws`),
-Git and GitHub. Planned frontend: HTML, CSS, and JavaScript.
-
-## 8. Project Scope and Limitations
-
-This is an educational backend demonstration, not a production-ready pet
-monitoring platform. The following are outside the implemented scope:
-
-- User authentication and authorization.
-- Physical IoT sensors.
-- Advanced analytics and feeding/environmental correlations.
-- Social features and complex feeding schedules.
-- Persisted notification history and guaranteed alert delivery.
-- Distributed transactions across service databases.
-- Mobile-friendly web client (planned; requirement pending confirmation).
-
-The emphasis is a small, understandable distributed backend whose services,
-interfaces, and limitations can be clearly explained and tested.
+For technical details, see [architecture](architecture.md), [API reference](api-design.md) and [setup](setup-and-demo.md).

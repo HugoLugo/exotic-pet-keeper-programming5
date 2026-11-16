@@ -1,451 +1,83 @@
-# Exotic Pet Keeper — System Architecture
+# Exotic Pet Keeper — Implemented Architecture
 
-## 1. Architecture Overview
+**Source of truth:** repository service entry points and frontend proxy, snapshot of 16 November 2026.
 
-Exotic Pet Keeper follows a microservice architecture
-consisting of four independently running backend services.
-A mobile-friendly web client is part of the planned architecture,
-but is not implemented.
+## Overview
 
-Each microservice has a specific responsibility and
-communicates with other components through defined APIs.
-
-The system uses REST over HTTP for ordinary requests
-and WebSocket for delivering real-time alerts.
-
-## 2. Architecture Diagram
+Exotic Pet Keeper is a locally operated, distributed Node.js application composed of three HTTP backend services plus an independently running Sensor Simulator. The fourth process is a producer/client, not an HTTP server; the lecturer's interpretation of the minimum four-microservices requirement should be confirmed before submission.
 
 ```mermaid
-flowchart TB
-    Client["Mobile-Friendly Web Client"]
-    Data["Data Management Service"]
-    Enclosure["Enclosure Service"]
-    Sensor["Sensor Service"]
-    Notification["Notification Service"]
-
-    PetDB[("Pet and Feeding Database")]
-    EnclosureDB[("Enclosure Database")]
-
-    Client <-->|REST API| Data
-    Client <-->|REST API| Enclosure
-    Data -->|REST: Validate enclosure assignment| Enclosure
-    Enclosure -->|REST: Check assigned pets before deletion| Data
-
-    Sensor -->|HTTP REST: Sensor readings| Enclosure
-    Enclosure -->|HTTP REST: Abnormal condition events| Notification
-
-    Notification -->|WebSocket: Alerts| Client
-
-    Data --- PetDB
-    Enclosure --- EnclosureDB
+flowchart TD
+    B[Browser / Vanilla JS] -->|HTTP /api via localhost:5500| P[Frontend dev server and reverse proxy]
+    P -->|REST| D[Data Management :3001]
+    P -->|REST| E[Enclosure :3002]
+    D <-->|REST validation and assignment lookups| E
+    S[Sensor Simulator independent process] -->|GET enclosure / POST readings| E
+    E -->|POST alerts| N[Notification :3004]
+    N -->|WebSocket events directly to browser| B
+    D --> PD[(pets.db)]
+    E --> ED[(enclosures.db)]
 ```
 
-## 3. Component Responsibilities
+## Components and responsibility boundaries
 
-### 3.1 Mobile-Friendly Web Client
+| Component | Executable | Port | Responsibilities and persistence |
+| --- | --- | --- | --- |
+| Data Management | `services/data-management/src/server.js` | 3001 | Animals, feeding groups and records, animal events, enclosure-change events, read-only exports; SQLite `data/pets.db` |
+| Enclosure | `services/enclosure/src/server.js` | 3002 | Enclosures, limits, featured animal, monitoring mode, current/latest readings and reading history; SQLite `data/enclosures.db` |
+| Notification | `services/notification/src/server.js` | 3004 | Accepts alerts and broadcasts them to connected WebSocket clients; no database |
+| Sensor Simulator | `services/sensor/src/index.js` | none | Polls a configured enclosure and submits repeatable simulated readings; no database |
+| Frontend server | `frontend/dev-server.js` | 5500, loopback | Serves frontend assets and routes REST calls; not a fourth backend microservice |
 
-Planned interface through which users will interact
-with the application. The web client is not implemented yet.
+## Communication
 
-Responsibilities:
-- Display pet information.
-- Add, edit, and delete pets.
-- Record feeding events.
-- Display feeding history.
-- Display enclosure conditions.
-- Display environmental history (planned).
-- Assign or unassign a pet to an enclosure.
-- Show the pets assigned to an enclosure.
-- Receive real-time alerts.
+- **Browser ↔ API:** HTTP via the frontend proxy. Pets, feedings, groups and `GET /enclosures/:id/pets` route to Data Management; the other `/enclosures` endpoints route to Enclosure.
+- **Data Management → Enclosure:** HTTP validation when assigning a pet to an enclosure, and best-effort enclosure-name lookup for recorded changes.
+- **Enclosure → Data Management:** HTTP checks for assigned animals before certain enclosure changes/deletion and when selecting a featured animal.
+- **Sensor → Enclosure:** HTTP `GET /enclosures/:id` followed by `POST /readings`. Default ID is 1 unless `ENCLOSURE_ID` is configured; default interval is 5000 ms (`SENSOR_INTERVAL_MS`).
+- **Enclosure → Notification:** HTTP `POST /alerts` when an evaluated reading causes an alert or recovery event.
+- **Notification → browser:** direct WebSocket connection at `ws://localhost:3004`, delivering transient alert messages; the frontend reconnects and checks current conditions.
 
-### 3.2 Data Management Service
-
-Manages pet information and feeding records.
-
-Responsibilities:
-- Store and retrieve pet information.
-- Manage pet records.
-- Record feeding events.
-- Retrieve feeding history.
-- Store optional pet-to-enclosure assignments.
-- Validate assigned enclosure IDs through the Enclosure Service.
-- List pets assigned to a particular enclosure for occupancy checks.
-
-This service uses its own SQLite database.
-
-### 3.3 Enclosure Service
-
-Processes and stores enclosure measurements.
-
-Responsibilities:
-- Receive temperature and humidity readings.
-- Store enclosure configurations and latest readings.
-- Preserve timestamped history of simulated and manually entered measurements.
-- Retrieve enclosure history by UTC date range with a configurable result limit.
-- Compare readings against configured acceptable ranges.
-- Detect abnormal environmental conditions.
-- Send abnormal-condition events to the Notification Service only on normal-to-abnormal transitions.
-- Check Data Management before deleting an enclosure and reject deletion while pets are assigned.
-
-This service uses a separate SQLite database.
-
-### 3.4 Sensor Service
-
-Runs as an independent Node.js process that simulates environmental
-measurements for one configured enclosure at a time.
-
-Responsibilities:
-- Retrieve the enclosure's current temperature and humidity thresholds via REST.
-- Generate repeatable normal, high-temperature, and low-humidity readings.
-- Send measurements to the Enclosure Service via REST.
-- Allow the enclosure ID and simulation delay to be configured through environment variables.
-- Log failed requests and automatically resume communication when the Enclosure Service becomes available.
-
-The Sensor Service does not expose an HTTP server, maintain a database,
-or require physical sensors or additional npm packages.
-It uses a five-second delay between completed cycles by default.
-
-### 3.5 Notification Service
-
-Handles the delivery of environmental alerts.
-
-Responsibilities:
-- Receive abnormal-condition events.
-- Prepare notification messages.
-- Send alerts to connected clients using WebSocket.
-
-The Notification Service does not require persistent
-storage for the initial implementation.
-
-## 4. Communication Protocols
-
-### 4.1 REST APIs
-
-REST APIs are used for synchronous communication.
-
-Examples:
-- Client requests pet information from Data Management.
-- Client records a feeding event in Data Management.
-- Client requests environmental data from Enclosure.
-- Sensor sends simulated measurements to Enclosure.
-- Enclosure sends abnormal-condition events to Notification.
-- Data Management validates an assigned enclosure with Enclosure before saving a pet.
-- Enclosure queries Data Management for assigned pets before deleting an enclosure.
-
-### 4.2 WebSocket
-
-WebSocket provides a persistent connection between
-the Notification Service and the client.
-
-When the Enclosure Service detects a transition from normal to abnormal,
-it sends an alert to the Notification Service, which broadcasts to connected clients.
-
-Normal environmental readings do not generate alerts.
-
-## 5. Environmental Monitoring
-
-The Sensor Service periodically generates simulated
-temperature and humidity measurements.
-
-The Enclosure Service receives these measurements and
-compares them against configured acceptable ranges.
-
-Example acceptable ranges:
-- Temperature: 22-28 degrees Celsius.
-- Humidity: 60-75%.
-
-### Normal Reading
-
-Example:
-- Temperature: 25 degrees Celsius.
-- Humidity: 68%.
-
-The Enclosure Service updates the latest reading and saves a historical
-measurement. No notification is generated.
-
-### Abnormal Reading
-
-Example:
-- Temperature: 31 degrees Celsius.
-- Humidity: 42%.
-
-The Enclosure Service detects values outside the
-configured acceptable ranges.
-
-The reading is saved to both latest-reading storage and history. If the
-enclosure was previously normal, it sends an alert event to Notification,
-which broadcasts a WebSocket message to connected clients. Continued
-abnormal readings do not generate duplicate alerts. Manual historical
-observations never change the current state or generate alerts.
-
-## 6. Data Ownership
-
-Each service is responsible for its own data.
-
-- Data Management owns pet and feeding records.
-- Enclosure owns enclosure configuration, latest readings, and environmental history.
-- Sensor generates temporary simulated measurements.
-- Notification processes alert events.
-
-Services do not directly access each other's databases. Pet records have an
-optional `enclosure_id` in Data Management, but no cross-database foreign
-key. REST requests validate new assignments and check occupancy before
-an enclosure is deleted.
-
-## 7. Design Decisions
-
-The architecture deliberately uses four independent
-microservices to demonstrate distributed communication.
-
-REST provides simple and understandable request-response
-communication.
-
-WebSocket enables real-time alert delivery without
-continuous client polling.
-
-Simulated sensors remove the need for physical IoT
-hardware while preserving the environmental monitoring
-workflow.
-
-Authentication, advanced statistics, and physical
-sensor integrations are outside the project's scope.
-
-## 8. Sequence Diagrams
-
-Sequence diagrams illustrate how the components of the
-system communicate during specific operations.
-
-### 8.1 Normal Application Interactions
-
-This scenario demonstrates how the user interacts
-with the application to retrieve pet information,
-view feeding history, record feeding events, and
-check enclosure conditions.
+### Example monitoring sequence
 
 ```mermaid
 sequenceDiagram
-    autonumber
-
-    actor User
-    participant App as Mobile-Friendly Client
-    participant Data as Data Management Service
-    participant Enclosure as Enclosure Service
-
-    Note over User,Data: A. View Pet Details
-
-    User->>App: Open pet details
-    App->>Data: GET /pets/15
-    Data-->>App: Pet information
-    App-->>User: Display pet details
-
-    Note over User,Data: B. View Feeding History
-
-    User->>App: Open feeding history
-    App->>Data: GET /pets/15/feedings
-    Data-->>App: Feeding records
-    App-->>User: Display feeding history
-
-    Note over User,Data: C. Record Feeding
-
-    User->>App: Enter feeding information
-    App->>Data: POST /pets/15/feedings
-    Data-->>App: Feeding saved successfully
-    App-->>User: Display confirmation
-
-    Note over User,Enclosure: D. View Enclosure Configuration
-
-    User->>App: Open enclosure information
-    App->>Enclosure: GET /enclosures/3
-    Enclosure-->>App: Configuration and isAbnormal state
-    App-->>User: Display enclosure settings and state
+  participant S as Sensor Simulator
+  participant E as Enclosure Service
+  participant DB as Enclosure SQLite
+  participant N as Notification Service
+  participant UI as Web Client
+  S->>E: GET /enclosures/:id
+  E-->>S: Thresholds and mode
+  S->>E: POST /readings
+  E->>DB: Store sensor reading / history
+  E->>E: Evaluate current observation and thresholds
+  opt New abnormal condition or recovery
+    E->>N: POST /alerts
+    N-->>UI: WebSocket event
+  end
+  UI->>E: GET /enclosures/:id/readings/current (through proxy)
+  E-->>UI: Current condition or no_reading
 ```
 
-### 8.2 Explanation
+## Monitoring and data semantics
 
-**A. View Pet Details**
+Each enclosure can be in `automatic` or `manual` monitoring mode. Sensor readings and manually entered observations are recorded with different sources; current reading selection respects the active mode and the history boundary established when the mode changes. Historical readings are queryable independently from the current snapshot.
 
-The user opens the details of a selected pet.
-The client sends a REST GET request to the Data
-Management Service, which retrieves the pet
-information and returns it to the client.
+An abnormal condition means a temperature/humidity value was outside the configured enclosure range; it is **not** a veterinary diagnosis. WebSocket delivery is best-effort, not a durable queue or source of archived alert history.
 
-**B. View Feeding History**
+Animal event types are `molting`, `weight`, `length`, `behavior`, `health`, `husbandry`, and `other`. Data Management also records discrete enclosure assignment changes. Those changes cannot reconstruct complete historical occupancy; accordingly, PDF/CSV animal exports do not infer per-animal enclosure sensor measurements.
 
-The user requests the feeding history of a pet.
-The Data Management Service retrieves the
-corresponding feeding records and returns them.
+## Data ownership and consistency
 
-**C. Record Feeding**
+- `pets.db`: animals, feeding records, feeding groups/membership, animal events and enclosure-change records.
+- `enclosures.db`: enclosure definitions, latest readings and reading history.
+- The code enables SQLite foreign-key checks within each service. Cross-service enclosure identifiers are resolved/validated by HTTP, not by SQLite foreign keys across databases.
+- Both services create or migrate tables on startup; **never replace an active database** during demonstration setup.
+- Active `.db` files are Git-ignored and not included in source archives. The fictional demonstration dataset cannot be reproduced from this snapshot alone.
 
-The user enters feeding information, such as
-food description, date, and optional notes.
+## Deployment assumptions and limitations
 
-The client sends a REST POST request to the
-Data Management Service, which saves the record
-and confirms the operation.
+All inter-service addresses/ports are presently hardcoded to localhost. The frontend development server binds to `127.0.0.1` and does not provide cross-device or hosted access. No login, user-specific authorization, HTTPS gateway, Docker configuration, hardware integration or offline/PWA support is implemented. Do not expose these unauthenticated services to the public internet. No automated test suite is included in this snapshot.
 
-**D. View Enclosure Configuration**
-
-The user opens the enclosure information. A future client requests
-`GET /enclosures/:id` from the Enclosure Service and receives its
-configuration, environmental thresholds, and `isAbnormal` state.
-This endpoint does **not** return the latest temperature and humidity.
-Recorded measurements can be queried through
-`GET /enclosures/:id/readings/history`, but there is no dedicated
-GET endpoint for the exact latest reading stored in `readings`.
-
-These operations use REST communication and do not generate alerts.
-The client shown in this scenario is planned, not implemented.
-They do not generate real-time notifications.
-
-### 8.3 Real-Time Environmental Monitoring
-
-This sequence diagram describes the implemented Sensor → Enclosure →
-Notification flow. A WebSocket client can receive broadcasts today; the
-mobile-friendly application interface is planned.
-
-```mermaid
-sequenceDiagram
-    autonumber
-
-    participant Sensor as Sensor Service
-    participant Enclosure as Enclosure Service
-    participant Notification as Notification Service
-    participant App as WebSocket Client
-
-    Sensor->>Enclosure: GET /enclosures/:id
-    Enclosure-->>Sensor: Current environmental thresholds
-    Sensor->>Sensor: Generate simulated reading
-    Sensor->>Enclosure: POST /readings
-    activate Enclosure
-    Enclosure->>Enclosure: Save latest and history, update abnormal state
-
-    alt Normal conditions
-        Enclosure-->>Sensor: 201 Created (no new alert)
-    else Transition from normal to abnormal
-        Enclosure->>Notification: POST /alerts
-        activate Notification
-        Notification-->>Enclosure: Successful HTTP response
-        Notification-)App: WebSocket alert broadcast
-        deactivate Notification
-        Enclosure-->>Sensor: 201 Created (new alert)
-    else Still abnormal
-        Enclosure-->>Sensor: 201 Created (duplicate suppressed)
-    end
-    deactivate Enclosure
-```
-
-If the Notification Service is unavailable, the Enclosure Service logs the
-failure and preserves the reading. Alert delivery is not guaranteed.
-
-### 8.4 Explanation of Environmental Monitoring
-
-**Step 1 — Retrieve thresholds and generate a reading**
-
-The Sensor Service requests the enclosure's configured ranges using
-`GET /enclosures/:id`. It generates a normal or abnormal reading based on
-those thresholds, then sends it to `POST /readings`.
-The default delay between completed simulation cycles is five seconds;
-`SENSOR_INTERVAL_MS` can configure another delay.
-
-**Step 2 — Store and evaluate measurements**
-
-The Enclosure Service validates the enclosure and measurement, retains the
-latest values, appends a sensor-sourced history record, and updates the
-current abnormal state in the same SQLite transaction.
-
-**Step 3A — Normal conditions**
-
-The reading is stored and no alert is generated. Returning to normal clears
-the abnormal state so a subsequent abnormal reading can trigger a new alert.
-
-**Step 3B — Newly abnormal conditions**
-
-A transition from normal to abnormal triggers `POST /alerts` to the
-Notification Service. If conditions remain abnormal, no duplicate alert is sent.
-
-**Step 4 — WebSocket notification**
-
-The Notification Service broadcasts the event to currently connected
-WebSocket clients. The future web client will display the warning without a
-page refresh. If the Notification Service is down, the reading remains stored.
-
-### 8.5 Manual Historical Observation
-
-A future web client will let a keeper enter an observation from a standalone
-thermometer or hygrometer. The client sends temperature, humidity, and the
-UTC observation time to `POST /enclosures/:id/readings/manual`. Enclosure
-validates and stores it in history. Unlike an automated sensor reading, this
-does not update the latest reading or current abnormal state and does not
-contact Notification. The history endpoint can later retrieve these records
-alongside automated measurements.
-
-## 9. Implementation Status and Planned Improvements
-
-The four backend microservices are implemented and have passed functional
-integration tests, including simulated normal/abnormal readings, suppression
-of repeated alerts, WebSocket broadcasts, and recovery after service downtime.
-
-### 9.1 Environmental History and Manual Observations (Implemented — Milestone 9)
-
-The Enclosure Service retains the latest sensor reading in `readings` and
-preserves each successfully received sensor measurement in `reading_history`.
-The history table also accepts manual observations, with their observation
-time and a source of `manual` or `sensor`. Existing enclosure records are
-preserved when the history table is first created.
-
-- `POST /readings` updates the latest reading, appends a history row, and
-  updates the abnormal state in a single transaction.
-- `POST /enclosures/:id/readings/manual` adds a historical observation with
-  an explicit UTC timestamp, without changing current state or alerts.
-- `GET /enclosures/:id/readings/history` returns history ordered by
-  observation time, with optional inclusive UTC dates (`from`, `to`) and a
-  `limit` of 1–1000 (default 100).
-
-Both measurement sources use the Enclosure Service's SQLite database; no
-additional service or database is needed. Deleting an enclosure also deletes
-its history through foreign-key cascading.
-
-History can be associated with a pet through its enclosure assignment
-(Milestone 10), but automated pet-specific comparisons, pagination,
-charts, and analytics are not yet implemented.
-
-### 9.2 Mobile-Friendly Web Client (Planned)
-
-The planned web client would allow users to manage pets, feeding records,
-and enclosures, enter manual environmental observations, view historical
-conditions, and receive real-time alerts. Displaying the exact latest
-temperature/humidity would require a dedicated read endpoint or a clearly
-defined alternative based on the available history API.
-
-### 9.3 Pet-to-Enclosure Association (Implemented — Milestone 10)
-
-Data Management stores an optional `enclosure_id` in each pet record. A
-nullable-column migration preserves existing pets. Each pet has at most
-one enclosure assignment; multiple pets may share an enclosure.
-
-- On pet creation or replacement, Data Management validates non-null
-  enclosure IDs by calling `GET /enclosures/:id` on Enclosure. A missing
-  enclosure is rejected with HTTP 400; an unavailable validation service
-  produces HTTP 503.
-- `GET /enclosures/:id/pets` on Data Management lists assigned pets; it
-  does not independently check whether the enclosure exists.
-- Before `DELETE /enclosures/:id`, Enclosure asks Data Management for the
-  assigned-pets list. An occupied enclosure returns HTTP 409, while a
-  failed or unavailable occupancy check returns HTTP 503. Successful
-  deletion of an empty enclosure returns HTTP 204, with local cascading
-  deletion of its readings and history.
-
-The services continue to own separate SQLite databases. REST checks
-protect normal application operations but do not provide a distributed
-transaction; concurrent assignment and deletion could theoretically
-race. Fully atomic cross-service referential integrity is outside the
-scope of this university project.
-
-The mobile-friendly web client remains planned. Automated comparison of
-feeding records with environmental measurements is not yet implemented.
-
-
-### Stage 3D.5.3: animal observation ownership
-
-The Data Management Service persists `animal_events` keyed to individual pets and records feeding outcomes in `feeding_records`. They are separate data types, and feeding refusals must not be independently duplicated as animal events. Enclosure monitoring data remains owned by the Enclosure Service. A pet's `enclosure_id` currently provides only the present assignment: without a dated assignment history, future Records & Insights must not claim that old readings describe an animal's past enclosure. Stage 3D.5.4 will reuse these data models rather than introducing parallel event storage.
+See [API reference](api-design.md), [setup](setup-and-demo.md) and [project description](project-description.md).
