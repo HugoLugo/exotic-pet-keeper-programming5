@@ -288,7 +288,7 @@ function navigate(page) {
   // Navigation is a new view: never carry scroll position from the previous page.
   window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   if (page === 'pets') { setPetDeleteMode(false); loadPetsCollection(); }
-  if (page === 'feeding') { loadFeedingWorkspace(); }
+  if (page === 'feeding') { loadFeedingWorkspace();loadRecentFeedings(); }
   if (page === 'records') { loadRecordsWorkspace(); }
   if (page === 'enclosures') { loadEnclosuresCollection(); }
   if (page === 'dashboard') { loadDashboardData(); startDashboardRefresh(); }
@@ -722,6 +722,8 @@ const PET_FEEDINGS_PAGE_SIZE = 4;
 let petFeedingPage = 0;
 function renderDetailsFeedings(rows, preservePage = false) {
   if (!preservePage) petFeedingPage = 0;
+  const targetIndex=pendingFeedingHistoryId===null?-1:rows.findIndex(row=>Number(row.id)===pendingFeedingHistoryId);
+  if(targetIndex>=0){petFeedingPage=Math.floor(targetIndex/PET_FEEDINGS_PAGE_SIZE);}
   const totalPages = Math.max(1, Math.ceil(rows.length / PET_FEEDINGS_PAGE_SIZE));
   petFeedingPage = Math.min(petFeedingPage, totalPages - 1);
   const host = $('#petDetailsFeedings');
@@ -734,6 +736,7 @@ function renderDetailsFeedings(rows, preservePage = false) {
   const start = petFeedingPage * PET_FEEDINGS_PAGE_SIZE;
   for (const feeding of rows.slice(start, start + PET_FEEDINGS_PAGE_SIZE)) {
     const item = elem('article', 'pet-details-feeding');
+    if(Number(feeding.id)===pendingFeedingHistoryId){item.classList.add('feeding-recent-target');item.dataset.feedingTarget='true';}
     const left = elem('div');
     left.append(elem('strong', null, detailText(feeding.food, 'Feeding')),
       elem('small', null, `Response: ${{accepted:'Accepted',refused:'Refused',recorded:'Not specified'}[feeding.feeding_outcome]||'Not specified'}`));
@@ -828,6 +831,11 @@ async function openPetDetails(id) {
     if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
       renderDetailsFeedings(feedingResult.value);
       $('#petDetailsFeedingError').hidden = true;
+      if(pendingFeedingHistoryId!==null) {
+        const target=$('#petDetailsFeedings .feeding-recent-target');
+        pendingFeedingHistoryId=null;
+        (target||$('#petDetailsFeedingHeading')).scrollIntoView({behavior:'smooth',block:'center'});
+      }
     } else {
       $('#petDetailsFeedings').replaceChildren();
       $('#petDetailsFeedingCount').textContent = '';
@@ -835,6 +843,7 @@ async function openPetDetails(id) {
     }
   } catch (error) {
     if (request !== petDetailsRequest) return;
+    pendingFeedingHistoryId=null;
     console.error('Pet details could not be loaded:', error);
     $('#petDetailsContent').hidden = true;
     detailStatus(error.message || 'Unable to load the pet profile.', Number(id));
@@ -1829,14 +1838,49 @@ function deleteFeedingRecord(record){if(!activePet||petEditing)return;const petI
   await refreshPetFeedings(petId, true);loadRecentFeedings();toast('Feeding record deleted.');
  });
 }
+// Stage 4.5: shared recent feeding preview, always derived from existing records.
+function recentFeedingTime(record) {
+  // The API returns DD/MM/YYYY. Comparing it directly as a string sorts by day, not date.
+  const date = isoDate(record.feeding_date) || record.feeding_date || '';
+  return `${date}T${record.feeding_time || '00:00:00'}`;
+}
+function openRecentFeeding(record) {
+  const petId=Number(record.pet_id);
+  if (!Number.isSafeInteger(petId) || petId<=0) return;
+  pendingFeedingHistoryId=Number(record.id);
+  void openPetDetails(petId);
+}
+let pendingFeedingHistoryId=null;
+function renderFeedingPageRecents(records) {
+  const host=$('#feedingPageRecentRows');
+  host.replaceChildren();
+  if(!records.length) {host.append(elem('p','feeding-hint','No feedings recorded yet. New feedings will appear here.'));return;}
+  for(const record of records.slice(0,7)) {
+    const button=elem('button','feeding-recent-entry');
+    button.type='button';button.title=`Open ${record.pet_name}'s Feeding History`;
+    const info=elem('span','feeding-recent-info');
+    const source=record.entry_source==='quick'?'Quick Feeding':'Individual Feeding';
+    info.append(elem('strong',null,record.pet_name),elem('small',null,`${record.feeding_date}${record.feeding_time?' · '+record.feeding_time:''} · ${{accepted:'Accepted',refused:'Refused',recorded:'Not specified'}[record.feeding_outcome]||'Not specified'}`),elem('span','feeding-recent-source',source));
+    const food=elem('span','feeding-recent-food',record.food||'Food not specified');
+    button.append(info,food,elem('span','feeding-recent-arrow','→'));
+    button.addEventListener('click',()=>openRecentFeeding(record));
+    host.append(button);
+  }
+}
+let recentFeedingsRequest=0;
 async function loadRecentFeedings(){
- try{const records=await feedingRequest('/api/feedings/recent');const host=$('#feedingRows');host.replaceChildren();
+ const request=++recentFeedingsRequest;
+ try{const received=await feedingRequest('/api/feedings/recent');
+  if(request!==recentFeedingsRequest)return;
+  const records=[...received].sort((a,b)=>recentFeedingTime(b).localeCompare(recentFeedingTime(a))||Number(b.id)-Number(a.id));
+  renderFeedingPageRecents(records);
+  const host=$('#feedingRows');host.replaceChildren();
   if(!records.length){host.append(elem('p','feeding-hint','No feeding records yet. Visit Feeding to log a meal.'));return;}
   for(const record of records.slice(0,3)){
    const row=elem('div','feeding-item');const left=elem('div');left.append(elem('strong',null,record.pet_name),elem('small',null,record.feeding_date));
    row.append(left,elem('span','feeding-food',record.food));host.append(row);
   }
- }catch(err){console.warn('Recent feedings unavailable',err);$('#feedingRows').replaceChildren(elem('p','feeding-hint','Recent feeding records are unavailable. Check the Data Management Service.'));}
+ }catch(err){if(request!==recentFeedingsRequest)return;console.warn('Recent feedings unavailable',err);$('#feedingRows').replaceChildren(elem('p','feeding-hint','Recent feeding records are unavailable. Check the Data Management Service.'));$('#feedingPageRecentRows').replaceChildren(elem('p','feeding-hint','Recent feedings unavailable. Check the Data Management Service.'));}
 }
 loadRecentFeedings();
 
@@ -2270,6 +2314,37 @@ function enclosureHistorySvg(tag,attrs={}) {
   Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,String(value)));
   return node;
 }
+// Accessible, readable tooltip used by both history visualizations.
+const historyHoverCard=elem('div','history-hover-card');
+historyHoverCard.hidden=true;
+historyHoverCard.setAttribute('role','tooltip');
+document.body.append(historyHoverCard);
+function bindHistoryHover(point, lines) {
+  const message=lines.filter(Boolean).join('\n');
+  point.setAttribute('aria-label',lines.filter(Boolean).join(', '));
+  point.setAttribute('tabindex','0');
+  const position=(x,y)=>{
+    const width=historyHoverCard.offsetWidth||255;
+    const height=historyHoverCard.offsetHeight||75;
+    historyHoverCard.style.left=`${Math.min(window.innerWidth-width-12,Math.max(12,x-width/2))}px`;
+    historyHoverCard.style.top=`${Math.max(10,y-height-17)}px`;
+  };
+  const show=(x,y)=>{
+    historyHoverCard.replaceChildren();
+    lines.forEach((line,index)=>{if(!line)return;historyHoverCard.append(elem('div',index===0?'history-hover-heading':'history-hover-line',line));});
+    historyHoverCard.hidden=false;
+    position(x,y);
+  };
+  point.addEventListener('pointerenter',e=>show(e.clientX,e.clientY));
+  point.addEventListener('pointermove',e=>position(e.clientX,e.clientY));
+  point.addEventListener('pointerleave',()=>{historyHoverCard.hidden=true;});
+  point.addEventListener('focus',()=>{const rect=point.getBoundingClientRect();show(rect.left+rect.width/2,rect.top);});
+  point.addEventListener('blur',()=>{historyHoverCard.hidden=true;});
+}
+function niceHistoryStep(range) {
+  const rough=range/4,power=10**Math.floor(Math.log10(rough));
+  return [1,2,2.5,5,10].map(f=>f*power).find(step=>step>=rough)||10*power;
+}
 function enclosureHistoryChart(records,bounds,metric) {
   const host=$(`#enclosureHistory${metric==='temperature'?'Temperature':'Humidity'}`);
   host.replaceChildren();
@@ -2307,11 +2382,12 @@ function enclosureHistoryChart(records,bounds,metric) {
     const bandTop=y(high),bandBottom=y(low);
     svg.append(enclosureHistorySvg('rect',{x:left,y:bandTop,width:plotW,height:bandBottom-bandTop,class:'enclosure-history-range-band'}));
   }
-  for(let n=0;n<=4;n++) {
-    const value=min+(max-min)*n/4, yy=y(value);
+  const tickStep=niceHistoryStep(max-min);
+  for(let value=Math.ceil(min/tickStep)*tickStep;value<=max+tickStep*0.00001;value+=tickStep) {
+    const rounded=Number(value.toFixed(4)),yy=y(rounded);
     svg.append(enclosureHistorySvg('line',{x1:left,y1:yy,x2:w-right,y2:yy,class:'enclosure-history-grid'}));
     const label=enclosureHistorySvg('text',{x:left-9,y:yy+4,'text-anchor':'end',class:'enclosure-history-axis'});
-    label.textContent=enclosureMonitorFormat(value);svg.append(label);
+    label.textContent=`${rounded}${metric==='temperature'?' °C':'%'}`;svg.append(label);
   }
   const axisLabels=[new Date(start),new Date((start+end)/2),new Date(end)];
   axisLabels.forEach((date,index)=>{
@@ -2343,11 +2419,10 @@ function enclosureHistoryChart(records,bounds,metric) {
     const time=Date.parse(record.recordedAt), px=x(time),py=y(record[metric]);
     const mark=record.source==='manual'
       ? enclosureHistorySvg('polygon',{points:`${px},${py-5} ${px+5},${py} ${px},${py+5} ${px-5},${py}`,class:'enclosure-history-point manual'})
-      : enclosureHistorySvg('circle',{cx:px,cy:py,r:2.8,class:'enclosure-history-point sensor'});
+      : enclosureHistorySvg('circle',{cx:px,cy:py,r:5.2,class:'enclosure-history-point sensor'});
     const date=new Date(time).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'medium'});
-    const tooltip=enclosureHistorySvg('title');
-    tooltip.textContent=`${date} · ${record.source==='manual'?'Manual observation':'Sensor reading'} · ${enclosureMonitorFormat(record[metric])}${metric==='temperature'?' °C':'%'}`;
-    mark.append(tooltip);mark.setAttribute('tabindex','0');svg.append(mark);
+    bindHistoryHover(mark,[`${enclosureMonitorFormat(record[metric])}${metric==='temperature'?' °C':'%'}`,date,record.source==='manual'?'Manual observation':'Sensor reading']);
+    svg.append(mark);
   });
   host.append(svg);
 }
@@ -2921,8 +2996,18 @@ function renderEnclosureChangeNotice(records) {
   notice.hidden=!changes.length;
   if (!changes.length) return;
   const latest=changes[0];
-  $('#petEnclosureHistoryText').textContent=`${changes.length} recorded change(s). Latest: ${latest.previous_enclosure_name} → ${latest.new_enclosure_name} (${apiDate(latest.event_date)}). Open the Animal Events journal below for details.`;
+  const previous=latest.previous_enclosure_name||'Unassigned';
+  const next=latest.new_enclosure_name||'Unassigned';
+  $('#petEnclosureHistoryText').textContent=`This animal's enclosure was changed from ${previous} to ${next} on ${apiDate(latest.event_date)}. ${changes.length===1?'1 change has':'A total of '+changes.length+' changes have'} been recorded in the app.`;
 }
+$('#petEnclosureHistoryOpenRecords').addEventListener('click',()=>{
+  const petId=Number($('#petDetailsPage').dataset.petId);
+  if(!Number.isSafeInteger(petId)||petId<=0)return;
+  recordsSelectedPetId=petId;
+  recordsActiveFilter='all';
+  recordsComparedTypes=new Set(['enclosure_change']);
+  navigate('records');
+});
 function renderAnimalEvents(records){
   const host=$('#animalEventList');host.replaceChildren();
   if(!records.length){host.append(elem('p','pet-details-empty','No animal observations yet. Choose Add Event to start this animal’s history.'));return;}
@@ -3062,7 +3147,7 @@ function recordsNormalize(feedings, events) {
     if (record.molt_outcome) details.push(`Outcome: ${outcomes[record.molt_outcome]||'Unknown'}`);
     if (record.event_type==='length' && recordsOptionalMeasurement(record.length_cm)!==null) details.push(`Length: ${record.length_cm} cm · ${({total:'Total length',body:'Body length',diagonal:'Diagonal leg span',shed:'Shed skin length',other:'Other / Not specified'})[record.length_method]||'Unspecified method'}`);
     if (record.event_type==='weight' && Number.isFinite(Number(record.weight_g)) && Number(record.weight_g)>0) details.push(`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`);
-    if (record.event_type==='enclosure_change') details.push('Automatic · enclosure assignments are recorded, not physical moves independently verified. Earlier sensor readings remain in the previous enclosure.');
+    if (record.event_type==='enclosure_change') details.push("This animal was previously assigned to another enclosure. Temperature and humidity readings from that period can be found in the previous enclosure’s records.");
     if (record.description) details.push(record.description);
     if (record.notes) details.push(record.notes);
     result.push({key:`event-${record.id}`,type:record.event_type,source:'Animal event',date,time:record.event_time||null,title:names[record.event_type]||'Observation',details,temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),id:Number(record.id)||0});
@@ -3171,8 +3256,8 @@ function recordsRenderGraph(feedings,events) {
   // Two physically different units need independent vertical scales. Both
   // share the actual date/time axis; missing observations are never invented.
   const series=[
-   {type:'weight',unit:'g',name:'Weight',field:'weight_g',color:'#507d91',side:'left'},
-   {type:'length',unit:'cm',name:'Length',field:'length_cm',color:'#816ba2',side:'right'}
+   {type:'weight',unit:'g',name:'Weight',field:'weight_g',color:'#247A64',side:'left'},
+   {type:'length',unit:'cm',name:'Length',field:'length_cm',color:'#B67431',side:'right'}
   ];
   const plotted=[];
   for(const config of series){
@@ -3204,15 +3289,15 @@ function recordsRenderGraph(feedings,events) {
    }
    // Distinct length-measurement methods must not be connected into one line.
    const methods=config.type==='length'?[...new Set(measurements.map(m=>m.method))]:['all'];
-   const colors=config.type==='length'?['#816ba2','#ab8250','#59866b','#b26f85']: [config.color];
+   const colors=config.type==='length'?['#B67431','#8E5CAD','#C04369','#9F7430']: [config.color];
    methods.forEach((method,index)=>{
     const subset=config.type==='length'?measurements.filter(m=>m.method===method):measurements;
     const color=colors[index%colors.length];
     if(subset.length>1)svg.append(recordsSvgNode('polyline',{points:subset.map(m=>`${xFor(m.time)},${y(m.value)}`).join(' '),fill:'none',stroke:color,'stroke-width':3,'stroke-linejoin':'round'}));
     for(const point of subset){
      const dot=recordsSvgNode('circle',{cx:xFor(point.time),cy:y(point.value),r:5.5,fill:color,stroke:'#fffdf9','stroke-width':2});
-     const tip=recordsSvgNode('title');tip.textContent=`${config.name}: ${point.value} ${config.unit}${config.type==='length'?' · '+method:''} · ${apiDate(point.item.date)}${point.item.time?' '+point.item.time:' (time not recorded)'}`;
-     dot.append(tip);svg.append(dot);
+     bindHistoryHover(dot,[`${config.name}: ${point.value} ${config.unit}`,config.type==='length'?`Method: ${method}`:'',`${apiDate(point.item.date)}${point.item.time?' · '+point.item.time:' · time not recorded'}`]);
+     svg.append(dot);
     }
     plotted.push({name:config.name+(config.type==='length'&&methods.length>1?' · '+method:''),color,count:subset.length});
    });
@@ -3234,7 +3319,7 @@ function recordsRenderGraph(feedings,events) {
   for(let index=0;index<methods.length;index++){
     const method=methods[index],group=measurements.filter(x=>x.method===method),color=palette[index%palette.length];
     if(group.length>1)svg.append(recordsSvgNode('polyline',{points:group.map(w=>`${xFor(w.time)},${y(w.weight)}`).join(' '),fill:'none',stroke:color,'stroke-width':3,'stroke-linejoin':'round'}));
-    for(const item of group){const px=xFor(item.time),py=y(item.weight);const dot=recordsSvgNode('circle',{cx:px,cy:py,r:6,fill:color,stroke:'#fff','stroke-width':2});const tip=recordsSvgNode('title');tip.textContent=`${item.weight} ${isLength?'cm':'g'} · ${isLength?method+' · ':''}${apiDate(item.item.date)}${item.item.time?' '+item.item.time:' (time not recorded)'}`;dot.append(tip);svg.append(dot);const label=recordsSvgNode('text',{x:px,y:py-13,'text-anchor':'middle','font-size':12,fill:color});label.textContent=`${item.weight} ${isLength?'cm':'g'}`;svg.append(label);}
+    for(const item of group){const px=xFor(item.time),py=y(item.weight);const dot=recordsSvgNode('circle',{cx:px,cy:py,r:6,fill:color,stroke:'#fff','stroke-width':2});bindHistoryHover(dot,[`${isLength?'Length':'Weight'}: ${item.weight} ${isLength?'cm':'g'}`,isLength?`Method: ${method}`:'',`${apiDate(item.item.date)}${item.item.time?' · '+item.item.time:' · time not recorded'}`]);svg.append(dot);const label=recordsSvgNode('text',{x:px,y:py-13,'text-anchor':'middle','font-size':12,fill:color});label.textContent=`${item.weight} ${isLength?'cm':'g'}`;svg.append(label);}
   }
   $('#recordsGraphCaption').textContent=`${isLength?'Length':'Weight'} history · ${measurements.length} measurement(s)${isLength&&methods.length>1?' · separate lines by measurement method':''}`;
  }else{
@@ -3242,7 +3327,7 @@ function recordsRenderGraph(feedings,events) {
   for(const [type,name,y,color] of lanes){const lab=recordsSvgNode('text',{x:146,y:y+5,'text-anchor':'end','font-size':13,fill:'#536a56'});lab.textContent=name;svg.append(lab);svg.append(recordsSvgNode('line',{x1:L,y1:y,x2:R,y2:y,stroke:'#e3e8df','stroke-width':1.5}));}
   const stacked=new Map();
   for(const item of visible){const lane=item.type==='feeding'?'feeding':item.type==='molting'?'molting':item.type==='weight'?'weight':item.type==='length'?'length':'other';const found=lanes.find(l=>l[0]===lane);const grouping=lane+item.date+(item.time||'');const count=stacked.get(grouping)||0;stacked.set(grouping,count+1);const px=xFor(timeOf(item))+Math.min(count,3)*5;const py=found[2]-(count%3)*10;
-   const dot=recordsSvgNode('circle',{cx:px,cy:py,r:7,fill:found[3],stroke:'#fffdf9','stroke-width':2});const tip=recordsSvgNode('title');tip.textContent=`${item.title} — ${apiDate(item.date)}${item.time?' · '+item.time:' · time not recorded'}`;dot.append(tip);svg.append(dot);
+   const dot=recordsSvgNode('circle',{cx:px,cy:py,r:7,fill:found[3],stroke:'#fffdf9','stroke-width':2});bindHistoryHover(dot,[item.title,`${apiDate(item.date)}${item.time?' · '+item.time:' · time not recorded'}`,item.details?.[0]||'']);svg.append(dot);
    if(recordsRange==='24h'&&visible.length<=7&&item.time){const label=recordsSvgNode('text',{x:px,y:py-13,'text-anchor':'middle','font-size':12,fill:'#41634c'});label.textContent=item.time;svg.append(label);}
   }
   $('#recordsGraphCaption').textContent=`${visible.length} displayed observation(s) · actual observation ${recordsRange==='24h'?'times':'dates'} on axis`;

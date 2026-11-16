@@ -283,7 +283,8 @@
           <aside id="petEnclosureHistoryNotice" class="pet-enclosure-history-notice" hidden aria-live="polite">
             <strong>Recorded enclosure changes</strong>
             <p id="petEnclosureHistoryText"></p>
-            <small>Previous readings remain in the respective enclosure's environmental history; they are not transferred to the animal.</small>
+            <small>Earlier temperature and humidity readings remain in the previous enclosure's history.</small>
+            <button type="button" class="text-button pet-enclosure-records-link" id="petEnclosureHistoryOpenRecords">View Enclosure Changes in Records &amp; Insights →</button>
           </aside>
           <div class="pet-details-panels">
             <section class="pet-details-panel" aria-labelledby="petDetailsInfoHeading">
@@ -386,11 +387,18 @@
               <div class="feeding-wide feeding-actions"><button class="primary-button" id="quickFeedingSave" type="submit">Save Feedings</button></div>
             </form>
           </section>
+          <div class="feeding-right-column">
           <section class="panel feeding-groups-panel" aria-labelledby="feedingGroupsTitle">
             <div class="section-heading"><div><span class="section-kicker">YOUR ROUTINE</span><h2 id="feedingGroupsTitle">Feeding Groups</h2></div><button id="feedingCreateGroup" class="primary-button" type="button">+ Create Group</button></div>
             <p class="feeding-hint">Group pets however you feed them, regardless of species. Pets can belong to several groups.</p>
             <div id="feedingGroupsList" class="feeding-group-list" aria-live="polite"></div>
           </section>
+          <section class="panel feeding-page-recent" aria-labelledby="feedingPageRecentTitle">
+            <div class="section-heading"><div><span class="section-kicker">CARE LOG</span><h2 id="feedingPageRecentTitle">Recent Feeding</h2></div><span class="feeding-recent-count">Latest 7</span></div>
+            <p class="feeding-hint">Choose an entry to open that animal's Feeding History.</p>
+            <div id="feedingPageRecentRows" class="feeding-page-recent-list" aria-live="polite"><p class="feeding-hint">Loading recent feedings…</p></div>
+          </section>
+          </div>
         </div>
       </section>
       <dialog id="feedingGroupDialog" class="feeding-dialog" aria-labelledby="feedingGroupDialogTitle">

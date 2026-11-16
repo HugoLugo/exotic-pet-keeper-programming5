@@ -627,7 +627,7 @@ app.get('/feedings/recent', (req, res) => {
     const records = db.prepare(`
         SELECT f.*, p.name AS pet_name FROM feeding_records f
         JOIN pets p ON p.id = f.pet_id
-        ORDER BY f.feeding_date DESC, f.id DESC LIMIT 30
+        ORDER BY f.feeding_date DESC, COALESCE(NULLIF(f.feeding_time, ''), '00:00:00') DESC, f.id DESC LIMIT 50
     `).all();
     res.json(records.map(formatFeeding));
 });
