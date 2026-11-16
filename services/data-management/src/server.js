@@ -1,6 +1,7 @@
 
 const express = require('express');
 const db = require('./database');
+const recordExport = require('./export');
 
 const app = express();
 const PORT = 3001;
@@ -635,6 +636,30 @@ app.get('/feedings/recent', (req, res) => {
 // --------------------------------------------------
 // ANIMAL EVENTS — each event belongs to one animal.
 // --------------------------------------------------
+// Stage 5 — downloadable, read-only care history. This route deliberately runs
+// before the generic /pets/:id/events and /pets/:id/feedings handlers.
+app.get('/pets/:id/export', (req,res) => {
+    const petId=Number(req.params.id);
+    if (!isValidId(petId)) return res.status(400).json({error:'Invalid animal ID'});
+    let options;
+    try { options=recordExport.parseOptions(req.query); }
+    catch(error) { return res.status(400).json({error:error.message}); }
+    try {
+        const snapshot=recordExport.loadRecords(db,petId,options);
+        if (!snapshot) return res.status(404).json({error:'Animal not found'});
+        const pdf=options.format==='pdf', ext=pdf?'pdf':'zip';
+        res.set('Content-Type',pdf?'application/pdf':'application/zip');
+        res.set('Content-Disposition',`attachment; filename="${recordExport.fileName(snapshot,ext)}"`);
+        res.set('Cache-Control','no-store');
+        if (pdf) recordExport.makePdf(snapshot,res);
+        else res.send(recordExport.makeCsvZip(snapshot));
+    } catch(error) {
+        console.error('Care history export failed:',error);
+        if (!res.headersSent) res.status(500).json({error:'Could not generate care history export'});
+        else res.destroy(error);
+    }
+});
+
 app.get('/pets/:id/events', (req,res) => {
     const petId=lookupEventPet(req,res); if (petId===null) return;
     const observations = db.prepare('SELECT * FROM animal_events WHERE pet_id=?').all(petId);

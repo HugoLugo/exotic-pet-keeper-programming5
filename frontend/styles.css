@@ -1310,3 +1310,36 @@
 /* Stage 4.5 follow-up: feeding source and direct historical navigation. */
 .feeding-recent-source{display:inline-block;width:max-content;max-width:100%;padding:3px 8px;border-radius:999px;background:#e9efdf;color:#365e3a;font-size:10px;font-weight:700}
 .pet-enclosure-records-link{display:inline-block;margin-top:8px;text-align:left;cursor:pointer}
+
+/* Stage 5 — Records & Insights export. Scoped to avoid inherited feeding-dialog inputs. */
+.records-history-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.records-export-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:11px 16px;min-height:45px;border:1px solid #aec7a3;border-radius:11px;background:#edf3e5;color:#285538;font:750 13px Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.records-export-button .records-export-icon{flex:0 0 17px;display:block}
+.records-export-button:hover:not(:disabled){background:#dcebd5}
+.records-export-button:focus-visible,.records-export-dialog button:focus-visible,.records-export-dialog input:focus-visible{outline:3px solid #8eb38a;outline-offset:2px}
+.records-export-button:disabled{opacity:.55;cursor:not-allowed}
+.records-export-dialog{box-sizing:border-box;width:min(600px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(86vh,790px);overflow-y:auto;margin:auto;padding:28px 30px;background:#fffdf9;color:#294d38;border:1px solid #d5e2ce;border-radius:18px;box-shadow:0 20px 60px #18361e38}
+.records-export-dialog::backdrop{background:rgba(17,38,23,.48)}
+.records-export-dialog form{display:flex;flex-direction:column;gap:18px;min-width:0}
+.records-export-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.records-export-heading h2{margin:6px 0 0;font:normal 28px Georgia,serif;line-height:1.15;color:#274732}
+.records-export-close{display:grid;place-items:center;flex:none;width:34px;height:34px;padding:0;background:#f0f4eb;color:#46644e;border:1px solid #d9e5d4;border-radius:9px;font-size:24px;cursor:pointer}
+.records-export-dialog #recordsExportAnimal{margin:-7px 0 2px;line-height:1.5;overflow-wrap:anywhere}
+.records-export-field{display:block;min-width:0;margin:0;padding:16px 17px 17px;border:1px solid #dce7d6;border-radius:12px;background:#fbfcf8}
+.records-export-field legend{font-size:13px;font-weight:750;padding:0 6px;color:#35593a}
+.records-export-dialog .records-export-choice-field>label{display:inline-flex;align-items:center;vertical-align:middle;gap:9px;width:auto;max-width:100%;margin:3px 26px 3px 0;font-size:13px;font-weight:600;color:#34583c;line-height:1.4;cursor:pointer}
+.records-export-dialog input[type=checkbox],.records-export-dialog input[type=radio]{appearance:auto;box-sizing:border-box;display:inline-block;flex:0 0 17px;width:17px!important;height:17px!important;min-width:17px!important;margin:0;padding:0!important;border:0;border-radius:0;background:transparent;accent-color:#386d38;cursor:pointer}
+.records-export-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.records-export-dates[hidden]{display:none}
+.records-export-dialog .records-export-dates label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600}
+.records-export-dialog .records-export-dates input[type=date]{box-sizing:border-box;width:100%;min-width:0;border:1px solid #bfd0b8;border-radius:8px;padding:10px;color:#355b41;background:white}
+.records-export-choose{display:flex;gap:16px;margin:-2px 0 13px}
+.records-export-choose button{border:0;background:transparent;color:#386d38;text-decoration:underline;font-size:12px;cursor:pointer;padding:3px 0}
+.records-export-categories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;row-gap:11px;width:100%;min-width:0}
+.records-export-dialog .records-export-categories label{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-width:0;width:auto;font-size:13px;font-weight:500;line-height:1.4;color:#34583c;cursor:pointer}
+.records-export-dialog .records-export-categories label input{flex-shrink:0}
+.records-export-dialog .records-hint{margin:0;line-height:1.6}
+.records-export-error{color:#9b3333;font-size:12px;margin:0;line-height:1.5}
+.records-export-error[hidden]{display:none}
+.records-export-dialog .feeding-actions{margin:2px 0 0;gap:12px;flex-wrap:wrap}
+@media(max-width:560px){.records-export-dialog{padding:20px 18px}.records-export-categories{grid-template-columns:1fr}.records-export-dialog .records-export-choice-field>label{display:flex;margin:6px 0 12px}.records-history-actions{width:100%;justify-content:flex-start}.records-export-dates{grid-template-columns:1fr}}

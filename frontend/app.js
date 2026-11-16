@@ -3411,6 +3411,7 @@ async function recordsLoadSelected() {
 async function loadRecordsWorkspace() {
   const request=++recordsRequest;
   $('#recordsOverview').hidden=true;$('#recordsTimeline').replaceChildren();$('#recordsGraphContent').replaceChildren();
+  $('#recordsExportOpen').disabled=true;
   recordsSetMessage('Loading animals…');
   try {
     const pets=await feedingRequest('/api/pets');
@@ -3422,6 +3423,7 @@ async function loadRecordsWorkspace() {
     for(const pet of recordsPets) {const opt=elem('option',null,pet.id===recordsDemoPet.id?'Demo · Luna (sample records, not saved)':`${pet.name||'Unnamed animal'} · ${pet.species||'Species unknown'}`);opt.value=String(pet.id);select.append(opt);}
     if(!recordsPets.some(p=>Number(p.id)===recordsSelectedPetId))recordsSelectedPetId=Number(pets.length?pets[0].id:recordsDemoPet.id);
     select.value=String(recordsSelectedPetId);
+    recordsExportEnabled();
     recordsLoadSelected();
   } catch(error) {
     if(request!==recordsRequest||currentPage!=='records')return;
@@ -3429,8 +3431,66 @@ async function loadRecordsWorkspace() {
     recordsSetMessage(`Unable to load animals: ${error.message}`);
   }
 }
+// Stage 5: export options are independent of charts, summary-card filters, and zoom.
+const recordsExportDialog=$('#recordsExportDialog');
+const recordsExportInputs=[...$('#recordsExportCategories').querySelectorAll('input[type=checkbox]')];
+function recordsExportEnabled(){
+ const pet=recordsPets.find(p=>Number(p.id)===recordsSelectedPetId);
+ const valid=!!pet&&recordsSelectedPetId>0;
+ $('#recordsExportOpen').disabled=!valid;
+ $('#recordsExportOpen').title=valid?'Export stored animal history':'Sample-only animals cannot be exported';
+}
+function recordsExportShowError(message){const target=$('#recordsExportError');target.textContent=message;target.hidden=!message;}
+function recordsExportClose(){if(!$('#recordsExportSubmit').disabled)recordsExportDialog.close();}
+$('#recordsExportOpen').addEventListener('click',()=>{
+ if(recordsSelectedPetId<=0)return;
+ const pet=recordsPets.find(p=>Number(p.id)===recordsSelectedPetId);
+ if(!pet)return;
+ $('#recordsExportForm').reset();
+ $('#recordsExportDates').hidden=true;
+ recordsExportShowError('');
+ $('#recordsExportAnimal').textContent=`${pet.name} · ${pet.species} · Stored records only`;
+ recordsExportDialog.showModal();
+});
+$('#recordsExportClose').addEventListener('click',recordsExportClose);
+$('#recordsExportCancel').addEventListener('click',recordsExportClose);
+$('#recordsExportAll').addEventListener('click',()=>recordsExportInputs.forEach(input=>input.checked=true));
+$('#recordsExportNone').addEventListener('click',()=>recordsExportInputs.forEach(input=>input.checked=false));
+$('#recordsExportForm').addEventListener('change',()=>{$('#recordsExportDates').hidden=$('#recordsExportForm').elements.exportRange.value!=='custom';recordsExportShowError('');});
+$('#recordsExportForm').addEventListener('submit',async event=>{
+ event.preventDefault();recordsExportShowError('');
+ const animalId=recordsSelectedPetId;
+ if(!Number.isSafeInteger(animalId)||animalId<=0)return recordsExportShowError('Select a saved animal to export.');
+ const categories=recordsExportInputs.filter(input=>input.checked).map(input=>input.value);
+ if(!categories.length)return recordsExportShowError('Select at least one record category.');
+ const form=event.currentTarget, custom=form.elements.exportRange.value==='custom';
+ const from=$('#recordsExportFrom').value,to=$('#recordsExportTo').value;
+ if(custom&&(!from||!to||from>to))return recordsExportShowError('Choose a valid start and end date.');
+ const params=new URLSearchParams({format:form.elements.exportFormat.value,categories:categories.join(',')});
+ if(custom){params.set('from',from);params.set('to',to);}
+ const submit=$('#recordsExportSubmit');submit.disabled=true;submit.textContent='Generating…';
+ try {
+   const response=await fetch(`/api/pets/${animalId}/export?${params.toString()}`,{headers:{Accept:form.elements.exportFormat.value==='pdf'?'application/pdf':'application/zip'}});
+   if(!response.ok){
+     const body=await response.json().catch(()=>null);
+     if(response.status===404&&!body?.error)throw new Error('Export endpoint not found (HTTP 404). Restart the Data Management Service on port 3001, then try again.');
+     if(response.status===404&&body?.error==='Animal not found')throw new Error('Animal ID not found in the active database. Check that Data Management uses your demonstration pets.db.');
+     throw new Error(body?.error||`Export failed (HTTP ${response.status})`);
+   }
+   const filenameHeader=response.headers.get('content-disposition')||'';
+   const match=/filename="?([^";]+)"?/i.exec(filenameHeader);
+   const filename=match?.[1]||`animal-${animalId}-care-history.${form.elements.exportFormat.value==='pdf'?'pdf':'zip'}`;
+   const blob=await response.blob();const url=URL.createObjectURL(blob);
+   const link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+   recordsExportDialog.close();
+ } catch(error) {recordsExportShowError(error.message);}
+ finally {submit.disabled=false;submit.textContent='Generate & download';}
+});
+
 $('#recordsAnimalSelect').addEventListener('change',event=>{
   recordsSelectedPetId=Number(event.target.value);
+  recordsExportEnabled();
   recordsLoadSelected();
 });
 
