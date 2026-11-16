@@ -279,10 +279,8 @@ function navigate(page) {
   $('#addPetPage').hidden = true;
   $('#petDetailsPage').hidden = true;
   ++petDetailsRequest;
-  $('#otherPage').hidden = page === 'dashboard' || page === 'pets' || page === 'feeding' || page === 'enclosures' || page === 'records';
-  $('#dashboardDemoBanner').hidden = true;
   $('#pageEyebrow').textContent = page === 'pets' ? 'PET MANAGEMENT' : page === 'records' ? 'CARE HISTORY' : page === 'feeding' ? 'CARE MANAGEMENT' : page === 'enclosures' ? 'HABITAT MANAGEMENT' : 'YOUR HABITAT AT A GLANCE';
-  $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1]; $('#otherTitle').textContent = `${pages[page][0]} page coming next`;
+  $('#pageTitle').textContent = pages[page][0]; $('#pageDescription').textContent = pages[page][1];
   document.querySelectorAll('.nav-link').forEach((link) => { const active = link.dataset.page === page; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current'); });
   $('#sidebar').classList.remove('open'); $('#menuButton').setAttribute('aria-expanded','false');
   // Navigation is a new view: never carry scroll position from the previous page.
@@ -776,10 +774,8 @@ async function openPetDetails(id) {
   $('#main').classList.add('pets-active');
   $('#main').classList.remove('feeding-active');
   $('#dashboardContent').hidden = true;
-  $('#dashboardDemoBanner').hidden = true;
   $('#petsPage').hidden = true;
   $('#addPetPage').hidden = true;
-  $('#otherPage').hidden = true;
   $('#petDetailsPage').hidden = false;
   $('#enclosureDetailsPage').hidden = true;
   stopEnclosureMonitoring();
@@ -2031,13 +2027,11 @@ async function openEnclosureDetails(id) {
   $('#main').classList.add('enclosures-active');
   $('#main').classList.remove('pets-active','feeding-active');
   $('#dashboardContent').hidden = true;
-  $('#dashboardDemoBanner').hidden = true;
   $('#petsPage').hidden = true;
   $('#addPetPage').hidden = true;
   $('#petDetailsPage').hidden = true;
   ++petDetailsRequest;
   $('#feedingPage').hidden = true;
-  $('#otherPage').hidden = true;
   $('#enclosuresPage').hidden = true;
   $('#enclosureCreatePage').hidden = true;
   $('#enclosureDetailsPage').hidden = false;
@@ -3100,22 +3094,6 @@ let recordsRange = 'all';
 let recordsZoom = 1;
 let recordsCurrentFeedings = [];
 let recordsCurrentEvents = [];
-const recordsDemoPet = {id:-3544,name:'Demo · Luna',species:'Python regius'};
-const recordsDemoFeedings = [
- {id:90001,feeding_date:'2026-11-05',feeding_time:'18:10',food:'1 appropriately sized prey item',feeding_outcome:'accepted',entry_source:'individual',temperature_c:28,humidity_pct:65},
- {id:90002,feeding_date:'2026-10-20',feeding_time:'19:20',food:'Prey offered',feeding_outcome:'refused',entry_source:'individual'},
- {id:90003,feeding_date:'2026-09-19',feeding_time:'18:40',food:'1 prey item',feeding_outcome:'accepted',entry_source:'quick'}
-];
-const recordsDemoEvents = [
- {id:90101,event_type:'molting',event_date:'2026-08-03',event_time:'09:15',molt_stage:'pre_molt',description:'Cloudy eyes observed',humidity_pct:70},
- {id:90102,event_type:'molting',event_date:'2026-08-12',event_time:'12:20',molt_stage:'molt_observed',molt_outcome:'successful',description:'Shed observed',humidity_pct:73},
- {id:90103,event_type:'weight',event_date:'2026-08-15',event_time:'10:00',weight_g:540,description:'Routine weighing'},
- {id:90104,event_type:'weight',event_date:'2026-09-15',event_time:'10:00',weight_g:565},
- {id:90105,event_type:'molting',event_date:'2026-10-01',event_time:'09:20',molt_stage:'pre_molt',description:'Duller skin observed',humidity_pct:69},
- {id:90106,event_type:'molting',event_date:'2026-10-09',event_time:'08:00',molt_stage:'molt_observed',molt_outcome:'successful',description:'Shed observed',humidity_pct:71},
- {id:90107,event_type:'weight',event_date:'2026-11-02',event_time:'11:10',weight_g:583},
- {id:90108,event_type:'behavior',event_date:'2026-11-09',event_time:'16:30',description:'Exploring enclosure in the evening'}
-];
 function recordsSetMessage(message) { $('#recordsPageMessage').textContent = message; }
 function recordsObservationDate(value) {
   if (typeof value !== 'string') return '';
@@ -3396,7 +3374,7 @@ async function recordsLoadSelected() {
   if (!pet) {recordsSetMessage('Select an animal to view its records.');return;}
   recordsSetMessage('Loading care history…');
   try {
-    const [feedings,events]=id===recordsDemoPet.id?[recordsDemoFeedings,recordsDemoEvents]:await Promise.all([
+    const [feedings,events]=await Promise.all([
       feedingRequest(`/api/pets/${id}/feedings`),feedingRequest(`/api/pets/${id}/events`)
     ]);
     if(request!==recordsRequest||currentPage!=='records'||recordsSelectedPetId!==id)return;
@@ -3417,11 +3395,18 @@ async function loadRecordsWorkspace() {
     const pets=await feedingRequest('/api/pets');
     if(request!==recordsRequest||currentPage!=='records')return;
     if(!Array.isArray(pets))throw new Error('Unexpected animal list response');
-    recordsPets=[...pets,recordsDemoPet];
+    recordsPets=pets;
     const select=$('#recordsAnimalSelect');select.replaceChildren();
-    select.disabled=false;
-    for(const pet of recordsPets) {const opt=elem('option',null,pet.id===recordsDemoPet.id?'Demo · Luna (sample records, not saved)':`${pet.name||'Unnamed animal'} · ${pet.species||'Species unknown'}`);opt.value=String(pet.id);select.append(opt);}
-    if(!recordsPets.some(p=>Number(p.id)===recordsSelectedPetId))recordsSelectedPetId=Number(pets.length?pets[0].id:recordsDemoPet.id);
+    select.disabled=pets.length===0;
+    if (!pets.length) {
+      recordsSelectedPetId=null;
+      select.append(elem('option',null,'No animals registered'));
+      recordsExportEnabled();
+      recordsSetMessage('No animals registered yet. Add an animal in Pets to start recording its care history.');
+      return;
+    }
+    for(const pet of recordsPets) {const opt=elem('option',null,`${pet.name||'Unnamed animal'} · ${pet.species||'Species unknown'}`);opt.value=String(pet.id);select.append(opt);}
+    if(!recordsPets.some(p=>Number(p.id)===recordsSelectedPetId))recordsSelectedPetId=Number(pets[0].id);
     select.value=String(recordsSelectedPetId);
     recordsExportEnabled();
     recordsLoadSelected();
@@ -3438,7 +3423,7 @@ function recordsExportEnabled(){
  const pet=recordsPets.find(p=>Number(p.id)===recordsSelectedPetId);
  const valid=!!pet&&recordsSelectedPetId>0;
  $('#recordsExportOpen').disabled=!valid;
- $('#recordsExportOpen').title=valid?'Export stored animal history':'Sample-only animals cannot be exported';
+ $('#recordsExportOpen').title=valid?'Export stored animal history':'Select a registered animal to export';
 }
 function recordsExportShowError(message){const target=$('#recordsExportError');target.textContent=message;target.hidden=!message;}
 function recordsExportClose(){if(!$('#recordsExportSubmit').disabled)recordsExportDialog.close();}
