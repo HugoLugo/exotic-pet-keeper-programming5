@@ -58,6 +58,40 @@ async function validateEnclosureAssignment(enclosureId) {
     }
 }
 
+// Display names are snapshots. Failure to look up an old enclosure never invents
+// an occupancy period; the stable ID remains available in the event.
+async function enclosureSnapshotName(id) {
+    if (id === null) return 'Unassigned';
+    try {
+        const response = await fetch(`http://localhost:3002/enclosures/${id}`, {signal: AbortSignal.timeout(3000)});
+        if (response.ok) {
+            const value = await response.json();
+            if (typeof value.name === 'string' && value.name.trim()) return value.name.trim();
+        }
+    } catch (err) {
+        console.warn('Could not resolve enclosure name for event:', err.message);
+    }
+    return `Enclosure #${id}`;
+}
+
+function formatEnclosureChange(row) {
+    const instant = new Date(row.occurred_at);
+    return {
+        id: `change-${row.id}`, pet_id: row.pet_id, event_type: 'enclosure_change',
+        event_date: `${instant.getFullYear()}-${String(instant.getMonth()+1).padStart(2,'0')}-${String(instant.getDate()).padStart(2,'0')}`,
+        event_time: `${String(instant.getHours()).padStart(2,'0')}:${String(instant.getMinutes()).padStart(2,'0')}`,
+        utc_offset_minutes: -instant.getTimezoneOffset(),
+        description: `Assignment changed from ${row.previous_enclosure_name} to ${row.new_enclosure_name}.`,
+        previous_enclosure_id: row.previous_enclosure_id,
+        previous_enclosure_name: row.previous_enclosure_name,
+        new_enclosure_id: row.new_enclosure_id,
+        new_enclosure_name: row.new_enclosure_name,
+        automatic: true, occurred_at: row.occurred_at,
+        notes: null, molt_outcome: null, molt_stage: null, weight_g: null,
+        length_cm: null, length_method: null, temperature_c: null, humidity_pct: null
+    };
+}
+
 // Validate dates using DD/MM/YYYY
 function isValidDate(date) {
     if (typeof date !== 'string') {
@@ -376,13 +410,39 @@ app.put('/pets/:id', async (req, res) => {
         });
     }
 
-    db.prepare(`
-        UPDATE pets
-        SET name = ?, species = ?, enclosure_id = ?, gender = ?,
-            date_of_birth = ?, notes = ?, illustration_key = ?
-        WHERE id = ?
-    `).run(name.trim(), species.trim(), enclosure_id, gender, date_of_birth,
-        typeof notes === 'string' ? notes.trim() : null, selectedIllustration, id);
+    const previousId = existingPet.enclosure_id == null ? null : Number(existingPet.enclosure_id);
+    const nextId = enclosure_id == null ? null : Number(enclosure_id);
+    const changed = previousId !== nextId;
+    // Resolve descriptions before beginning the database transaction.
+    const previousName = changed ? await enclosureSnapshotName(previousId) : null;
+    const nextName = changed ? await enclosureSnapshotName(nextId) : null;
+    try {
+        db.exec('BEGIN IMMEDIATE');
+        // Avoid recording a misleading event when concurrent requests race.
+        const current = db.prepare('SELECT enclosure_id FROM pets WHERE id = ?').get(id);
+        if (!current) { db.exec('ROLLBACK'); return res.status(404).json({error:'Pet not found'}); }
+        if ((current.enclosure_id == null ? null : Number(current.enclosure_id)) !== previousId) {
+            db.exec('ROLLBACK');
+            return res.status(409).json({error:'Enclosure assignment changed during this request; refresh and retry.'});
+        }
+        db.prepare(`
+            UPDATE pets
+            SET name = ?, species = ?, enclosure_id = ?, gender = ?,
+                date_of_birth = ?, notes = ?, illustration_key = ?
+            WHERE id = ?
+        `).run(name.trim(), species.trim(), nextId, gender, date_of_birth,
+            typeof notes === 'string' ? notes.trim() : null, selectedIllustration, id);
+        if (changed) {
+            db.prepare(`INSERT INTO enclosure_change_events
+                (pet_id, previous_enclosure_id, previous_enclosure_name, new_enclosure_id, new_enclosure_name, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?)`)
+                .run(id, previousId, previousName, nextId, nextName, new Date().toISOString());
+        }
+        db.exec('COMMIT');
+    } catch (error) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw error;
+    }
 
     const pet = db.prepare(
         'SELECT * FROM pets WHERE id = ?'
@@ -577,7 +637,12 @@ app.get('/feedings/recent', (req, res) => {
 // --------------------------------------------------
 app.get('/pets/:id/events', (req,res) => {
     const petId=lookupEventPet(req,res); if (petId===null) return;
-    res.json(db.prepare('SELECT * FROM animal_events WHERE pet_id=? ORDER BY event_date DESC, event_time DESC,id DESC').all(petId));
+    const observations = db.prepare('SELECT * FROM animal_events WHERE pet_id=?').all(petId);
+    const changes = db.prepare('SELECT * FROM enclosure_change_events WHERE pet_id=?').all(petId).map(formatEnclosureChange);
+    res.json([...observations, ...changes].sort((a,b) =>
+        b.event_date.localeCompare(a.event_date) ||
+        (b.event_time || '').localeCompare(a.event_time || '') ||
+        String(b.id).localeCompare(String(a.id))));
 });
 app.post('/pets/:id/events', (req,res) => {
     const petId=lookupEventPet(req,res); if (petId===null) return;

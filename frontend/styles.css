@@ -1262,3 +1262,27 @@
 .animal-event-length-fields{display:grid;gap:12px;margin:8px 0 14px}
 .animal-event-length-fields[hidden]{display:none!important}
 .animal-event-length-fields>label{display:grid;gap:6px}
+
+/* Stage 4 — green-and-cream comparison controls and quiet relocation context. */
+.pet-enclosure-history-notice{margin-top:18px;padding:17px 20px;background:#f2f5ea;border:1px solid #dce6d4;border-radius:15px;color:#35533b}
+.pet-enclosure-history-notice strong{font:700 17px Georgia,serif;color:#24472f}
+.pet-enclosure-history-notice p{font-size:13px;line-height:1.55;margin:8px 0}
+.pet-enclosure-history-notice small{font-size:11px;line-height:1.5;color:#687e6a}
+.records-compare{margin:18px 0 13px;padding:15px 17px;border:1px solid #e1e8d8;background:#f9faf5;border-radius:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.records-compare-heading{display:flex;flex-direction:column;gap:3px;flex-basis:100%}
+.records-compare-heading strong{font:700 17px Georgia,serif;color:#264732}
+.records-compare-heading span{color:#70816d;font-size:12px}
+.records-compare-options{display:flex;flex:1;flex-wrap:wrap;gap:7px}
+.records-compare-option{display:inline-flex;align-items:center;gap:7px;background:#fffdf9;border:1px solid #d7e1cf;color:#35543a;border-radius:999px;padding:7px 11px;font-size:12px;cursor:pointer;white-space:nowrap}
+.records-compare-option:has(input:checked){background:#e7f0df;border-color:#9ab995}
+.records-compare-option input{accent-color:#4d7955;margin:0}
+.records-compare-option:focus-within{outline:2px solid #618f62;outline-offset:2px}
+@media(max-width:640px){.records-compare{padding:12px}.records-compare-option{font-size:11px}}
+
+/* Stage 4.1 — restore centered Enclosures collection, matching Add Enclosure. */
+.enclosure-management{width:100%;margin-inline:auto}
+/* Preserve approved comparison control styling while placing both actions together. */
+.records-compare-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.records-dual-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;padding:4px 8px 0}
+.records-dual-legend-item{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:650;color:#47614b}
+.records-dual-legend-swatch{display:inline-block;width:20px;height:4px;border-radius:5px}

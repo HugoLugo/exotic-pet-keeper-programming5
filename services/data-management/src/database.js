@@ -67,6 +67,23 @@ db.exec(`
     );
 `);
 
+// Stage 4: automatic, immutable relocation observations. No historical backfill.
+// These are NOT verified occupancy intervals or transferred sensor readings.
+db.exec(`
+    CREATE TABLE IF NOT EXISTS enclosure_change_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        previous_enclosure_id INTEGER,
+        previous_enclosure_name TEXT NOT NULL,
+        new_enclosure_id INTEGER,
+        new_enclosure_name TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        CHECK (previous_enclosure_id IS NOT new_enclosure_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_enclosure_change_pet_time
+        ON enclosure_change_events(pet_id, occurred_at DESC, id DESC);
+`);
+
 // Stage 3D.5.4B: optional keeper-observed environmental context and shedding stage.
 // Existing molting records retain NULL stage (legacy completed/observed molt).
 const animalEventColumns = new Set(db.prepare('PRAGMA table_info(animal_events)').all().map(column => column.name));

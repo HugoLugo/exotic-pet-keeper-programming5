@@ -280,6 +280,11 @@
               </div>
             </div>
           </div>
+          <aside id="petEnclosureHistoryNotice" class="pet-enclosure-history-notice" hidden aria-live="polite">
+            <strong>Recorded enclosure changes</strong>
+            <p id="petEnclosureHistoryText"></p>
+            <small>Previous readings remain in the respective enclosure's environmental history; they are not transferred to the animal.</small>
+          </aside>
           <div class="pet-details-panels">
             <section class="pet-details-panel" aria-labelledby="petDetailsInfoHeading">
               <span class="section-kicker">PROFILE</span>
@@ -488,6 +493,11 @@
         <section class="panel records-timeline-panel" aria-labelledby="recordsTimelineHeading">
           <div class="section-heading records-history-heading"><div><span class="section-kicker">LIFETIME JOURNAL</span><h2 id="recordsTimelineHeading">Historical timeline</h2></div><div class="records-view-toggle" role="group" aria-label="History display"><button type="button" id="recordsListView" class="is-active" aria-pressed="true">List</button><button type="button" id="recordsChartView" aria-pressed="false">Visual history</button></div></div>
           <div id="recordsChartPanel" class="records-chart-panel" hidden><div class="records-chart-toolbar"><div><strong>History overview</strong><p>Events are observations, not a continuous growth measurement. Records without an observation time cannot be placed precisely within a 24-hour window.</p></div><div class="records-range-controls" role="group" aria-label="History date range"><button type="button" data-record-range="24h">24h</button><button type="button" data-record-range="7d">7 days</button><button type="button" data-record-range="30d">30 days</button><button type="button" data-record-range="all" class="is-active">All</button></div></div><div class="records-zoom-row"><span id="recordsGraphCaption">Recorded observations over time</span><div><button type="button" id="recordsZoomIn" aria-label="Zoom into history">Zoom in +</button><button type="button" id="recordsZoomOut" aria-label="Zoom out of history">Zoom out −</button><button type="button" id="recordsZoomReset">Reset zoom</button></div></div><div id="recordsGraphContent" class="records-graph-content" aria-live="polite"></div></div>
+          <div class="records-compare" aria-label="Compare record categories">
+            <div class="records-compare-heading"><strong>Compare categories</strong><span>Select one or more to show together in List and Visual history.</span></div>
+            <div id="recordsCompareOptions" class="records-compare-options" role="group" aria-label="Record categories"></div>
+            <div class="records-compare-actions"><button type="button" id="recordsCompareAll" class="records-clear-filter">Select all</button><button type="button" id="recordsCompareClear" class="records-clear-filter">Clear all</button></div>
+          </div>
           <div class="records-filter-row"><p id="recordsFilterDescription" class="records-hint">Showing all records. Select a summary card to filter.</p><button type="button" id="recordsClearFilter" class="records-clear-filter" hidden>Show all records</button></div>
           <p class="records-hint" id="recordsListHint">Most recent observation dates first. Older feedings may not have a recorded time.</p>
           <div id="recordsTimeline" class="records-timeline" aria-live="polite"></div>

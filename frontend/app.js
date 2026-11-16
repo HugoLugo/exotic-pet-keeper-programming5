@@ -820,9 +820,10 @@ async function openPetDetails(id) {
     $('#petDetailsDelete').disabled = false;
     renderDetailsProfile(petResult.value);
     if (eventResult.status === 'fulfilled' && Array.isArray(eventResult.value)) {
-      renderAnimalEvents(eventResult.value); $('#animalEventLoadError').hidden = true;
+      renderAnimalEvents(eventResult.value); renderEnclosureChangeNotice(eventResult.value); $('#animalEventLoadError').hidden = true;
     } else {
       $('#animalEventList').replaceChildren(); $('#animalEventLoadError').hidden = false;
+      $('#petEnclosureHistoryNotice').hidden = true;
     }
     if (feedingResult.status === 'fulfilled' && Array.isArray(feedingResult.value)) {
       renderDetailsFeedings(feedingResult.value);
@@ -1619,6 +1620,9 @@ editForm.addEventListener('submit',async event => {
     activePet = result;
     renderDetailsProfile(activePet);
     stopPetEdit();
+    // Enclosure moves generate a backend animal event. Refresh the journal and
+    // its enclosure-history notice now, without requiring page navigation.
+    void refreshAnimalEvents(Number(activePet.id));
     loadPetsCollection();
     toast('Pet changes saved.');
   } catch(error) {
@@ -2847,7 +2851,7 @@ $('#enclosureCreateForm').addEventListener('submit',async event => {
 });
 
 // Stage 3D.5.3 — individual animal observations. No enclosure ownership assumed.
-const animalEventNames={molting:'Molting / Shedding',weight:'Weight Measurement',length:'Length Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
+const animalEventNames={molting:'Molting / Shedding',weight:'Weight Measurement',length:'Length Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation',enclosure_change:'Enclosure Change'};
 const moltLabels={successful:'Successful',incomplete:'Incomplete',difficulty_observed:'Difficulty observed',unknown:'Unknown'};
 const moltStageLabels={pre_molt:'Pre-molt / Pre-shed observed',molt_observed:'Molt / Shed observed'};
 let animalEventEditing=null,animalEventPetId=null,animalEventInitial='',animalEventBusy=false;
@@ -2911,6 +2915,14 @@ function cancelAnimalEvent(){
 $('#animalEventAdd').addEventListener('click',()=>openAnimalEvent('add'));
 $('#animalEventCancel').addEventListener('click',cancelAnimalEvent);
 $('#animalEventDialog').addEventListener('cancel',e=>{if(animalEventFieldsDirty()){e.preventDefault();cancelAnimalEvent();}});
+function renderEnclosureChangeNotice(records) {
+  const changes=records.filter(record=>record.event_type==='enclosure_change');
+  const notice=$('#petEnclosureHistoryNotice');
+  notice.hidden=!changes.length;
+  if (!changes.length) return;
+  const latest=changes[0];
+  $('#petEnclosureHistoryText').textContent=`${changes.length} recorded change(s). Latest: ${latest.previous_enclosure_name} → ${latest.new_enclosure_name} (${apiDate(latest.event_date)}). Open the Animal Events journal below for details.`;
+}
 function renderAnimalEvents(records){
   const host=$('#animalEventList');host.replaceChildren();
   if(!records.length){host.append(elem('p','pet-details-empty','No animal observations yet. Choose Add Event to start this animal’s history.'));return;}
@@ -2925,7 +2937,9 @@ function renderAnimalEvents(records){
     if(record.event_type==='length'&&record.length_cm!=null)copy.append(elem('p',null,`Length: ${Number(record.length_cm).toLocaleString(undefined,{maximumFractionDigits:3})} cm · ${({total:'Total length',body:'Body length',diagonal:'Diagonal leg span',shed:'Shed skin length',other:'Other / Not specified'})[record.length_method]||'Unspecified method'}`));
     if(record.weight_g!==null)copy.append(elem('p',null,`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`));
     if(record.description)copy.append(elem('p',null,record.description));
+    if(record.event_type==='enclosure_change')copy.append(elem('small',null,'Automatically recorded · previous readings stay with their enclosure'));
     if(record.notes)copy.append(elem('p','animal-event-note',record.notes));
+    if(record.automatic){article.append(copy);host.append(article);continue;}
     const actions=elem('div','feeding-entry-actions');const edit=elem('button','text-button','Edit');edit.type='button';edit.addEventListener('click',()=>openAnimalEvent('edit',record));
     const del=elem('button','text-button feeding-danger','Delete');del.type='button';del.addEventListener('click',()=>{
       if(petEditing)return toast('Finish pet profile editing first.');const petId=Number(activePet?.id);
@@ -2938,7 +2952,7 @@ function renderAnimalEvents(records){
 async function refreshAnimalEvents(petId){
   try{const records=await feedingRequest(`/api/pets/${petId}/events`);
     if(Number($('#petDetailsPage').dataset.petId)!==petId||$('#petDetailsPage').hidden)return;
-    renderAnimalEvents(records);$('#animalEventLoadError').hidden=true;
+    renderAnimalEvents(records);renderEnclosureChangeNotice(records);$('#animalEventLoadError').hidden=true;
   }catch(error){if(Number($('#petDetailsPage').dataset.petId)===petId)$('#animalEventLoadError').hidden=false;toast(`Could not refresh animal events: ${error.message}`);}
 }
 $('#animalEventRetry').addEventListener('click',()=>{const id=Number($('#petDetailsPage').dataset.petId);if(id>0)void refreshAnimalEvents(id);});
@@ -2968,6 +2982,34 @@ let recordsSelectedPetId = null;
 let recordsRequest = 0;
 let recordsActiveFilter = 'all';
 let recordsSpecialType = 'weight';
+// Selection is independent of summary cards; null means legacy summary-card mode.
+let recordsComparedTypes = null;
+const recordsComparisonChoices = [
+  ['feeding','All feeding'],['feeding_accepted','Feeding accepted'],['feeding_refused','Feeding refused'],['molting','Molting / Shedding'],['weight','Weight'],
+  ['length','Length'],['behavior','Behavior'],['health','Health'],
+  ['husbandry','Husbandry'],['other','Other'],['enclosure_change','Enclosure Change']
+];
+function recordsMatches(item) {
+  if (recordsComparedTypes !== null) return recordsComparedTypes.has(item.type) || (item.type==='feeding' && recordsComparedTypes.has('feeding_'+item.feedingResponse));
+  return recordsActiveFilter==='all'||
+    (recordsActiveFilter==='feeding'&&item.type==='feeding')||
+    (recordsActiveFilter==='events'&&item.type!=='feeding')||
+    (recordsActiveFilter==='special'&&item.type===recordsSpecialType);
+}
+function recordsRenderComparisonControls() {
+  const host=$('#recordsCompareOptions');host.replaceChildren();
+  for(const [type,label] of recordsComparisonChoices){
+    const item=elem('label','records-compare-option');
+    const box=document.createElement('input');box.type='checkbox';box.value=type;
+    box.checked=recordsComparedTypes===null||recordsComparedTypes.has(type);
+    box.addEventListener('change',()=>{
+      if(recordsComparedTypes===null)recordsComparedTypes=new Set(recordsComparisonChoices.map(x=>x[0]));
+      if(box.checked)recordsComparedTypes.add(type);else recordsComparedTypes.delete(type);
+      recordsActiveFilter='all';recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
+    });
+    item.append(box,document.createTextNode(label));host.append(item);
+  }
+}
 let recordsDisplayMode = 'list';
 let recordsRange = 'all';
 let recordsZoom = 1;
@@ -3008,18 +3050,19 @@ function recordsNormalize(feedings, events) {
     const date = recordsObservationDate(record.feeding_date);
     if (!date) continue;
     const response = record.feeding_outcome === 'accepted' ? 'Accepted' : record.feeding_outcome === 'refused' ? 'Refused' : 'Not specified';
-    result.push({key:`feeding-${record.id}`,type:'feeding',source:'Feeding',date,time:record.feeding_time||null,title:`Feeding · ${response}`,details:[record.food,record.notes].filter(Boolean),temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),entrySource:record.entry_source==='quick'?'quick':null,id:Number(record.id)||0});
+    result.push({key:`feeding-${record.id}`,type:'feeding',source:'Feeding',date,time:record.feeding_time||null,title:`Feeding · ${response}`,details:[record.food,record.notes].filter(Boolean),temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),entrySource:record.entry_source==='quick'?'quick':null,feedingResponse:record.feeding_outcome||'recorded',id:Number(record.id)||0});
   }
   for (const record of events) {
     const date = recordsObservationDate(record.event_date);
     if (!date) continue;
-    const names={molting:'Molting / Shedding',weight:'Weight Measurement',length:'Length Measurement',behavior:'Behavior / Activity',health:'Health Observation',husbandry:'Husbandry Observation',other:'Other Observation'};
+    const names={...animalEventNames};
     const outcomes={successful:'Successful',incomplete:'Incomplete',difficulty_observed:'Difficulty observed',unknown:'Unknown'};
     const details=[];
     if (record.event_type==='molting') details.push(`Stage: ${moltStageLabels[record.molt_stage]||'Molt / Shed observed (legacy)'}`);
     if (record.molt_outcome) details.push(`Outcome: ${outcomes[record.molt_outcome]||'Unknown'}`);
     if (record.event_type==='length' && recordsOptionalMeasurement(record.length_cm)!==null) details.push(`Length: ${record.length_cm} cm · ${({total:'Total length',body:'Body length',diagonal:'Diagonal leg span',shed:'Shed skin length',other:'Other / Not specified'})[record.length_method]||'Unspecified method'}`);
     if (record.event_type==='weight' && Number.isFinite(Number(record.weight_g)) && Number(record.weight_g)>0) details.push(`Weight: ${Number(record.weight_g).toLocaleString(undefined,{maximumFractionDigits:3})} g`);
+    if (record.event_type==='enclosure_change') details.push('Automatic · enclosure assignments are recorded, not physical moves independently verified. Earlier sensor readings remain in the previous enclosure.');
     if (record.description) details.push(record.description);
     if (record.notes) details.push(record.notes);
     result.push({key:`event-${record.id}`,type:record.event_type,source:'Animal event',date,time:record.event_time||null,title:names[record.event_type]||'Observation',details,temperature:recordsOptionalMeasurement(record.temperature_c),humidity:recordsOptionalMeasurement(record.humidity_pct),id:Number(record.id)||0});
@@ -3065,7 +3108,7 @@ function recordsRangeItems(items) {
 function recordsRenderGraph(feedings,events) {
  const host=$('#recordsGraphContent');host.replaceChildren();
  const normalized=recordsNormalize(feedings,events);
- const matching=item=>recordsActiveFilter==='all'||(recordsActiveFilter==='feeding'&&item.type==='feeding')||(recordsActiveFilter==='events'&&item.type!=='feeding')||(recordsActiveFilter==='special'&&item.type===recordsSpecialType);
+ const matching=recordsMatches;
  const relevant=normalized.filter(matching);
  const items=recordsRangeItems(relevant);
  const hint24=recordsRange==='24h'&&relevant.some(item=>recordsRecordTime(item)===null);
@@ -3092,7 +3135,15 @@ function recordsRenderGraph(feedings,events) {
  const byDate=new Map();
  for(const item of visible){const stamp=timeOf(item);const key=recordsRange==='24h'?String(stamp):item.date;if(!byDate.has(key))byDate.set(key,stamp);}
  const marks=[...byDate.values()].sort((a,b)=>a-b);
- const L=160,R=963,T=48,B=268,W=R-L;
+ // Reserve equal margins for the two independently labelled measurement axes.
+ // The regular event timeline keeps its established layout.
+ const selectedMeasurementTypes=recordsComparedTypes!==null
+   ? new Set([...recordsComparedTypes].filter(type=>type==='weight'||type==='length'))
+   : recordsActiveFilter==='special'&&['weight','length'].includes(recordsSpecialType)
+     ? new Set([recordsSpecialType]) : new Set();
+ const onlyMeasurementComparison=recordsComparedTypes!==null&&recordsComparedTypes.size===selectedMeasurementTypes.size;
+ const dualMeasurements=onlyMeasurementComparison&&selectedMeasurementTypes.size===2;
+ const L=dualMeasurements?170:160,R=dualMeasurements?830:963,T=48,B=268,W=R-L;
  const svg=recordsSvgNode('svg',{viewBox:'0 0 1000 326',role:'img','aria-label':recordsRange==='24h'?'History plotted by actual recorded clock times':'History chart with observation dates marked on the horizontal axis'});
  const xFor=value=>L+(value-start)/(end-start)*W;
  const fmtDate=value=>{const d=new Date(value);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;};
@@ -3116,9 +3167,64 @@ function recordsRenderGraph(feedings,events) {
   svg.append(recordsSvgNode('line',{x1:x,y1:T,x2:x,y2:B,stroke:'#e0e7db','stroke-width':1}));
   const label=recordsSvgNode('text',{x,y:294,'text-anchor':'middle','font-size':13,fill:'#586b58'});label.textContent=item.clock?fmtClock(item.time):fmtDate(item.time);svg.append(label);
  }
- if(recordsActiveFilter==='special'&&['weight','length'].includes(recordsSpecialType)){
-  const isLength=recordsSpecialType==='length';
-  const measurements=visible.filter(x=>x.type===recordsSpecialType).map(x=>{const record=events.find(e=>'event-'+e.id===x.key);return {item:x,time:timeOf(x),weight:Number(isLength?record?.length_cm:record?.weight_g),method:isLength?record?.length_method:null};}).filter(x=>Number.isFinite(x.weight)&&x.weight>0).sort((a,b)=>a.time-b.time);
+ if(dualMeasurements){
+  // Two physically different units need independent vertical scales. Both
+  // share the actual date/time axis; missing observations are never invented.
+  const series=[
+   {type:'weight',unit:'g',name:'Weight',field:'weight_g',color:'#507d91',side:'left'},
+   {type:'length',unit:'cm',name:'Length',field:'length_cm',color:'#816ba2',side:'right'}
+  ];
+  const plotted=[];
+  for(const config of series){
+   const measurements=visible.filter(item=>item.type===config.type).map(item=>{
+    const record=events.find(e=>'event-'+e.id===item.key);
+    return {item,time:timeOf(item),value:recordsOptionalMeasurement(record?.[config.field]),method:record?.length_method||'other'};
+   }).filter(m=>m.value!==null&&m.value>0).sort((a,b)=>a.time-b.time);
+   if(!measurements.length)continue;
+   const vals=measurements.map(m=>m.value),low=Math.min(...vals),high=Math.max(...vals);
+   const padding=Math.max((high-low)*.15,high*.04,config.type==='weight'?1:0.1);
+   const bottom=low-padding,range=high-low+2*padding;
+   const y=value=>B-((value-bottom)/range)*(B-T);
+   // Mark actual recorded values (like the exact observation dates on X),
+   // rather than arbitrary scale divisions. Avoid overlapping text without
+   // shifting labels away from their true height; every point retains a tooltip.
+   const axisX=config.side==='left'?L-18:R+18;
+   const axisEdge=config.side==='left'?L:R;
+   const uniqueValues=[...new Set(vals)].sort((a,b)=>b-a);
+   let lastLabelY=-Infinity;
+   for(const value of uniqueValues){
+    const tickY=y(value);
+    const direction=config.side==='left'?-1:1;
+    svg.append(recordsSvgNode('line',{x1:axisEdge,x2:axisEdge+direction*7,y1:tickY,y2:tickY,stroke:config.color,'stroke-width':1.5}));
+    if(tickY-lastLabelY<18)continue;
+    const tick=recordsSvgNode('text',{x:axisX,y:tickY+4,'font-size':12,'text-anchor':config.side==='left'?'end':'start',fill:config.color});
+    tick.textContent=`${Number(value.toFixed(2))} ${config.unit}`;
+    svg.append(tick);
+    lastLabelY=tickY;
+   }
+   // Distinct length-measurement methods must not be connected into one line.
+   const methods=config.type==='length'?[...new Set(measurements.map(m=>m.method))]:['all'];
+   const colors=config.type==='length'?['#816ba2','#ab8250','#59866b','#b26f85']: [config.color];
+   methods.forEach((method,index)=>{
+    const subset=config.type==='length'?measurements.filter(m=>m.method===method):measurements;
+    const color=colors[index%colors.length];
+    if(subset.length>1)svg.append(recordsSvgNode('polyline',{points:subset.map(m=>`${xFor(m.time)},${y(m.value)}`).join(' '),fill:'none',stroke:color,'stroke-width':3,'stroke-linejoin':'round'}));
+    for(const point of subset){
+     const dot=recordsSvgNode('circle',{cx:xFor(point.time),cy:y(point.value),r:5.5,fill:color,stroke:'#fffdf9','stroke-width':2});
+     const tip=recordsSvgNode('title');tip.textContent=`${config.name}: ${point.value} ${config.unit}${config.type==='length'?' · '+method:''} · ${apiDate(point.item.date)}${point.item.time?' '+point.item.time:' (time not recorded)'}`;
+     dot.append(tip);svg.append(dot);
+    }
+    plotted.push({name:config.name+(config.type==='length'&&methods.length>1?' · '+method:''),color,count:subset.length});
+   });
+  }
+  const legend=elem('div','records-dual-legend');
+  for(const line of plotted){const entry=elem('span','records-dual-legend-item');const swatch=elem('span','records-dual-legend-swatch');swatch.style.backgroundColor=line.color;entry.append(swatch,document.createTextNode(`${line.name} (${line.count})`));legend.append(entry);}
+  if(plotted.length)host.append(legend);
+  $('#recordsGraphCaption').textContent='Weight (left axis, g) + length (right axis, cm) · recorded measurements only';
+ }else if((recordsComparedTypes===null&&recordsActiveFilter==='special'&&['weight','length'].includes(recordsSpecialType))||(onlyMeasurementComparison&&selectedMeasurementTypes.size===1)){
+  const measurementType=selectedMeasurementTypes.size===1?[...selectedMeasurementTypes][0]:recordsSpecialType;
+  const isLength=measurementType==='length';
+  const measurements=visible.filter(x=>x.type===measurementType).map(x=>{const record=events.find(e=>'event-'+e.id===x.key);return {item:x,time:timeOf(x),weight:Number(isLength?record?.length_cm:record?.weight_g),method:isLength?record?.length_method:null};}).filter(x=>Number.isFinite(x.weight)&&x.weight>0).sort((a,b)=>a.time-b.time);
   if(!measurements.length){host.append(elem('p','records-graph-empty',isLength?'No length measurements in the selected period.':'No weight measurements in the selected period.'));return;}
   const vals=measurements.map(x=>x.weight),low=Math.min(...vals),high=Math.max(...vals),padding=Math.max((high-low)*.15,high*.04,1);
   const y=value=>B-((value-(low-padding))/(high-low+2*padding))*(B-T);
@@ -3141,7 +3247,7 @@ function recordsRenderGraph(feedings,events) {
   }
   $('#recordsGraphCaption').textContent=`${visible.length} displayed observation(s) · actual observation ${recordsRange==='24h'?'times':'dates'} on axis`;
  }
- const axis=recordsSvgNode('text',{x:550,y:322,'text-anchor':'middle','font-size':13,fill:'#657a67'});axis.textContent=recordsRange==='24h'?'Recorded time (device local time)':'Observation date';svg.append(axis);
+ const axis=recordsSvgNode('text',{x:dualMeasurements?(L+R)/2:550,y:322,'text-anchor':'middle','font-size':13,fill:'#657a67'});axis.textContent=recordsRange==='24h'?'Recorded time (device local time)':'Observation date';svg.append(axis);
  host.append(svg);
  const note=elem('p','records-graph-weight-note',`${recordsRange==='24h'?fmtClock(start)+' – '+fmtClock(end):fmtDate(start)+' – '+fmtDate(end)} · Zoom ${recordsZoom}× · ${visible.length} record(s) visible${hint24?' · Untimed records excluded from 24h view':''}`);host.append(note);
 }
@@ -3158,11 +3264,13 @@ function recordsRenderTimeline(feedings,events) {
     button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);
   }
   const labels={all:'Showing all records.',feeding:'Showing feeding records.',events:'Showing all animal events.',special:`Showing ${specialLabels[recordsSpecialType]||'selected observations'}.`};
-  $('#recordsFilterDescription').textContent=labels[recordsActiveFilter]+' Select a summary card to filter.';
-  $('#recordsClearFilter').hidden=recordsActiveFilter==='all';
+  $('#recordsFilterDescription').textContent=recordsComparedTypes!==null
+    ? `Comparing ${recordsComparedTypes.size} selected category(s).` : labels[recordsActiveFilter]+' Select a summary card to filter.';
+  recordsRenderComparisonControls();
+  $('#recordsClearFilter').hidden=recordsActiveFilter==='all'&&recordsComparedTypes===null;
   if(recordsDisplayMode==='chart')recordsRenderGraph(feedings,events);
   const host=$('#recordsTimeline');host.replaceChildren();
-  const items=recordsNormalize(feedings,events).filter(item=>recordsActiveFilter==='all'||(recordsActiveFilter==='feeding'&&item.type==='feeding')||(recordsActiveFilter==='events'&&item.type!=='feeding')||(recordsActiveFilter==='special'&&item.type===recordsSpecialType));
+  const items=recordsNormalize(feedings,events).filter(recordsMatches);
   if (!items.length) {host.append(elem('p','records-empty','No records in this category for this animal. Choose another category or show all records.'));return;}
   for (const item of items) {
     const article=elem('article','records-entry');
@@ -3243,10 +3351,12 @@ $('#recordsAnimalSelect').addEventListener('change',event=>{
 
 // Records & Insights filters are presentation-only; they do not modify saved data.
 for(const button of document.querySelectorAll('[data-record-filter]'))button.addEventListener('click',()=>{
- recordsActiveFilter=recordsActiveFilter===button.dataset.recordFilter?'all':button.dataset.recordFilter;
+ recordsComparedTypes=null;recordsActiveFilter=recordsActiveFilter===button.dataset.recordFilter?'all':button.dataset.recordFilter;
  recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
 });
-$('#recordsClearFilter').addEventListener('click',()=>{recordsActiveFilter='all';recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);});
+$('#recordsClearFilter').addEventListener('click',()=>{recordsActiveFilter='all';recordsComparedTypes=null;recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);});
+$('#recordsCompareAll').addEventListener('click',()=>{recordsComparedTypes=null;recordsActiveFilter='all';recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);});
+$('#recordsCompareClear').addEventListener('click',()=>{recordsComparedTypes=new Set();recordsActiveFilter='all';recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);});
 const recordsSpecialToggle=$('#recordsSpecialToggle');
 const recordsSpecialMenu=$('#recordsSpecialMenu');
 function recordsCloseSpecialMenu(){recordsSpecialMenu.hidden=true;recordsSpecialToggle.setAttribute('aria-expanded','false');}
@@ -3256,7 +3366,7 @@ recordsSpecialToggle.addEventListener('click',event=>{
 });
 for(const button of recordsSpecialMenu.querySelectorAll('[data-record-special]'))button.addEventListener('click',event=>{
  event.stopPropagation();recordsSpecialType=['weight','length','molting','behavior','health'].includes(button.dataset.recordSpecial)?button.dataset.recordSpecial:'weight';
- recordsActiveFilter='special';recordsCloseSpecialMenu();recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
+ recordsComparedTypes=null;recordsActiveFilter='special';recordsCloseSpecialMenu();recordsRenderTimeline(recordsCurrentFeedings,recordsCurrentEvents);
  recordsSpecialToggle.focus();
 });
 document.addEventListener('click',event=>{if(!event.target.closest('.records-count-wrap'))recordsCloseSpecialMenu();});
