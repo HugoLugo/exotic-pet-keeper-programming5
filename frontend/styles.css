@@ -505,6 +505,13 @@
 .enclosure-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .enclosure-card-head h3{font-family:Georgia,serif;font-size:22px;margin:7px 0 0;color:#294731;overflow-wrap:anywhere}
 .enclosure-card-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;background:#e9efdf;border-radius:14px;color:#53785a;font-size:32px}
+/* Stage 8.1 — monitoring-mode labels on enclosure collection cards. */
+.enclosure-monitoring-badge{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;margin-top:11px;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:750;line-height:1.2;white-space:nowrap}
+.enclosure-monitoring-badge--manual{background:#eeece5;color:#696956}
+.enclosure-monitoring-badge--automatic{background:#e5f0e0;color:#356943}
+.enclosure-monitoring-badge-icon{display:inline-block;flex:none;width:13px;height:13px;background:currentColor;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+.enclosure-monitoring-badge-icon--manual{-webkit-mask-image:url('./public/assets/icons/icon-monitoring-manual.svg');mask-image:url('./public/assets/icons/icon-monitoring-manual.svg')}
+.enclosure-monitoring-badge-icon--automatic{-webkit-mask-image:url('./public/assets/icons/icon-monitoring-automatic.svg');mask-image:url('./public/assets/icons/icon-monitoring-automatic.svg')}
 .enclosure-card-occupancy{font-size:12px;color:#61745e;margin:14px 0 19px}
 .enclosure-card-ranges{border-top:1px solid #e0e8d8;padding-top:17px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .enclosure-card-ranges>div{display:grid;gap:7px}

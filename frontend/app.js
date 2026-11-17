@@ -2766,6 +2766,15 @@ function renderEnclosuresCollection() {
     const title = elem('div');
     title.append(elem('span', 'section-kicker', (enclosure.enclosureType || 'HABITAT').toUpperCase()),
       elem('h3', null, enclosure.name));
+    // Stage 8.1: display the existing monitoring mode; no monitoring behavior changes.
+    if (enclosure.monitoringMode === 'manual' || enclosure.monitoringMode === 'automatic') {
+      const manual = enclosure.monitoringMode === 'manual';
+      const modeBadge = elem('span', `enclosure-monitoring-badge enclosure-monitoring-badge--${enclosure.monitoringMode}`);
+      const modeIcon = elem('span', `enclosure-monitoring-badge-icon enclosure-monitoring-badge-icon--${enclosure.monitoringMode}`);
+      modeIcon.setAttribute('aria-hidden', 'true');
+      modeBadge.append(modeIcon, document.createTextNode(manual ? 'Manual' : 'Automatic'));
+      title.append(modeBadge);
+    }
     const icon = elem('span', 'enclosure-card-icon', '⌂'); icon.setAttribute('aria-hidden','true');
     head.append(title, icon);
     const count = enclosurePetCounts == null ? null : (enclosurePetCounts.get(Number(enclosure.id)) || 0);
