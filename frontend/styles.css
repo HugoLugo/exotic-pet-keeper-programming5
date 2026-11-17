@@ -1342,3 +1342,40 @@
 .records-export-error[hidden]{display:none}
 .records-export-dialog .feeding-actions{margin:2px 0 0;gap:12px;flex-wrap:wrap}
 @media(max-width:560px){.records-export-dialog{padding:20px 18px}.records-export-categories{grid-template-columns:1fr}.records-export-dialog .records-export-choice-field>label{display:flex;margin:6px 0 12px}.records-history-actions{width:100%;justify-content:flex-start}.records-export-dates{grid-template-columns:1fr}}
+
+
+/* Stage 6E — approved visual assets */
+/* Existing sidebar <span> stays unchanged. CSS masks inherit active/inactive colors. */
+.nav-glyph--records {
+  display: block;
+  overflow: hidden;
+  background-color: currentColor;
+  -webkit-mask: url('./public/assets/icons/icon-records.svg') center / contain no-repeat;
+  mask: url('./public/assets/icons/icon-records.svg') center / contain no-repeat;
+}
+.nav-glyph--records::before { content: none; }
+/* No arrow or CTA in the Records summary card. Keep the layout stable. */
+.stat-card .records-dashboard-symbol { display: block; min-height: 54px; font-size: 0; }
+.stat-card .stat-illustration--records { width: clamp(110px, 44%, 230px); right: 5px; object-fit: contain; }
+.stat-card.stat-alerts > div:first-child { max-width: 59%; }
+/* Outline environmental icons: 20px with accessible adjacent text labels. */
+.enclosure-monitor-label { display: inline-flex; align-items: center; gap: 6px; }
+.environment-icon {
+  display: inline-block; flex: none; width: 20px; height: 20px;
+  background-color: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.environment-icon--temperature {
+  -webkit-mask-image: url('./public/assets/icons/icon-temperature.svg');
+  mask-image: url('./public/assets/icons/icon-temperature.svg');
+}
+.environment-icon--humidity {
+  -webkit-mask-image: url('./public/assets/icons/icon-humidity.svg');
+  mask-image: url('./public/assets/icons/icon-humidity.svg');
+}
+@media (max-width: 680px) {
+  .stat-card .stat-illustration--records { width: 39%; right: 4px; }
+  .stat-card .records-dashboard-symbol { min-height: 44px; }
+}

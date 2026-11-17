@@ -43,7 +43,7 @@
         <section class="stats-grid" aria-label="Overview statistics">
           <button type="button" class="stat-card dashboard-stat-link" data-go="pets" aria-label="View registered pets"><div><span class="stat-label">Registered Pets</span><strong id="petCount">0</strong><span class="stat-note">Animals in your care</span></div><img src="./public/assets/illustrations/animals/leopard-gecko.webp" alt="" /></button>
           <button type="button" class="stat-card stat-enclosures dashboard-stat-link" data-go="enclosures" aria-label="View enclosures"><div><span class="stat-label">Enclosures</span><strong id="enclosureCount">0</strong><span class="stat-note">Managed habitats</span></div><img class="stat-illustration stat-illustration--enclosures" src="./public/assets/illustrations/dashboard/enclosures.webp" alt="" aria-hidden="true" /></button>
-          <button type="button" class="stat-card stat-alerts dashboard-stat-link" data-go="records" aria-label="View Records and Insights"><div><span class="stat-label">Records &amp; Insights</span><strong class="records-dashboard-symbol" aria-hidden="true">↗</strong><span class="stat-note">Explore your animals’ care history</span></div><span class="records-dashboard-art" aria-hidden="true">▤</span></button>
+          <button type="button" class="stat-card stat-alerts dashboard-stat-link" data-go="records" aria-label="View Records and Insights"><div><span class="stat-label">Records &amp; Insights</span><strong class="records-dashboard-symbol" aria-hidden="true"></strong><span class="stat-note">Explore your animals’ care history</span></div><img class="stat-illustration stat-illustration--records" src="./public/assets/illustrations/dashboard/records-insights.webp" alt="" aria-hidden="true" /></button>
         </section>
         <div class="dashboard-grid">
           <section class="panel readings-panel" aria-labelledby="readingsTitle"><div class="section-heading"><div><span class="section-kicker">HABITAT MONITORING</span><h2 id="readingsTitle">Recent Environmental Readings</h2></div><button class="text-button" data-go="enclosures">View Enclosures <span aria-hidden="true">→</span></button></div><div class="table-scroll"><table><thead><tr><th>Enclosure</th><th>Temperature</th><th>Humidity</th><th>Status</th><th>Last Reading</th></tr></thead><tbody id="readingsRows"></tbody></table></div></section>
@@ -111,12 +111,12 @@
             <div class="enclosure-monitor-status" id="enclosureMonitoringStatus" role="status" aria-live="polite" data-state="loading">Loading environmental conditions…</div>
             <div class="enclosure-monitor-measurements">
               <div class="enclosure-monitor-measure" id="enclosureMonitoringTemperatureCard">
-                <span class="enclosure-monitor-label">♨ Temperature</span>
+                <span class="enclosure-monitor-label"><span class="environment-icon environment-icon--temperature" aria-hidden="true"></span>Temperature</span>
                 <strong id="enclosureMonitoringTemperature">—</strong>
                 <span class="enclosure-monitor-range" id="enclosureMonitoringTemperatureRange">Acceptable range: —</span>
               </div>
               <div class="enclosure-monitor-measure" id="enclosureMonitoringHumidityCard">
-                <span class="enclosure-monitor-label">◉ Humidity</span>
+                <span class="enclosure-monitor-label"><span class="environment-icon environment-icon--humidity" aria-hidden="true"></span>Humidity</span>
                 <strong id="enclosureMonitoringHumidity">—</strong>
                 <span class="enclosure-monitor-range" id="enclosureMonitoringHumidityRange">Acceptable range: —</span>
               </div>
