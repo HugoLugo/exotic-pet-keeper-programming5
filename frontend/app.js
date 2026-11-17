@@ -1711,6 +1711,56 @@ startDashboardRefresh();
 // Stage 3C — Feeding Management. This uses existing individual feeding APIs
 // and additive feeding-group/bulk endpoints in Data Management.
 const feedState = {pets:[],groups:[],selected:new Set(),refused:new Set(),groupEditing:null,busy:false};
+// Stage 8.4 inline refinement: move the SAME form between its dialog and the
+// Individual Feeding workspace, never clone it or introduce a second save path.
+function isIndividualFeedingVisible(){return !$('#feedingPage').hidden&&!$('#feedingIndividualWorkspace').hidden;}
+function restoreFeedingRecordDialog(){
+ const form=$('#feedingRecordForm'),dialog=$('#feedingRecordDialog');
+ if(form.parentElement!==dialog)dialog.append(form);
+ $('#feedingIndividualFormHost').hidden=true;
+ $('#feedingRecordCancel').textContent='Cancel';
+}
+function showIndividualFeedingForm(){
+ const pet=feedState.pets.find(p=>p.id===Number($('#feedingIndividualPet').value));
+ if(!pet){$('#feedingIndividualFormHost').hidden=true;return;}
+ openFeedingRecord('add',null,pet,true);
+}
+function setStage8FeedingMode(mode){
+ const quick=mode!=='individual';
+ if(recordBusy)return;
+ const apply=()=>{
+  if(quick)restoreFeedingRecordDialog();
+  $('#feedingModeQuick').classList.toggle('is-active',quick);
+  $('#feedingModeIndividual').classList.toggle('is-active',!quick);
+  $('#feedingModeQuick').setAttribute('aria-pressed',String(quick));
+  $('#feedingModeIndividual').setAttribute('aria-pressed',String(!quick));
+  $('.feeding-workspace').hidden=!quick;
+  $('#feedingIndividualWorkspace').hidden=quick;
+  $('.feeding-groups-panel').hidden=!quick;
+  if(!quick)showIndividualFeedingForm();
+ };
+ if(quick&&isIndividualFeedingVisible()&&!$('#feedingIndividualFormHost').hidden&&recordIsDirty()){
+  confirmFeeding('Discard your unsaved individual feeding?',apply);
+ }else apply();
+}
+$('#feedingModeQuick').addEventListener('click',()=>setStage8FeedingMode('quick'));
+$('#feedingModeIndividual').addEventListener('click',()=>setStage8FeedingMode('individual'));
+$('#feedingIndividualPet').addEventListener('change',()=>{
+ const select=$('#feedingIndividualPet'),next=select.value,prior=recordPetId;
+ const apply=()=>{feedingFeedback('#feedingIndividualMessage','');showIndividualFeedingForm();};
+ if(!$('#feedingIndividualFormHost').hidden&&recordIsDirty()){
+  select.value=String(prior||'');
+  confirmFeeding('Discard your unsaved feeding and choose another animal?',()=>{select.value=next;apply();});
+ }else apply();
+});
+function renderIndividualFeedingPets(){
+ const select=$('#feedingIndividualPet'),previous=select.value;
+ select.replaceChildren(new Option('Select an animal',''));
+ for(const pet of feedState.pets)select.add(new Option(`${pet.name} — ${pet.species||'Unknown species'}`,String(pet.id)));
+ if([...select.options].some(option=>option.value===previous))select.value=previous;
+ else if(feedState.pets.length)select.value=String(feedState.pets[0].id);
+ if(isIndividualFeedingVisible()&&($('#feedingIndividualFormHost').hidden||recordPetId!==Number(select.value)))showIndividualFeedingForm();
+}
 const isoToday = () => {const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const apiDate = iso => {const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
 const isoDate = display => {const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(display||'');return m?`${m[3]}-${m[2]}-${m[1]}`:'';};
@@ -1797,7 +1847,7 @@ async function loadFeedingWorkspace(){
   const species=[...new Set(pets.map(p=>p.species||'Unknown'))].sort((a,b)=>a.localeCompare(b));
   const select=$('#feedingSpeciesFilter');const old=select.value;select.replaceChildren(new Option('All species',''));
   for(const value of species)select.add(new Option(value,value));if(species.includes(old))select.value=old;
-  renderFeedingGroups();renderFeedingChoices();feedingFeedback('#quickFeedingMessage','');
+  renderFeedingGroups();renderFeedingChoices();renderIndividualFeedingPets();feedingFeedback('#quickFeedingMessage','');
  }catch(err){feedingFeedback('#quickFeedingMessage',`Could not load feeding data: ${err.message}`,true);}
 }
 $('#feedingPetSearch').addEventListener('input',renderFeedingChoices);
@@ -1860,15 +1910,26 @@ function feedingChosenTime(dateField, timeField){
 function feedingOptionalNumber(id){const value=$(id).value.trim();return value===''?null:Number(value);}
 function recordFields(){return {food:$('#feedingRecordFood').value.trim(),feeding_date:apiDate($('#feedingRecordDate').value),feeding_time:$('#feedingRecordTime').value||null,feeding_outcome:$('#feedingRecordOutcome').value,notes:$('#feedingRecordNotes').value.trim(),temperature_c:feedingOptionalNumber('#feedingRecordTemperature'),humidity_pct:feedingOptionalNumber('#feedingRecordHumidity')};}
 function recordIsDirty(){return JSON.stringify(recordFields())!==recordInitial;}
-function openFeedingRecord(mode,record=null){
- if(!activePet||petEditing)return toast('Finish pet profile editing first.');
- recordMode=mode;recordBeingEdited=record;recordPetId=Number(activePet.id);
+function openFeedingRecord(mode,record=null,selectedPet=null,inline=false){
+ const targetPet=selectedPet||activePet;
+ if(!targetPet||petEditing)return toast('Finish pet profile editing first.');
+ if(inline){
+  $('#feedingIndividualFormHost').append($('#feedingRecordForm'));
+  $('#feedingIndividualFormHost').hidden=false;
+  $('#feedingRecordCancel').textContent='Clear form';
+ }else restoreFeedingRecordDialog();
+ recordMode=mode;recordBeingEdited=record;recordPetId=Number(targetPet.id);
  $('#feedingRecordDialogTitle').textContent=mode==='edit'?'Edit Feeding Record':'Add Feeding';
  $('#feedingRecordFood').value=record?.food||'';$('#feedingRecordOutcome').value=record?.feeding_outcome||'accepted';$('#feedingRecordDate').value=record?isoDate(record.feeding_date):isoToday();$('#feedingRecordNotes').value=record?.notes||'';$('#feedingRecordTime').value=record?.feeding_time||'';$('#feedingRecordTemperature').value=record?.temperature_c??'';$('#feedingRecordHumidity').value=record?.humidity_pct??'';$('#feedingRecordTemperature').removeAttribute('aria-invalid');$('#feedingRecordHumidity').removeAttribute('aria-invalid');refreshSharedDateControls();
  $('#feedingRecordSave').textContent=mode==='edit'?'Save Changes':'Save Feeding';feedingFeedback('#feedingRecordMessage','');
- recordInitial=JSON.stringify(recordFields());$('#feedingRecordDialog').showModal();
+ recordInitial=JSON.stringify(recordFields());if(!inline)$('#feedingRecordDialog').showModal();
 }
-function cancelFeedingRecord(){if(recordIsDirty())confirmFeeding('Discard your unsaved feeding changes?',()=>$('#feedingRecordDialog').close());else $('#feedingRecordDialog').close();}
+function cancelFeedingRecord(){
+ const inline=$('#feedingRecordForm').parentElement===$('#feedingIndividualFormHost');
+ const clear=()=>{if(inline)showIndividualFeedingForm();else $('#feedingRecordDialog').close();};
+ if(recordIsDirty())confirmFeeding(inline?'Clear the unsaved feeding form?':'Discard your unsaved feeding changes?',clear);
+ else clear();
+}
 $('#petAddFeeding').addEventListener('click',()=>openFeedingRecord('add'));
 $('#feedingRecordCancel').addEventListener('click',cancelFeedingRecord);
 $('#feedingRecordDialog').addEventListener('cancel',e=>{if(recordIsDirty()){e.preventDefault();cancelFeedingRecord();}});
@@ -1880,7 +1941,9 @@ $('#feedingRecordForm').addEventListener('submit',async e=>{
  payload.feeding_time=payload.feeding_time||(recordMode==='edit'?null:feedingChosenTime('#feedingRecordDate','#feedingRecordTime'));
  recordBusy=true;$('#feedingRecordSave').disabled=true;
  try{const path=`/api/pets/${recordPetId}/feedings${recordMode==='edit'?`/${recordBeingEdited.id}`:''}`;
-  await feedingRequest(path,recordMode==='edit'?'PUT':'POST',payload);$('#feedingRecordDialog').close();
+  await feedingRequest(path,recordMode==='edit'?'PUT':'POST',payload);
+  const inline=$('#feedingRecordForm').parentElement===$('#feedingIndividualFormHost');
+  if(inline)showIndividualFeedingForm();else $('#feedingRecordDialog').close();
   await refreshPetFeedings(recordPetId);loadRecentFeedings();toast(recordMode==='edit'?'Feeding updated.':'Feeding added.');
  }catch(err){feedingFeedback('#feedingRecordMessage',`Could not save: ${err.message}`,true);}
  finally{recordBusy=false;$('#feedingRecordSave').disabled=false;}

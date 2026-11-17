@@ -1428,3 +1428,48 @@
 .collection-pet-star{display:block;width:19px;height:19px;background:currentColor;-webkit-mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat;mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat}
 .collection-pet-favorite.is-favorite .collection-pet-star{-webkit-mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg');mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg')}
 @media(prefers-reduced-motion:reduce){.collection-pet-favorite{transition:none}}
+
+/* Stage 8.4 — Feeding mode navigation (existing feeding forms are reused). */
+.feeding-mode-switch{display:inline-flex;gap:5px;padding:5px;margin:0 0 18px;border:1px solid #dce5d2;border-radius:13px;background:#edf2e5;max-width:100%;flex-wrap:wrap}
+.feeding-mode-button{border:0;border-radius:9px;background:transparent;color:#46654a;font:inherit;font-size:13px;font-weight:750;padding:11px 17px;cursor:pointer}
+.feeding-mode-button.is-active{background:#315f39;color:#fff;box-shadow:0 2px 8px #233c2520}
+.feeding-mode-button:focus-visible{outline:3px solid #83ad6a;outline-offset:2px}
+.feeding-individual-workspace{min-height:245px}
+.feeding-individual-label{display:block;font-size:12px;font-weight:750;color:#3a563d;margin:18px 0 7px}
+.feeding-individual-pet{width:100%;max-width:490px;border:1px solid #daddd0;border-radius:10px;background:#fffdf9;color:#203428;font:inherit;font-size:13px;padding:12px}
+.feeding-individual-actions{margin:18px 0 12px}
+.feeding-individual-actions .primary-button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:680px){.feeding-mode-switch{display:flex}.feeding-mode-button{flex:1;min-width:125px;padding:10px 8px}}
+
+/* Stage 8.4 inline Individual Feeding — single shared record form. */
+.feeding-individual-form-host{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.feeding-individual-form-host #feedingRecordForm{display:grid;gap:15px;max-width:100%}
+.feeding-individual-form-host #feedingRecordForm>label{display:grid;gap:7px;font-size:12px;font-weight:750;color:#3a563d}
+.feeding-individual-form-host #feedingRecordForm input:not([type="date"]):not([type="time"]),
+.feeding-individual-form-host #feedingRecordForm textarea,
+.feeding-individual-form-host #feedingRecordForm select{width:100%;min-width:0;background:#fffdf9;border:1px solid #daddd0;border-radius:10px;color:#203428;padding:11px 12px;font:inherit;font-size:13px}
+.feeding-individual-form-host #feedingRecordForm textarea{resize:vertical}
+.feeding-individual-form-host #feedingRecordForm h2{display:none}
+.feeding-individual-form-host #feedingRecordForm>.section-kicker{display:none}
+.feeding-individual-form-host .shared-time-wrap select{flex:1;min-width:0;width:auto;padding:11px 10px;min-height:45px;border:1px solid #dfe4d6;border-radius:11px;background:#fffdf9;color:#304833;font-size:13px}
+.feeding-individual-form-host .shared-date-wrap .add-pet-calendar{z-index:50}
+@media(max-width:680px){.feeding-individual-form-host #feedingRecordForm .animal-event-environment-fields{grid-template-columns:1fr}}
+
+/* Stage 8.4 inline calendar month/year selector correction. */
+.feeding-individual-form-host #feedingRecordForm .add-pet-calendar-navigation select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  background: #f1f5ea;
+  border: 1px solid #dce5d4;
+  border-radius: 9px;
+  color: #35553b;
+}

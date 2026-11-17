@@ -371,6 +371,10 @@
         <div class="illustration-options" id="illustrationOptions"></div>
       </dialog>
       <section id="feedingPage" class="feeding-management" aria-label="Feeding management" hidden>
+        <div class="feeding-mode-switch" role="group" aria-label="Feeding workflow">
+          <button type="button" id="feedingModeQuick" class="feeding-mode-button is-active" aria-pressed="true">Quick Feeding</button>
+          <button type="button" id="feedingModeIndividual" class="feeding-mode-button" aria-pressed="false">Individual Feeding</button>
+        </div>
         <div class="feeding-layout">
           <section class="panel feeding-workspace" aria-labelledby="quickFeedTitle">
             <div class="section-heading"><div><span class="section-kicker">FEEDING SESSION</span><h2 id="quickFeedTitle">Quick Feeding</h2></div><span id="feedingSelectedCount" class="feeding-counter">0 selected</span></div>
@@ -385,6 +389,14 @@
               <p id="quickFeedingMessage" class="feeding-message feeding-wide" role="status" aria-live="polite"></p>
               <div class="feeding-wide feeding-actions"><button class="primary-button" id="quickFeedingSave" type="submit">Save Feedings</button></div>
             </form>
+          </section>
+          <section id="feedingIndividualWorkspace" class="panel feeding-individual-workspace" aria-labelledby="feedingIndividualTitle" hidden>
+            <div class="section-heading"><div><span class="section-kicker">CARE LOG</span><h2 id="feedingIndividualTitle">Individual Feeding</h2></div></div>
+            <p class="feeding-hint">Select one animal to record a feeding, including feeding response and optional environmental observations.</p>
+            <label class="feeding-individual-label" for="feedingIndividualPet">Animal</label>
+            <select id="feedingIndividualPet" class="feeding-individual-pet"><option value="">Select an animal</option></select>
+            <p id="feedingIndividualMessage" class="feeding-message" role="status" aria-live="polite"></p>
+            <div id="feedingIndividualFormHost" class="feeding-individual-form-host" hidden></div>
           </section>
           <div class="feeding-right-column">
           <section class="panel feeding-groups-panel" aria-labelledby="feedingGroupsTitle">
