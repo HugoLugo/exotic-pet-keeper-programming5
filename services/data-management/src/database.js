@@ -115,7 +115,8 @@ for (const [name, definition] of [
     ['gender', "TEXT NOT NULL DEFAULT 'unknown'"],
     ['date_of_birth', 'TEXT'],
     ['notes', 'TEXT'],
-    ['illustration_key', 'TEXT']
+    ['illustration_key', 'TEXT'],
+    ['is_favorite', 'INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0,1))']
 ]) {
     if (!columns.some(column => column.name === name)) {
         db.exec(`ALTER TABLE pets ADD COLUMN ${name} ${definition}`);

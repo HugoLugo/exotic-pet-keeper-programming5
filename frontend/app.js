@@ -549,7 +549,7 @@ function renderPetsCollection() {
   const search = $('#petsPageSearch').value.trim().toLocaleLowerCase();
   const matches = collectionPets.filter(pet =>
     `${pet.name || ''} ${pet.species || ''}`.toLocaleLowerCase().includes(search)
-  );
+  ).sort((a, b) => Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite)));
   const host = $('#petsCollectionGrid');
   host.replaceChildren();
   const message = $('#petsCollectionMessage');
@@ -588,7 +588,44 @@ function renderPetsCollection() {
       imageBox.setAttribute('aria-label', 'No illustration selected');
     }
     const content = elem('div', 'collection-pet-info');
-    content.append(elem('h3', null, pet.name || 'Unnamed pet'));
+    const heading = elem('div', 'collection-pet-heading');
+    heading.append(elem('h3', null, pet.name || 'Unnamed pet'));
+    const favorite = elem('button', 'collection-pet-favorite');
+    favorite.type = 'button';
+    const isFavorite = pet.is_favorite === 1 || pet.is_favorite === true;
+    favorite.classList.toggle('is-favorite', isFavorite);
+    favorite.setAttribute('aria-pressed', String(isFavorite));
+    favorite.setAttribute('aria-label', `${isFavorite ? 'Remove' : 'Add'} ${pet.name || 'pet'} ${isFavorite ? 'from' : 'to'} favorites`);
+    favorite.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+    favorite.disabled = petDeleteMode;
+    const star = elem('span', 'collection-pet-star');
+    star.setAttribute('aria-hidden', 'true');
+    favorite.append(star);
+    favorite.addEventListener('click', async event => {
+      event.stopPropagation();
+      if (favorite.disabled || petDeleteMode) return;
+      favorite.disabled = true;
+      try {
+        const response = await fetch(`/api/pets/${encodeURIComponent(pet.id)}/favorite`, {
+          method: 'PATCH',
+          headers: {'Content-Type':'application/json', Accept:'application/json'},
+          body: JSON.stringify({isFavorite: !isFavorite})
+        });
+        if (!response.ok) {
+          const problem = await response.json().catch(() => ({}));
+          throw new Error(problem.error || `HTTP ${response.status}`);
+        }
+        const updated = await response.json();
+        const index = collectionPets.findIndex(item => Number(item.id) === Number(pet.id));
+        if (index !== -1) collectionPets[index] = updated;
+        renderPetsCollection();
+      } catch (error) {
+        favorite.disabled = false;
+        toast(`Could not update pet favorite: ${error.message}`);
+      }
+    });
+    heading.append(favorite);
+    content.append(heading);
     const speciesText=elem('p','collection-pet-species');speciesText.append(elem('i',null,pet.species || 'Species not specified'));content.append(speciesText);
     const enclosure = pet.enclosure_id == null ? 'Unassigned'
       : collectionEnclosures.get(Number(pet.enclosure_id)) || `Enclosure #${pet.enclosure_id}`;
@@ -2745,8 +2782,10 @@ let enclosurePetCounts = null;
 function renderEnclosuresCollection() {
   const host = $('#enclosuresGrid'); host.replaceChildren();
   const search = $('#enclosuresSearch').value.trim().toLocaleLowerCase();
+  // Favorite enclosures are shown first, preserving original order within each group.
   const filtered = enclosureCollection.filter(item =>
-    `${item.name || ''} ${item.enclosureType || ''}`.toLocaleLowerCase().includes(search));
+    `${item.name || ''} ${item.enclosureType || ''}`.toLocaleLowerCase().includes(search))
+    .sort((a, b) => Number(Boolean(b.isFavorite)) - Number(Boolean(a.isFavorite)));
   $('#enclosuresTotal').textContent = String(enclosureCollection.length);
   $('#enclosuresOccupied').textContent = enclosurePetCounts == null ? '—' :
     String([...enclosurePetCounts.values()].reduce((sum, count) => sum + count, 0));
@@ -2775,8 +2814,41 @@ function renderEnclosuresCollection() {
       modeBadge.append(modeIcon, document.createTextNode(manual ? 'Manual' : 'Automatic'));
       title.append(modeBadge);
     }
-    const icon = elem('span', 'enclosure-card-icon', '⌂'); icon.setAttribute('aria-hidden','true');
-    head.append(title, icon);
+    // The star is an interactive favorite control, not a navigation link.
+    const favorite = elem('button', 'enclosure-card-favorite');
+    favorite.type = 'button';
+    const isFavorite = enclosure.isFavorite === true;
+    favorite.classList.toggle('is-favorite', isFavorite);
+    favorite.setAttribute('aria-pressed', String(isFavorite));
+    favorite.setAttribute('aria-label', `${isFavorite ? 'Remove' : 'Add'} ${enclosure.name} ${isFavorite ? 'from' : 'to'} favorites`);
+    favorite.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+    const star = elem('span', 'enclosure-card-star');
+    star.setAttribute('aria-hidden', 'true');
+    favorite.append(star);
+    favorite.addEventListener('click', async event => {
+      event.stopPropagation();
+      if (favorite.disabled) return;
+      favorite.disabled = true;
+      try {
+        const response = await fetch(`/api/enclosures/${encodeURIComponent(enclosure.id)}/favorite`, {
+          method: 'PATCH',
+          headers: {'Content-Type':'application/json', Accept:'application/json'},
+          body: JSON.stringify({isFavorite: !isFavorite})
+        });
+        if (!response.ok) {
+          const problem = await response.json().catch(() => ({}));
+          throw new Error(problem.error || `HTTP ${response.status}`);
+        }
+        const updated = await response.json();
+        const index = enclosureCollection.findIndex(item => Number(item.id) === Number(enclosure.id));
+        if (index !== -1) enclosureCollection[index] = updated;
+        renderEnclosuresCollection();
+      } catch (error) {
+        favorite.disabled = false;
+        toast(`Could not update favorite: ${error.message}`);
+      }
+    });
+    head.append(title, favorite);
     const count = enclosurePetCounts == null ? null : (enclosurePetCounts.get(Number(enclosure.id)) || 0);
     const occupancy = elem('p', 'enclosure-card-occupancy', count === null ? 'Occupancy unavailable' :
       `${count} ${count === 1 ? 'pet' : 'pets'} assigned`);

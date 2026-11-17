@@ -276,6 +276,20 @@ app.get('/pets', (req, res) => {
     res.status(200).json(pets);
 });
 
+// Stage 8.3: favorite-only update without touching records or enclosure assignments.
+app.patch('/pets/:id/favorite', (req, res) => {
+    const id = Number(req.params.id);
+    if (!isValidId(id)) return res.status(400).json({ error: 'Invalid pet ID' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) ||
+        Object.keys(req.body).length !== 1 || typeof req.body.isFavorite !== 'boolean') {
+        return res.status(400).json({ error: 'isFavorite must be a boolean' });
+    }
+    const result = db.prepare('UPDATE pets SET is_favorite = ? WHERE id = ?')
+        .run(req.body.isFavorite ? 1 : 0, id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Pet not found' });
+    return res.status(200).json(db.prepare('SELECT * FROM pets WHERE id = ?').get(id));
+});
+
  // Register a new pet
 app.post('/pets', async (req, res) => {
     const { name, species, enclosure_id = null, gender = 'unknown',

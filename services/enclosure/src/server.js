@@ -15,6 +15,7 @@ function formatEnclosure(enclosure) {
         notes: enclosure.notes,
         featuredPetId: enclosure.featured_pet_id,
         monitoringMode: enclosure.monitoring_mode,
+        isFavorite: enclosure.is_favorite === 1,
         minTemperature: enclosure.min_temperature,
         maxTemperature: enclosure.max_temperature,
         minHumidity: enclosure.min_humidity,
@@ -164,6 +165,21 @@ app.get('/enclosures/:id', (req, res) => {
     }
 
     res.status(200).json(formatEnclosure(enclosure));
+});
+
+// Stage 8.2: favorite-only update. Does not touch environmental settings or monitoring history.
+app.patch('/enclosures/:id/favorite', (req, res) => {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ error: 'Invalid enclosure ID' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) ||
+        Object.keys(req.body).length !== 1 || typeof req.body.isFavorite !== 'boolean') {
+        return res.status(400).json({ error: 'isFavorite must be a boolean' });
+    }
+    const result = db.prepare('UPDATE enclosures SET is_favorite = ? WHERE id = ?')
+        .run(req.body.isFavorite ? 1 : 0, Number(id));
+    if (result.changes === 0) return res.status(404).json({ error: 'Enclosure not found' });
+    const enclosure = db.prepare('SELECT * FROM enclosures WHERE id = ?').get(Number(id));
+    return res.status(200).json(formatEnclosure(enclosure));
 });
 
 // Mode-aware reading for the monitoring interface; no readings from before a mode switch.

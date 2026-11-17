@@ -504,7 +504,16 @@
 .enclosure-card{background:linear-gradient(145deg,#fcfbf4,#f2f5eb);border:1px solid #e4e8da;border-radius:19px;padding:23px;box-shadow:0 6px 25px #344b2010;min-width:0}
 .enclosure-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .enclosure-card-head h3{font-family:Georgia,serif;font-size:22px;margin:7px 0 0;color:#294731;overflow-wrap:anywhere}
-.enclosure-card-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;background:#e9efdf;border-radius:14px;color:#53785a;font-size:32px}
+/* Stage 8.2 — clickable favorite star, replacing the redundant house glyph. */
+.enclosure-card-favorite{display:grid;place-items:center;flex:none;width:48px;height:48px;padding:0;border:1px solid transparent;border-radius:14px;background:#e9efdf;color:#53785a;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.enclosure-card-favorite:hover{background:#dde9d2}
+.enclosure-card-favorite.is-favorite{background:#f4edd8;color:#af862b}
+.enclosure-card-favorite.is-favorite:hover{background:#ede2bf}
+.enclosure-card-favorite:disabled{cursor:wait;opacity:.65}
+.enclosure-card-favorite:focus-visible{outline:3px solid #83ad6a;outline-offset:3px}
+.enclosure-card-star{display:block;width:24px;height:24px;background:currentColor;-webkit-mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat;mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat}
+.enclosure-card-favorite.is-favorite .enclosure-card-star{-webkit-mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg');mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg')}
+@media(prefers-reduced-motion:reduce){.enclosure-card-favorite{transition:none}}
 /* Stage 8.1 — monitoring-mode labels on enclosure collection cards. */
 .enclosure-monitoring-badge{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;margin-top:11px;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:750;line-height:1.2;white-space:nowrap}
 .enclosure-monitoring-badge--manual{background:#eeece5;color:#696956}
@@ -1404,3 +1413,18 @@
 .records-condition-symbol {display:block;width:17px;height:17px;background:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
 .records-condition-symbol--temperature {-webkit-mask-image:url('./public/assets/icons/icon-temperature.svg');mask-image:url('./public/assets/icons/icon-temperature.svg')}
 .records-condition-symbol--humidity {-webkit-mask-image:url('./public/assets/icons/icon-humidity.svg');mask-image:url('./public/assets/icons/icon-humidity.svg')}
+
+/* Stage 8.3 — harmonized favorites on enclosure and pet cards. */
+.enclosure-card-favorite{width:38px;height:38px;border-radius:12px}
+.enclosure-card-star{width:20px;height:20px}
+.collection-pet-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-height:38px}
+.collection-pet-heading h3{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.collection-pet-favorite{position:relative;z-index:3;flex:none;display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:10px;background:#e9efdf;color:#53785a;cursor:pointer;transition:background-color .15s ease}
+.collection-pet-favorite:hover{background:#dde9d2}
+.collection-pet-favorite.is-favorite{background:#f4edd8;color:#af862b}
+.collection-pet-favorite.is-favorite:hover{background:#ede2bf}
+.collection-pet-favorite:disabled{opacity:.5;cursor:default}
+.collection-pet-favorite:focus-visible{outline:3px solid #83ad6a;outline-offset:2px}
+.collection-pet-star{display:block;width:19px;height:19px;background:currentColor;-webkit-mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat;mask:url('./public/assets/icons/icon-favorite-star.svg') center/contain no-repeat}
+.collection-pet-favorite.is-favorite .collection-pet-star{-webkit-mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg');mask-image:url('./public/assets/icons/icon-favorite-star-filled.svg')}
+@media(prefers-reduced-motion:reduce){.collection-pet-favorite{transition:none}}

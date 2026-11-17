@@ -65,5 +65,7 @@ if (!columns.has('featured_pet_id')) db.exec('ALTER TABLE enclosures ADD COLUMN 
 // A monotonically increasing history ID avoids timestamp precision/race problems.
 if (!columns.has('monitoring_mode')) db.exec("ALTER TABLE enclosures ADD COLUMN monitoring_mode TEXT NOT NULL DEFAULT 'automatic' CHECK (monitoring_mode IN ('manual', 'automatic'))");
 if (!columns.has('monitoring_start_history_id')) db.exec('ALTER TABLE enclosures ADD COLUMN monitoring_start_history_id INTEGER NOT NULL DEFAULT 0');
+// Stage 8.2 — favorite flag persists per enclosure and defaults to off.
+if (!columns.has('is_favorite')) db.exec('ALTER TABLE enclosures ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1))');
 
 module.exports = db;
