@@ -608,7 +608,8 @@
 
 /* Stage 3D.2 functional details + approved tropical artwork. */
 .enclosure-habitat-placeholder.is-tropical{background:#e8ebdc url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center center/contain no-repeat;}
-.enclosure-habitat-placeholder.is-tropical:after{display:none}
+.enclosure-habitat-placeholder.is-desert{background:#eee6d7 url('./public/assets/illustrations/enclosures/desert-habitat.webp') center center/contain no-repeat;}
+.enclosure-habitat-placeholder.is-tropical:after,.enclosure-habitat-placeholder.is-desert:after{display:none}
 .enclosure-habitat-head{width:fit-content;max-width:min(65%, 520px);padding:12px 16px;border-radius:13px;background:#f8f8eed9;backdrop-filter:blur(2px);overflow-wrap:anywhere}
 .enclosure-habitat-slot{bottom:9%;height:41%;width:21%;}
 .enclosure-habitat-slot--center{left:50%;height:47%;width:24%}
@@ -632,12 +633,12 @@
 .enclosure-assignment-option:disabled{opacity:.55;cursor:default}
 .enclosure-assignment-option span{display:grid;gap:3px}.enclosure-assignment-option small{color:#708070}
 .enclosure-form-feedback[hidden]{display:none!important}
-@media(max-width:680px){.enclosure-edit-fields{grid-template-columns:1fr}.enclosure-details-toolbar{align-items:flex-start}.enclosure-habitat-placeholder.is-tropical{background-size:contain;aspect-ratio:16/10;min-height:230px}.enclosure-habitat-head{max-width:85%;padding:7px 9px}.enclosure-habitat-head h2{font-size:18px}.enclosure-habitat-slot{bottom:7%;height:30%;width:25%}.enclosure-habitat-slot--center{height:35%;width:28%}.enclosure-occupants-panel .section-heading{align-items:flex-start;gap:10px;flex-wrap:wrap}}
+@media(max-width:680px){.enclosure-edit-fields{grid-template-columns:1fr}.enclosure-details-toolbar{align-items:flex-start}.enclosure-habitat-placeholder.is-tropical,.enclosure-habitat-placeholder.is-desert{background-size:contain;aspect-ratio:16/10;min-height:230px}.enclosure-habitat-head{max-width:85%;padding:7px 9px}.enclosure-habitat-head h2{font-size:18px}.enclosure-habitat-slot{bottom:7%;height:30%;width:25%}.enclosure-habitat-slot--center{height:35%;width:28%}.enclosure-occupants-panel .section-heading{align-items:flex-start;gap:10px;flex-wrap:wrap}}
 
 .enclosure-occupant-row{display:flex;align-items:center;gap:9px;min-width:0}
 .enclosure-occupant-row>.enclosure-occupant-card{flex:1;min-width:0}
 .enclosure-occupant-row>.enclosure-occupant-remove{margin-left:0}
-.enclosure-habitat-placeholder.is-tropical{aspect-ratio:1672/941;max-height:none}
+.enclosure-habitat-placeholder.is-tropical,.enclosure-habitat-placeholder.is-desert{aspect-ratio:1672/941;max-height:none}
 
 /* Stage 3D.2 — approved tropical artwork and featured-pet alignment (15 Nov).
    Only the Enclosure Details presentation is affected. */
@@ -661,24 +662,32 @@
   justify-self:end;
 }
 /* Preserve the 1672 x 941 art framing and keep its transparent edges. */
-.enclosure-habitat-placeholder.is-tropical{
+.enclosure-habitat-placeholder.is-tropical,
+.enclosure-habitat-placeholder.is-desert{
   aspect-ratio:1672 / 941;
   min-height:0;
   max-height:none;
-  background-image:url('./public/assets/illustrations/enclosures/tropical-habitat.webp');
   background-position:center;
   background-size:contain;
   background-repeat:no-repeat;
 }
+.enclosure-habitat-placeholder.is-tropical{
+  background-image:url('./public/assets/illustrations/enclosures/tropical-habitat.webp');
+}
+.enclosure-habitat-placeholder.is-desert{
+  background-image:url('./public/assets/illustrations/enclosures/desert-habitat.webp');
+}
 /* The illustrated pet is anchored lower, with its feet visually meeting the rock.
    Keep its name ABOVE the image rather than on the rock surface. */
-.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center{
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center,
+.enclosure-habitat-placeholder.is-desert .enclosure-habitat-slot--center{
   left:50%;
   bottom:12%;
   width:29%;
   height:40%;
 }
-.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name{
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name,
+.enclosure-habitat-placeholder.is-desert .enclosure-habitat-pet-name{
   order:-1;
   margin-bottom:3px;
 }
@@ -694,10 +703,12 @@
   .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .header-actions{
     margin-left:auto;
   }
-  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center{
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center,
+  .enclosure-habitat-placeholder.is-desert .enclosure-habitat-slot--center{
     left:50%;bottom:10%;width:32%;height:40%;
   }
-  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name{
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-pet-name,
+  .enclosure-habitat-placeholder.is-desert .enclosure-habitat-pet-name{
     font-size:10px;padding:3px 7px;
   }
 }
@@ -725,16 +736,17 @@
 }
 /* Keep the approved WebP unchanged. A masked artwork layer blends the
    ragged transparent outer edge into the existing sage card background. */
-.enclosure-habitat-placeholder.is-tropical {
+.enclosure-habitat-placeholder.is-tropical,
+.enclosure-habitat-placeholder.is-desert {
   background-image:linear-gradient(145deg,#edf0e1,#e3e9dd 70%,#e9e7d7);
 }
-.enclosure-habitat-placeholder.is-tropical::before {
+.enclosure-habitat-placeholder.is-tropical::before,
+.enclosure-habitat-placeholder.is-desert::before {
   content:"";
   position:absolute;
   inset:0;
   z-index:0;
   pointer-events:none;
-  background:url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center / contain no-repeat;
   -webkit-mask-image:
     linear-gradient(to right,transparent 0%,#000 7%,#000 93%,transparent 100%),
     linear-gradient(to bottom,transparent 0%,#000 6%,#000 94%,transparent 100%);
@@ -744,18 +756,27 @@
     linear-gradient(to bottom,transparent 0%,#000 6%,#000 94%,transparent 100%);
   mask-composite:intersect;
 }
-.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slots {
+.enclosure-habitat-placeholder.is-tropical::before {
+  background:url('./public/assets/illustrations/enclosures/tropical-habitat.webp') center / contain no-repeat;
+}
+.enclosure-habitat-placeholder.is-desert::before {
+  background:url('./public/assets/illustrations/enclosures/desert-habitat.webp') center / contain no-repeat;
+}
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slots,
+.enclosure-habitat-placeholder.is-desert .enclosure-habitat-slots {
   z-index:1;
 }
 /* Lift the animal ~3% of the habitat height; its feet should meet the rock top. */
-.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center {
+.enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center,
+.enclosure-habitat-placeholder.is-desert .enclosure-habitat-slot--center {
   bottom:15%;
 }
 @media(max-width:680px) {
   .main-area:has(#enclosureDetailsPage:not([hidden])) > .topbar .page-heading {
     text-align:left;
   }
-  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center {
+  .enclosure-habitat-placeholder.is-tropical .enclosure-habitat-slot--center,
+  .enclosure-habitat-placeholder.is-desert .enclosure-habitat-slot--center {
     bottom:13%;
   }
 }
@@ -818,6 +839,9 @@
 
 /* Apply name positioning */
 .enclosure-habitat-placeholder.is-tropical
+.enclosure-habitat-slot--center
+.enclosure-habitat-pet-name,
+.enclosure-habitat-placeholder.is-desert
 .enclosure-habitat-slot--center
 .enclosure-habitat-pet-name {
     transform: translateY(var(--habitat-name-lift, 0px));
@@ -1472,4 +1496,166 @@
   border: 1px solid #dce5d4;
   border-radius: 9px;
   color: #35553b;
+}
+
+/* Stage 9.1 â€” Desert habitat background blend refinement. */
+/* Match the warm sand/peach atmosphere of the approved Desert illustration.
+   Keep the existing art, masks, animal offsets, and Tropical styles intact. */
+.enclosure-habitat-placeholder.is-desert {
+  background-color: #f3e3d1;
+  background-image: linear-gradient(145deg, #f7e9da 0%, #f0ddc9 68%, #ecd9c5 100%);
+  border-color: #e5d5c2;
+}
+
+/* Stage 9.2 - approved Temperate Habitat artwork */
+.enclosure-habitat-placeholder.is-temperate {
+  aspect-ratio: 1672 / 941;
+  min-height: 0;
+  max-height: none;
+  border-color: #d7dfcd;
+  background: linear-gradient(145deg, #edf0df 0%, #e4e9d7 66%, #e7e7d8 100%);
+}
+.enclosure-habitat-placeholder.is-temperate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('./public/assets/illustrations/enclosures/temperate-habitat.webp') center / contain no-repeat;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  mask-composite: intersect;
+}
+.enclosure-habitat-placeholder.is-temperate::after { display: none; }
+.enclosure-habitat-placeholder.is-temperate .enclosure-habitat-slots { z-index: 1; }
+.enclosure-habitat-placeholder.is-temperate .enclosure-habitat-slot--center {
+  left: 50%; bottom: 15%; width: 29%; height: 40%;
+}
+.enclosure-habitat-placeholder.is-temperate .enclosure-habitat-pet-name {
+  order: -1;
+  margin-bottom: 3px;
+}
+.enclosure-habitat-placeholder.is-temperate .enclosure-habitat-slot--center .enclosure-habitat-pet-name {
+  transform: translateY(var(--habitat-name-lift, 0px));
+}
+@media (max-width: 680px) {
+  .enclosure-habitat-placeholder.is-temperate .enclosure-habitat-slot--center {
+    left: 50%; bottom: 13%; width: 32%; height: 40%;
+  }
+  .enclosure-habitat-placeholder.is-temperate .enclosure-habitat-pet-name {
+    font-size: 10px; padding: 3px 7px;
+  }
+}
+
+/* Stage 9.3 - approved Paludarium Habitat artwork */
+/* Independent styling; Tropical, Desert and Temperate remain unchanged. */
+.enclosure-habitat-placeholder.is-paludarium {
+  aspect-ratio: 1672 / 941;
+  min-height: 0;
+  max-height: none;
+  border-color: #cfddd0;
+  background: linear-gradient(145deg, #eef0e1 0%, #e1e9d9 65%, #dbe7dd 100%);
+}
+.enclosure-habitat-placeholder.is-paludarium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('./public/assets/illustrations/enclosures/paludarium-habitat.webp') center / contain no-repeat;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  mask-composite: intersect;
+}
+.enclosure-habitat-placeholder.is-paludarium::after { display: none; }
+.enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-slots { z-index: 1; }
+.enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-slot--center {
+  left: 50%; bottom: 15%; width: 29%; height: 40%;
+}
+.enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-pet-name {
+  order: -1;
+  margin-bottom: 3px;
+}
+.enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-slot--center .enclosure-habitat-pet-name {
+  transform: translateY(var(--habitat-name-lift, 0px));
+}
+@media (max-width: 680px) {
+  .enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-slot--center {
+    left: 50%; bottom: 13%; width: 32%; height: 40%;
+  }
+  .enclosure-habitat-placeholder.is-paludarium .enclosure-habitat-pet-name {
+    font-size: 10px; padding: 3px 7px;
+  }
+}
+
+/* Stage 9.3 — Paludarium artwork alignment
+   Move only the habitat illustration downward.
+   Keep featured animal positioning unchanged. */
+
+.enclosure-habitat-placeholder.is-paludarium::before {
+  transform: translateY(clamp(10px, 2vw, 20px));
+}
+
+/* Stage 9.4 - approved Aquatic Habitat artwork */
+/* Independent styling; preserve previous habitat refinements. */
+.enclosure-habitat-placeholder.is-aquatic {
+  aspect-ratio: 1672 / 941;
+  min-height: 0;
+  max-height: none;
+  border-color: #bfd7d8;
+  background: linear-gradient(145deg, #d9ece8 0%, #cfe6e2 55%, #dff0ea 100%);
+}
+.enclosure-habitat-placeholder.is-aquatic::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('./public/assets/illustrations/enclosures/aquatic-habitat.webp') center / contain no-repeat;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  mask-composite: intersect;
+}
+.enclosure-habitat-placeholder.is-aquatic::after { display: none; }
+.enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-slots { z-index: 1; }
+.enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-slot--center {
+  left: 50%; bottom: 15%; width: 29%; height: 40%;
+}
+.enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-pet-name {
+  order: -1;
+  margin-bottom: 3px;
+}
+.enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-slot--center .enclosure-habitat-pet-name {
+  transform: translateY(var(--habitat-name-lift, 0px));
+}
+@media (max-width: 680px) {
+  .enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-slot--center {
+    left: 50%; bottom: 13%; width: 32%; height: 40%;
+  }
+  .enclosure-habitat-placeholder.is-aquatic .enclosure-habitat-pet-name {
+    font-size: 10px; padding: 3px 7px;
+  }
+}
+
+
+/* Stage 9.4 — Aquatic habitat alignment
+   Move only the background illustration downward. */
+
+.enclosure-habitat-placeholder.is-aquatic::before {
+  transform: translateY(clamp(10px, 2vw, 20px));
 }

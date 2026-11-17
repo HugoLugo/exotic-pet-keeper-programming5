@@ -212,11 +212,15 @@ For terraria, plants, feeder insects, or empty-state illustrations, replace the 
 | 2026-11-13 | Approve Leopard Gecko — Concept 01 as the first master illustration, after three card-size tests | **Confirmed** |
 | 2026-11-13 | Replace the earlier tailless whip scorpion priority with a classic scorpion; tailless whip scorpion remains optional for the later asset roadmap | **Superseded** |
 | 2026-11-13 | Approve Ball Python illustration after revising the head anatomy and removing unnatural extra coils; preserve transparent PNG source and optimized WebP | **Confirmed** |
+| 2026-11-17 | Approve Desert Habitat — Concept 01 for enclosure details; preserve transparent PNG source and optimized WebP; mirror the approved Tropical Habitat composition and keep existing featured-animal positioning offsets | **Confirmed** |
 | 2026-11-13 | Create a generic and common-species illustration roadmap across animal groups before expanding the asset library further | **Planned, not yet defined** |
 | 2026-11-13 | Approve tarantula reference illustration after reviewing leg count and pedipalps against a user-provided photo; add transparent PNG, WebP, and card test | **Confirmed** |
 | 2026-11-13 | If repeated illustrations invent anatomically impossible appendages, consult an animal photo reference before approving | **Confirmed** |
 
 | 2026-11-13 | Approve emperor-scorpion-inspired scorpion illustration, with small centrally positioned eyes, broad pincers, arched tail and transparent reusable source/export | **Confirmed** |
+| 2026-11-17 | Approve revised Temperate Habitat - Concept 02 for enclosure details; keep its transparent original and optimized WebP, preserve existing animal offsets | **Confirmed** |
+| 2026-11-17 | Approve Paludarium Habitat - final water-foreground concept, consistent central rock and tree; preserve PNG/WebP and existing animal offsets | **Confirmed** |
+| 2026-11-17 | Approve Aquatic Habitat - underwater final concept with preserved central platform and matching enclosure-art composition; preserve PNG/WebP and existing animal offsets | **Confirmed** |
 
 ## 10. Handoff checklist for a new conversation
 

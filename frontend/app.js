@@ -2091,7 +2091,14 @@ $('#habitatFeaturedControl').addEventListener('keydown', event => {
 function renderEnclosureDetails(enclosure, pets, petsError) {
   currentEnclosureDetail = enclosure;
   $('#enclosureDetailsName').textContent = enclosure.name || `Enclosure #${enclosure.id}`;
-  $('#enclosureHabitatSlots').closest('.enclosure-habitat-placeholder').classList.toggle('is-tropical', enclosure.enclosureType === 'Tropical');
+  const habitatPreview = $('#enclosureHabitatSlots').closest('.enclosure-habitat-placeholder');
+  const habitatArtworkClasses = ['is-tropical', 'is-desert', 'is-temperate', 'is-paludarium', 'is-aquatic'];
+  habitatPreview.classList.remove(...habitatArtworkClasses);
+  if (enclosure.enclosureType === 'Tropical') habitatPreview.classList.add('is-tropical');
+  if (enclosure.enclosureType === 'Desert') habitatPreview.classList.add('is-desert');
+  if (enclosure.enclosureType === 'Temperate') habitatPreview.classList.add('is-temperate');
+  if (enclosure.enclosureType === 'Paludarium') habitatPreview.classList.add('is-paludarium');
+  if (enclosure.enclosureType === 'Aquatic') habitatPreview.classList.add('is-aquatic');
   $('#enclosureDetailsType').textContent = (enclosure.enclosureType || 'UNSPECIFIED HABITAT').toUpperCase();
   const facts = $('#enclosureDetailsFacts'); facts.replaceChildren();
   for (const [label,value] of [

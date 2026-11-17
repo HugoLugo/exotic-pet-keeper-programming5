@@ -37,9 +37,38 @@ The browser WebP is a raster image even if the illustration has a vector-inspire
 - **Accuracy note:** four pairs of walking legs (some may overlap behind pincers in a three-quarter pose), with median eyes small and central on top of the carapace. Do not place large eyes on the side like a cartoon.
 - **Naming:** use `scorpion` rather than a definitive species name until the product needs species-specific artwork.
 
+## Desert habitat — APPROVED (17 November 2026)
+
+- **Master original:** `originals/desert-habitat-approved.png` (preserve unchanged, transparent PNG; 1672 × 941 px).
+- **Browser-ready asset:** `frontend/public/assets/illustrations/enclosures/desert-habitat.webp` (repository-root path; optimized transparent WebP).
+- **Art direction:** soft flat-vector-inspired habitat illustration matched to the approved tropical habitat's composition and rendering style, but using sandy terrain, warm beige and ochre rocks, a rocky hide, sparse succulents, dry grasses, a curved dry branch, and a shallow stone water dish.
+- **Composition rule:** keep a broad central rock platform and enough open space for the featured animal overlay in the Enclosure Details view.
+- **Integration scope:** approved for enclosure habitat presentation only; preserve existing animal scaling and positioning adjustments when displayed in the UI.
+
 ## Next phase — Illustration roadmap (not yet defined)
 
 Define a manageable list of generic category illustrations and representative common species for snakes, frogs, lizards, tarantulas and other exotic animals. Do not silently treat suggestions from prior chats as final commitments. The tailless whip scorpion illustration has been deferred rather than approved.
 
 
 Generate and approve **one animal at a time**. Preserve originals in this directory and use descriptive, stable filenames for optimized WebP files. Add a new line to `frontend-visual-design-system.md`'s decision log after each approval.
+
+## Temperate habitat - Concept 02 APPROVED (17 November 2026)
+
+- **Approved original:** `design/illustrations/originals/temperate-habitat-approved.png` (1672 x 941 RGBA PNG; preserve unchanged).
+- **Frontend export:** `frontend/public/assets/illustrations/enclosures/temperate-habitat.webp` (optimized transparent WebP on a 1672 x 941 canvas).
+- **Art direction:** soft temperate forest with restrained, smooth branch textures, mossy hollow-log shelter on the left, broad central stone platform, water bowl on the right, ferns and oak leaves; revised to align composition and animal placement with Tropical and Desert.
+- **Integration:** Enclosure Details only; keep approved animal illustrations and their positioning adjustments unchanged.
+
+## Paludarium habitat - APPROVED (17 November 2026)
+
+- **Original:** `design/illustrations/originals/paludarium-habitat-approved.png` (1672 x 941, transparent PNG; preserve unchanged).
+- **Frontend export:** `frontend/public/assets/illustrations/enclosures/paludarium-habitat.webp` (optimized transparent WebP).
+- **Art direction:** soft naturalistic paludarium with left hollow-log hide, right curved leafy tree, broad dry central stone platform, and shallow clear water occupying the foreground. No waterfall or redundant water dish.
+- **Integration:** Enclosure Details habitat preview only. Preserve approved animal image transforms and name alignment.
+
+## Aquatic habitat - APPROVED (17 November 2026)
+
+- **Original:** `design/illustrations/originals/aquatic-habitat-approved.png` (1672 x 941, transparent PNG; preserve unchanged).
+- **Frontend export:** `frontend/public/assets/illustrations/enclosures/aquatic-habitat.webp` (optimized transparent WebP).
+- **Art direction:** underwater habitat illustration preserving the projectâ€™s established composition: submerged hollow-log hide on the left, broad central stone platform for featured animals, and curved tree-root structure on the right, with blue-green water, pebbles, rocks, and aquatic plants.
+- **Integration:** Enclosure Details habitat preview only. Preserve approved animal image transforms and name alignment.
