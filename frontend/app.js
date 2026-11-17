@@ -1165,7 +1165,7 @@ $('#addPetForm').addEventListener('submit', async event => {
 // Reuses the approved Add Pet calendar styling. Original native inputs remain
 // the form's source of truth so existing APIs and validation stay unchanged.
 const sharedDatePickers = [];
-function createSharedDatePicker(input) {
+function createSharedDatePicker(input, {unrestricted = false} = {}) {
   const wrapper = document.createElement('div');
   wrapper.className = 'add-pet-calendar-wrap shared-date-wrap';
   const trigger = document.createElement('button');
@@ -1202,8 +1202,8 @@ function createSharedDatePicker(input) {
   input.required=false;
   const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const todayISO=()=>{const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;};
-  const minAllowed=()=>input.min||'1900-01-01';
-  const maxAllowed=()=>input.max||todayISO();
+  const minAllowed=()=>input.min||(unrestricted?'0001-01-01':'1900-01-01');
+  const maxAllowed=()=>input.max||(unrestricted?'9999-12-31':todayISO());
   const parts=value=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value||'');return m?[Number(m[1]),Number(m[2])-1,Number(m[3])]:null;};
   let currentYear=new Date().getFullYear(),currentMonth=new Date().getMonth();
   function sync(){const p=parts(input.value);label.textContent=p?`${String(p[2]).padStart(2,'0')}/${String(p[1]+1).padStart(2,'0')}/${p[0]}`:'Select date';label.classList.toggle('add-pet-calendar-placeholder',!p);}
@@ -1212,7 +1212,11 @@ function createSharedDatePicker(input) {
   function render(){
     const min=minAllowed(),max=maxAllowed(),minY=Number(min.slice(0,4)),maxY=Number(max.slice(0,4));
     month.replaceChildren(...months.map((name,i)=>new Option(name,String(i))));month.value=String(currentMonth);
-    year.replaceChildren();for(let y=maxY;y>=minY;y--)year.append(new Option(String(y),String(y)));year.value=String(currentYear);
+    year.replaceChildren();
+    // Export fields have no native min/max: keep all dates selectable without building a 9,999-year menu.
+    const firstYear=unrestricted?Math.max(minY,currentYear-40):minY;
+    const lastYear=unrestricted?Math.min(maxY,currentYear+40):maxY;
+    for(let y=lastYear;y>=firstYear;y--)year.append(new Option(String(y),String(y)));year.value=String(currentYear);
     const first=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-01`;
     const last=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(new Date(currentYear,currentMonth+1,0).getDate()).padStart(2,'0')}`;
     prev.disabled=first<=min;next.disabled=last>=max;
@@ -1228,10 +1232,30 @@ function createSharedDatePicker(input) {
       day.addEventListener('click',()=>choose(val));days.append(day);
     }
   }
-  function show(){const max=maxAllowed(),min=minAllowed(),candidate=parts(input.value)||parts(max)||parts(todayISO());
+  function show(){const max=maxAllowed(),min=minAllowed(),candidate=parts(input.value)||(unrestricted?parts(todayISO()):parts(max))||parts(todayISO());
     const safe=`${candidate[0]}-${String(candidate[1]+1).padStart(2,'0')}-${String(candidate[2]).padStart(2,'0')}`;
     const normalized=parts(safe>max?max:(safe<min?min:safe));currentYear=normalized[0];currentMonth=normalized[1];
-    render();popup.hidden=false;trigger.setAttribute('aria-expanded','true');month.focus();}
+    render();popup.hidden=false;trigger.setAttribute('aria-expanded','true');
+    // Keep export calendars inside the visible modal instead of clipping either side.
+    if(unrestricted){
+      const dialog=input.closest('dialog');
+      const bounds=dialog?.getBoundingClientRect();
+      const anchor=trigger.getBoundingClientRect();
+      if(bounds){
+        const margin=12;
+        const width=Math.min(350,Math.max(220,bounds.width-2*margin));
+        const height=Math.min(popup.scrollHeight,bounds.height-2*margin);
+        const left=Math.max(bounds.left+margin,Math.min(anchor.left,bounds.right-margin-width));
+        const below=anchor.bottom+8;
+        const above=anchor.top-8-height;
+        const top=below+height<=bounds.bottom-margin?below:(above>=bounds.top+margin?above:Math.max(bounds.top+margin,bounds.bottom-margin-height));
+        popup.style.width=`${width}px`;
+        popup.style.left=`${left}px`;
+        popup.style.top=`${top}px`;
+        popup.style.maxHeight=`${Math.max(180,bounds.height-2*margin)}px`;
+      }
+    }
+    month.focus();}
   trigger.addEventListener('click',()=>popup.hidden?show():dismiss());closeButton.addEventListener('click',()=>dismiss(true));
   clear.addEventListener('click',()=>choose(''));todayButton.addEventListener('click',()=>choose(todayISO()>maxAllowed()?maxAllowed():todayISO()));
   prev.addEventListener('click',()=>{if(currentMonth===0){currentMonth=11;currentYear--;}else currentMonth--;render();});
@@ -1257,7 +1281,7 @@ function createSharedTimePicker(input) {
   function closeAll(focus=false){for(const c of controls){const wasOpen=!c.menu.hidden;c.menu.hidden=true;c.button.setAttribute('aria-expanded','false');if(focus&&wasOpen)c.button.focus();}}
   function buildPart(kind,count,placeholder){
     const container=document.createElement('div');container.className='shared-time-part';
-    const button=document.createElement('button');button.type='button';button.className='shared-time-trigger';button.setAttribute('aria-label',kind==='hour'?'Choose observation hour':'Choose observation minute');button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
+    const button=document.createElement('button');button.type='button';button.className='shared-time-trigger';button.setAttribute('aria-label',kind==='hour'?'Choose hour':'Choose minute');button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
     const display=document.createElement('span');display.textContent=placeholder;
     // The entire field remains clickable; no decorative glyph is needed.
     button.append(display);
@@ -1282,9 +1306,11 @@ function createSharedTimePicker(input) {
   input.addEventListener('change',sync);sync();return {sync};
 }
 const sharedDateIds=['enclosureHistoryFrom','enclosureHistoryTo','quickDate','feedingRecordDate','animalEventDate'];
+const exportDateIds=['recordsExportFrom','recordsExportTo'];
 for(const id of sharedDateIds){const field=$('#'+id);if(field)sharedDatePickers.push(createSharedDatePicker(field));}
-const sharedEventTime=createSharedTimePicker($('#animalEventTime'));
-function refreshSharedDateControls(){sharedDatePickers.forEach(p=>p.sync());sharedEventTime.sync();}
+for(const id of exportDateIds){const field=$('#'+id);if(field)sharedDatePickers.push(createSharedDatePicker(field,{unrestricted:true}));}
+const sharedTimePickers=['animalEventTime','quickTime','feedingRecordTime'].map(id=>createSharedTimePicker($('#'+id)));
+function refreshSharedDateControls(){sharedDatePickers.forEach(p=>p.sync());sharedTimePickers.forEach(p=>p.sync());}
 
 // Stage 2A Rev 2 — accessible, dependency-free birth-date calendar.
 // The hidden field retains the backend's YYYY-MM-DD date format for Stage 2B.
@@ -3432,6 +3458,7 @@ $('#recordsExportOpen').addEventListener('click',()=>{
  const pet=recordsPets.find(p=>Number(p.id)===recordsSelectedPetId);
  if(!pet)return;
  $('#recordsExportForm').reset();
+ refreshSharedDateControls();
  $('#recordsExportDates').hidden=true;
  recordsExportShowError('');
  $('#recordsExportAnimal').textContent=`${pet.name} · ${pet.species} · Stored records only`;

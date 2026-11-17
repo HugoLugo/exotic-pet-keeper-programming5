@@ -1379,3 +1379,16 @@
   .stat-card .stat-illustration--records { width: 39%; right: 4px; }
   .stat-card .records-dashboard-symbol { min-height: 44px; }
 }
+
+/* Stage 7.1A — approved calendar appearance in Records Export. */
+.records-export-dialog .records-export-dates .shared-date-wrap{width:100%;min-width:0}
+.records-export-dialog .records-export-dates .add-pet-calendar-trigger{width:100%;min-height:43px;text-align:left;background:#fffdf9;border:1px solid #bfd0b8;border-radius:9px;color:#355b41}
+.records-export-dialog .records-export-dates .add-pet-calendar{width:min(350px,calc(100vw - 72px));max-width:calc(100vw - 72px);z-index:80}
+.records-export-dialog .records-export-dates .add-pet-calendar-navigation select{height:34px;min-width:0}
+.records-export-dialog .records-export-dates .shared-date-source{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+
+/* Stage 7.1A visual fix — export calendar floats inside the modal's visible area. */
+.records-export-dialog .records-export-dates .add-pet-calendar{
+  position:fixed;right:auto;bottom:auto;overflow-y:auto;
+  max-height:calc(86vh - 24px);box-sizing:border-box;
+}

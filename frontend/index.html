@@ -380,7 +380,7 @@
             <div id="feedingPetChoices" class="feeding-choices" aria-live="polite"></div>
             <form id="quickFeedingForm" class="feeding-form" novalidate>
               <label>Food given <span aria-hidden="true">*</span><input id="quickFood" maxlength="200" placeholder="e.g. 1 cricket" required></label>
-              <label>Feeding date <span aria-hidden="true">*</span><input id="quickDate" type="date" required></label><label>Feeding time (optional) <input id="quickTime" type="time" step="60"><small class="feeding-time-note">If blank for today, uses your device time when saved. For past dates, leave blank if unknown.</small></label>
+              <label>Feeding date <span aria-hidden="true">*</span><input id="quickDate" type="date" required></label><label>Feeding time (optional) <input id="quickTime" type="time" step="60"><small class="feeding-time-note">For today's feedings, leaving this blank uses your device's current time when you save. For earlier dates, choose a time only if known.</small></label>
               <label class="feeding-wide">Notes (optional)<textarea id="quickNotes" rows="3" placeholder="Shared observations from this feeding session"></textarea></label>
               <p id="quickFeedingMessage" class="feeding-message feeding-wide" role="status" aria-live="polite"></p>
               <div class="feeding-wide feeding-actions"><button class="primary-button" id="quickFeedingSave" type="submit">Save Feedings</button></div>
