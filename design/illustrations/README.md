@@ -72,3 +72,17 @@ Generate and approve **one animal at a time**. Preserve originals in this direct
 - **Frontend export:** `frontend/public/assets/illustrations/enclosures/aquatic-habitat.webp` (optimized transparent WebP).
 - **Art direction:** underwater habitat illustration preserving the projectâ€™s established composition: submerged hollow-log hide on the left, broad central stone platform for featured animals, and curved tree-root structure on the right, with blue-green water, pebbles, rocks, and aquatic plants.
 - **Integration:** Enclosure Details habitat preview only. Preserve approved animal image transforms and name alignment.
+
+## Stage 9.5 partial integration — Pacman Frog, Corn Snake, Bearded Dragon (17 November 2026)
+
+- Added approved master PNGs: `originals/pacman-frog-approved.png`, `originals/corn-snake-approved.png`, `originals/bearded-dragon-approved.png`.
+- Added optimized transparent WebP assets to `frontend/public/assets/illustrations/animals/` with corresponding species slugs.
+- Registered `pacman_frog`, `corn_snake`, and `bearded_dragon` in frontend illustration picker and Data Management API validation; previously supported keys remain unchanged.
+- No database migration. Existing default enclosure positioning rules remain untouched; these new animal images use default positioning pending visual browser validation.
+- Additionally integrated: approved crested gecko, axolotl, and orchid mantis, with preserved source PNGs. The opaque backgrounds in the crested gecko and axolotl were removed ONLY in their derived WebP production exports. These derived cutouts need visual QA for fine edges before final commit.
+- Not integrated: tailless whip scorpion (pedipalps and walking-leg geometry require anatomical correction).
+- No browser or runtime integration test is claimed by this package.
+
+### Stage 9.5 — extended approvals (17 November 2026)
+
+Added approved crested gecko, axolotl and orchid mantis master PNGs and transparent WebP exports. Frontend registry, picker, and backend allowed keys now support all six newly approved illustrations. Original images are unchanged; two derived alpha masks are approximations that should be inspected in the browser on both light and dark backgrounds. New image keys use existing default positioning pending responsive visual checks. No Git commit performed.

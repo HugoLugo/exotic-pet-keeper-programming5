@@ -256,3 +256,11 @@ This section supersedes *implementation-status claims* in historical proposals a
 - `design/previews/` was deleted intentionally. References to its files above are historical only; they are not shipped assets.
 
 Refer to [frontend README](../frontend/README.md) for the actual runtime rather than historical prototype setup.
+
+
+### Stage 9.5 — selected new species illustrations (17 November 2026)
+Added Pacman Frog, Corn Snake and Bearded Dragon as individual transparent animal images, using their unchanged uploaded PNGs and optimized WebP exports. The frontend illustration selection list and API illustration-key validation are extended without changing existing keys, models, habitats, or monitoring functionality. New species use the existing default responsive image behavior until in-browser sizing is evaluated. More complex animal candidates remain outside production pending approval/repair.
+
+
+### Stage 9.5 — extended approved animal assets
+Approved additional Crested Gecko, Axolotl, Orchid Mantis PNG masters and WebP production exports; image registry/picker and API validation updated consistently. Original artwork preserved; for crested gecko and axolotl, alpha transparency was derived separately. All new animals currently use default card/enclosure artwork positioning until visual testing. Tailless whip scorpion and future additions remain excluded.

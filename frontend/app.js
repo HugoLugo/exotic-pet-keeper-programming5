@@ -485,7 +485,13 @@ const approvedIllustrations = Object.freeze({
   gecko: 'leopard-gecko.webp',
   python: 'ball-python.webp',
   tarantula: 'tarantula.webp',
-  scorpion: 'scorpion.webp'
+  scorpion: 'scorpion.webp',
+  pacman_frog: 'pacman-frog.webp',
+  corn_snake: 'corn-snake.webp',
+  bearded_dragon: 'bearded-dragon.webp',
+  crested_gecko: 'crested-gecko.webp',
+  axolotl: 'axolotl.webp',
+  orchid_mantis: 'orchid-mantis.webp'
 });
 let currentPage = 'dashboard';
 let collectionPets = [];
@@ -899,7 +905,13 @@ const illustrationChoices = [
   {key:'gecko', label:'Gecko', filename:approvedIllustrations.gecko},
   {key:'python', label:'Python', filename:approvedIllustrations.python},
   {key:'tarantula', label:'Tarantula', filename:approvedIllustrations.tarantula},
-  {key:'scorpion', label:'Scorpion', filename:approvedIllustrations.scorpion}
+  {key:'scorpion', label:'Scorpion', filename:approvedIllustrations.scorpion},
+  {key:'pacman_frog', label:'Pacman Frog', filename:approvedIllustrations.pacman_frog},
+  {key:'corn_snake', label:'Corn Snake', filename:approvedIllustrations.corn_snake},
+  {key:'bearded_dragon', label:'Bearded Dragon', filename:approvedIllustrations.bearded_dragon},
+  {key:'crested_gecko', label:'Crested Gecko', filename:approvedIllustrations.crested_gecko},
+  {key:'axolotl', label:'Axolotl', filename:approvedIllustrations.axolotl},
+  {key:'orchid_mantis', label:'Orchid Mantis', filename:approvedIllustrations.orchid_mantis}
 ];
 
 function syncNewPetPortrait() {
