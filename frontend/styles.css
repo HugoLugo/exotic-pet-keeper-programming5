@@ -1392,3 +1392,8 @@
   position:fixed;right:auto;bottom:auto;overflow-y:auto;
   max-height:calc(86vh - 24px);box-sizing:border-box;
 }
+
+/* Stage 7.2 — shared approved environmental icon assets in Records & Insights. */
+.records-condition-symbol {display:block;width:17px;height:17px;background:currentColor;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.records-condition-symbol--temperature {-webkit-mask-image:url('./public/assets/icons/icon-temperature.svg');mask-image:url('./public/assets/icons/icon-temperature.svg')}
+.records-condition-symbol--humidity {-webkit-mask-image:url('./public/assets/icons/icon-humidity.svg');mask-image:url('./public/assets/icons/icon-humidity.svg')}

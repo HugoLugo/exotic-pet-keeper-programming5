@@ -3162,10 +3162,10 @@ function recordsNormalize(feedings, events) {
   return result;
 }
 function recordsConditionIcon(kind){
- const namespace='http://www.w3.org/2000/svg';
- const svg=document.createElementNS(namespace,'svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','17');svg.setAttribute('height','17');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
- const paths=kind==='temperature'?['M14 14.76V5a3 3 0 0 0-6 0v9.76a5 5 0 1 0 6 0Z','M11 10v8']:['M12 22a8 8 0 0 0 8-8c0-5-8-12-8-12S4 9 4 14a8 8 0 0 0 8 8Z'];
- for(const d of paths){const path=document.createElementNS(namespace,'path');path.setAttribute('d',d);svg.append(path);}return svg;
+ const symbol=document.createElement('span');
+ symbol.className=kind==='temperature'?'records-condition-symbol records-condition-symbol--temperature':'records-condition-symbol records-condition-symbol--humidity';
+ symbol.setAttribute('aria-hidden','true');
+ return symbol;
 }
 function recordsSvgNode(tag,attrs={}) {
  const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
