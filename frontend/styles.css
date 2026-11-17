@@ -414,6 +414,27 @@
   padding:5px;
 }
 
+/* Pets collection only: keep the full silhouette inside the artwork tile.
+   These illustrations previously overflowed the grid row's fixed aspect ratio.
+   Do not change the image files or their appearance in enclosures/profiles. */
+.collection-pet-art img.collection-art-bearded-dragon {
+  min-height: 0;
+  max-height: 100%;
+  padding: 6px 12px;
+  transform: translateY(-2px);
+}
+.collection-pet-art img.collection-art-orchid-mantis {
+  min-height: 0;
+  max-height: 100%;
+  padding: 8px 10px;
+  transform: translateY(-2px);
+}
+.collection-pet-art img.collection-art-tarantula {
+  min-height: 0;
+  max-height: 100%;
+  padding: 6px;
+}
+
 /* Stage 3B — inline editing in the existing pet profile. */
 .pet-details-page.is-editing .pet-details-hero,
 .pet-details-page.is-editing .pet-details-panels > section:first-child { display:none; }
@@ -1658,4 +1679,65 @@
 
 .enclosure-habitat-placeholder.is-aquatic::before {
   transform: translateY(clamp(10px, 2vw, 20px));
+}
+
+/* Enclosure Details — species-specific featured animal positioning.
+   Keep the approved artwork unchanged and tune only the display layer. */
+.enclosure-habitat-art img.enclosure-art-image--ball_python,
+.enclosure-habitat-art img.enclosure-art-image--python {
+  transform: translateY(-23%) scale(0.98);
+}
+.enclosure-habitat-art img.enclosure-art-image--red_knee_tarantula,
+.enclosure-habitat-art img.enclosure-art-image--tarantula {
+  transform: translateY(-4%) scale(0.82);
+  transform-origin: center bottom;
+}
+.enclosure-habitat-art img.enclosure-art-image--asian_forest_scorpion,
+.enclosure-habitat-art img.enclosure-art-image--scorpion {
+  transform: translateY(-12%) scale(0.97);
+}
+.enclosure-habitat-art img.enclosure-art-image--pacman_frog {
+  transform: translateY(-39%) scale(0.98);
+}
+.enclosure-habitat-art img.enclosure-art-image--corn_snake {
+  transform: translateY(-7%) scale(0.98);
+}
+.enclosure-habitat-art img.enclosure-art-image--bearded_dragon {
+  transform: translateY(-34%) scale(1.19);
+}
+.enclosure-habitat-art img.enclosure-art-image--crested_gecko {
+  transform: translateY(-23%) scale(0.73);
+}
+.enclosure-habitat-art--axolotl {
+  align-items: center;
+}
+.enclosure-habitat-art img.enclosure-art-image--axolotl {
+  object-position: center;
+  transform: translateY(-26%) scale(0.95);
+}
+.enclosure-habitat-art img.enclosure-art-image--orchid_mantis {
+  transform: translateY(-41%) scale(0.96);
+}
+
+
+/* Stage 9.5 enclosure visual review V4 — independently position labels.
+   Moving the animal IMG with transforms leaves the label in the original flow;
+   these per-illustration label offsets keep the text above the visible animal.
+   The offsets scale down on narrow screens to avoid the enclosure heading.
+   Existing Leopard Gecko, Scorpion, Corn Snake, and Tarantula positions are untouched. */
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--ball_python),
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--python) {
+  --habitat-name-lift: clamp(-56px, -3.6vw, -24px);
+}
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--pacman_frog) {
+  --habitat-name-lift: clamp(-76px, -4.9vw, -28px);
+}
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--bearded_dragon) {
+  --habitat-name-lift: clamp(-69px, -4.4vw, -27px);
+}
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--axolotl) {
+  --habitat-name-lift: clamp(-66px, -4.2vw, -26px);
+}
+.enclosure-habitat-slot--center:has(.enclosure-habitat-art--orchid_mantis) {
+  --habitat-name-lift: clamp(-50px, -3.3vw, -22px);
 }

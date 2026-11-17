@@ -244,6 +244,7 @@ function isValidPetExtras(gender, dateOfBirth, notes) {
 // Stable identifiers for approved frontend illustration assets. Store keys, never paths.
 const APPROVED_ILLUSTRATIONS = new Set([
     'gecko', 'python', 'tarantula', 'scorpion',
+    'ball_python', 'red_knee_tarantula', 'asian_forest_scorpion',
     'pacman_frog', 'corn_snake', 'bearded_dragon',
     'crested_gecko', 'axolotl', 'orchid_mantis'
 ]);
@@ -316,7 +317,7 @@ app.post('/pets', async (req, res) => {
 
     if (!isValidIllustrationKey(illustration_key)) {
         return res.status(400).json({
-            error: 'illustration_key must be gecko, python, tarantula, scorpion, pacman_frog, corn_snake, bearded_dragon, crested_gecko, axolotl, orchid_mantis, or null'
+            error: 'illustration_key must use an approved animal illustration key or null'
         });
     }
 
@@ -414,7 +415,7 @@ app.put('/pets/:id', async (req, res) => {
 
     if (!isValidIllustrationKey(selectedIllustration)) {
         return res.status(400).json({
-            error: 'illustration_key must be gecko, python, tarantula, scorpion, pacman_frog, corn_snake, bearded_dragon, crested_gecko, axolotl, orchid_mantis, or null'
+            error: 'illustration_key must use an approved animal illustration key or null'
         });
     }
 

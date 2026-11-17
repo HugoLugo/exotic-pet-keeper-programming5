@@ -173,7 +173,7 @@ function renderDashboardPets() {
       image.src = `${assets}${filename}`;
       image.alt = '';
       image.loading = 'lazy';
-      if (pet.illustration_key === 'scorpion') image.classList.add('dashboard-pet-scorpion');
+      if (['scorpion', 'asian_forest_scorpion'].includes(pet.illustration_key)) image.classList.add('dashboard-pet-scorpion');
       image.addEventListener('error', () => imageBox.replaceChildren(elem('span','dashboard-pet-fallback','◇')), {once:true});
       imageBox.append(image);
     } else {
@@ -484,8 +484,11 @@ $('#feedingHistory').addEventListener('click', () => navigate('feeding'));
 const approvedIllustrations = Object.freeze({
   gecko: 'leopard-gecko.webp',
   python: 'ball-python.webp',
+  ball_python: 'ball-python.webp',
   tarantula: 'tarantula.webp',
+  red_knee_tarantula: 'tarantula.webp',
   scorpion: 'scorpion.webp',
+  asian_forest_scorpion: 'scorpion.webp',
   pacman_frog: 'pacman-frog.webp',
   corn_snake: 'corn-snake.webp',
   bearded_dragon: 'bearded-dragon.webp',
@@ -586,8 +589,10 @@ function renderPetsCollection() {
       image.addEventListener('error', () => {
         imageBox.replaceChildren(elem('span', 'collection-pet-fallback', '◇'));
       }, { once: true });
-      if (pet.illustration_key === 'tarantula') image.classList.add('collection-art-tarantula');
-      if (pet.illustration_key === 'scorpion') image.classList.add('collection-art-scorpion');
+      if (['tarantula', 'red_knee_tarantula'].includes(pet.illustration_key)) image.classList.add('collection-art-tarantula');
+      if (['scorpion', 'asian_forest_scorpion'].includes(pet.illustration_key)) image.classList.add('collection-art-scorpion');
+      if (pet.illustration_key === 'bearded_dragon') image.classList.add('collection-art-bearded-dragon');
+      if (pet.illustration_key === 'orchid_mantis') image.classList.add('collection-art-orchid-mantis');
       imageBox.append(image);
     } else {
       imageBox.append(elem('span', 'collection-pet-fallback', '◇'));
@@ -744,7 +749,7 @@ function renderDetailsProfile(pet) {
     const img = elem('img');
     img.src = `${assets}${filename}`;
     img.alt = `Selected illustration for ${pet.name}`;
-    if (pet.illustration_key === 'tarantula') img.classList.add('collection-art-tarantula');
+    if (['tarantula', 'red_knee_tarantula'].includes(pet.illustration_key)) img.classList.add('collection-art-tarantula');
     img.addEventListener('error', () => art.replaceChildren(elem('span', 'collection-pet-fallback', '◇')), {once:true});
     art.append(img);
   } else {
@@ -902,10 +907,10 @@ let addPetSaving = false;
 let addPetEnclosureRequest = 0;
 const illustrationChoices = [
   {key:null, label:'No Illustration', filename:null},
-  {key:'gecko', label:'Gecko', filename:approvedIllustrations.gecko},
-  {key:'python', label:'Python', filename:approvedIllustrations.python},
-  {key:'tarantula', label:'Tarantula', filename:approvedIllustrations.tarantula},
-  {key:'scorpion', label:'Scorpion', filename:approvedIllustrations.scorpion},
+  {key:'gecko', label:'Leopard Gecko', filename:approvedIllustrations.gecko},
+  {key:'ball_python', label:'Ball Python', filename:approvedIllustrations.ball_python},
+  {key:'red_knee_tarantula', label:'Red-Knee Tarantula', filename:approvedIllustrations.red_knee_tarantula},
+  {key:'asian_forest_scorpion', label:'Asian Forest Scorpion', filename:approvedIllustrations.asian_forest_scorpion},
   {key:'pacman_frog', label:'Pacman Frog', filename:approvedIllustrations.pacman_frog},
   {key:'corn_snake', label:'Corn Snake', filename:approvedIllustrations.corn_snake},
   {key:'bearded_dragon', label:'Bearded Dragon', filename:approvedIllustrations.bearded_dragon},
@@ -949,7 +954,7 @@ function populateAddPetIllustrations() {
       const image = elem('img');
       image.src = `${assets}${choice.filename}`;
       image.alt = '';
-      if (choice.key === 'tarantula') image.classList.add('collection-art-tarantula');
+      if (['tarantula', 'red_knee_tarantula'].includes(choice.key)) image.classList.add('collection-art-tarantula');
       art.append(image);
     } else art.append(elem('span', 'collection-pet-fallback', '◇'));
     button.append(art, elem('strong', null, choice.label));
